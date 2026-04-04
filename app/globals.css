@@ -1,27 +1,329 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ─── CSS Custom Properties — ReforLife Apple Style ─────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Marca ReforLife */
+  --primary:        #607eaa;
+  --primary-light:  #EEF2F8;
+  --primary-dark:   #1c3879;
+  --accent:         #26bbec;
+  --accent-light:   #E8F8FD;
+
+  /* App backgrounds */
+  --bg-app:     #F5F4F1;
+  --bg-card:    #FFFFFF;
+  --bg-sidebar: #FFFFFF;
+
+  /* Textos */
+  --text-primary:   #1A1A2E;
+  --text-secondary: #4A5568;
+  --text-muted:     #94A3B8;
+
+  /* Bordes */
+  --border:       #E8E8EC;
+  --border-light: #F2F2F5;
+
+  /* Tamaños */
+  --sidebar-width:    260px;
+  --bottomnav-height: 66px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ─── Base ───────────────────────────────────────────────────── */
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  /* Scrollbar Apple-style: casi invisible */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+}
+
+/* ─── Components ─────────────────────────────────────────────── */
+@layer components {
+
+  /* Card — Apple: fondo blanco, sombra muy suave, borde casi invisible */
+  .card {
+    background: #FFFFFF;
+    border-radius: 16px;
+    border: 1px solid #EBEBEF;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05);
+  }
+
+  /* Botón primario — azul ReforLife */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-button text-sm font-semibold
+           text-white active:scale-[0.98] transition-all duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    background: #607eaa;
+    box-shadow: 0 2px 8px rgba(96,126,170,0.35);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #4f6d99;
+    box-shadow: 0 4px 16px rgba(96,126,170,0.45);
+  }
+
+  /* Botón secundario */
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-button text-sm font-medium
+           active:scale-[0.98] transition-all duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    background: #FFFFFF;
+    border: 1px solid #E0E0E8;
+    color: #4A5568;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: #F8F8FB;
+    border-color: #C8C8D8;
+  }
+
+  /* Botón ghost */
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium
+           active:scale-[0.98] transition-all duration-150;
+    color: #64748B;
+  }
+  .btn-ghost:hover { background: rgba(96,126,170,0.07); color: #607eaa; }
+
+  /* Botón destructivo */
+  .btn-danger {
+    @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-button text-sm font-medium
+           active:scale-[0.98] transition-all duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    background: #FEE2E2;
+    color: #991B1B;
+    border: 1px solid #FECACA;
+  }
+  .btn-danger:hover:not(:disabled) { background: #FECaca; }
+
+  /* Input — Apple: fondo gris muy claro, sin sombra, azul al focus */
+  .input {
+    @apply w-full px-3.5 py-2.5 rounded-input text-sm transition-all duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    background: #F5F4F1;
+    border: 1px solid #E0E0E8;
+    color: #1A1A2E;
+  }
+  .input::placeholder { color: #9CA3AF; }
+  .input:focus {
+    outline: none;
+    background: #FFFFFF;
+    border-color: #607eaa;
+    box-shadow: 0 0 0 3px rgba(96,126,170,0.15);
+  }
+
+  /* Label */
+  .label {
+    @apply block text-xs font-semibold mb-1.5 uppercase tracking-wide;
+    color: #94A3B8;
+    letter-spacing: 0.06em;
+  }
+
+  /* Badge */
+  .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold; }
+  .badge-success { @apply badge; background:#D1FAE5; color:#065F46; }
+  .badge-danger  { @apply badge; background:#FEE2E2; color:#991B1B; }
+  .badge-warning { @apply badge; background:#FEF3C7; color:#92400E; }
+  .badge-primary { @apply badge; background:#EEF2F8; color:#1c3879; }
+  .badge-gray    { @apply badge; background:#F3F4F6; color:#4A5568; }
+
+  /* Icon container */
+  .icon-container {
+    @apply w-10 h-10 rounded-icon flex items-center justify-center flex-shrink-0;
+    background: #EEF2F8;
+    color: #607eaa;
+  }
+  .icon-container-success { @apply icon-container; background:#D1FAE5; color:#10B981; }
+  .icon-container-danger  { @apply icon-container; background:#FEE2E2; color:#EF4444; }
+  .icon-container-warning { @apply icon-container; background:#FEF3C7; color:#F59E0B; }
+  .icon-container-gray    { @apply icon-container; background:#F3F4F6; color:#9CA3AF; }
+
+  /* Nav item — sidebar */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
+           transition-all duration-150 cursor-pointer;
+    color: #64748B;
+  }
+  .nav-item:hover {
+    background: rgba(96,126,170,0.07);
+    color: #607eaa;
+  }
+  .nav-item-active {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold
+           transition-all duration-150 cursor-pointer;
+    background: #EEF2F8;
+    color: #1c3879;
+  }
+
+  /* Divisor */
+  .divider { border-top: 1px solid #F0F0F4; margin: 10px 0; }
+
+  /* Spinner */
+  .spinner {
+    @apply w-5 h-5 border-2 rounded-full animate-spin;
+    border-color: #E0E0E8;
+    border-top-color: #607eaa;
+  }
+
+  /* Modal overlay — Apple: blur sutil */
+  .modal-overlay {
+    @apply fixed inset-0 z-50 flex items-end sm:items-center justify-center animate-fade-in;
+    background: rgba(0,0,0,0.30);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* Panel modal */
+  .modal-panel {
+    @apply w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl animate-slide-up;
+    background: #FFFFFF;
+    border: 1px solid #EBEBEF;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.08);
+  }
+
+  /* Checkbox */
+  .checkbox-xl {
+    @apply w-5 h-5 rounded border-2 cursor-pointer transition-colors duration-150;
+    border-color: #D0D0DA;
+    accent-color: #607eaa;
+  }
+
+  /* Bottom nav */
+  .bottom-nav {
+    @apply fixed bottom-0 left-0 right-0 flex items-center justify-around px-2 z-40 pb-safe-bottom;
+    height: 66px;
+    background: rgba(255,255,255,0.92);
+    border-top: 1px solid #EBEBEF;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  .bottom-nav-item {
+    @apply flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-colors duration-150;
+    color: #9CA3AF;
+  }
+  .bottom-nav-item-active {
+    @apply bottom-nav-item;
+    color: #607eaa;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+/* ─── Animaciones globales premium ──────────────────────────── */
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes popIn {
+  0%   { opacity: 0; transform: scale(0.85); }
+  70%  { transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes shine {
+  0%   { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(300%) skewX(-15deg); }
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.12); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-4px); }
 }
 
+/* Cards con hover lift */
+.card {
+  transition: box-shadow 0.25s ease, transform 0.25s cubic-bezier(0.16,1,0.3,1) !important;
+}
+.card:hover {
+  box-shadow: 0 4px 20px rgba(96,126,170,0.14), 0 1px 4px rgba(0,0,0,0.08) !important;
+  transform: translateY(-1px);
+}
+
+/* Skeleton shimmer para estados de carga */
+.skeleton {
+  background: linear-gradient(90deg, #F0F0F5 25%, #E8E8F0 50%, #F0F0F5 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* Entrada suave para nuevos elementos */
+.animate-pop-in   { animation: popIn 0.35s cubic-bezier(0.16,1,0.3,1) both; }
+.animate-slide-in-left { animation: slideInLeft 0.3s cubic-bezier(0.16,1,0.3,1) both; }
+.animate-slide-in-up   { animation: slideInUp 0.35s cubic-bezier(0.16,1,0.3,1) both; }
+.animate-float         { animation: float 3s ease-in-out infinite; }
+
+/* ─── Utilities ──────────────────────────────────────────────── */
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .text-balance { text-wrap: balance; }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .scroll-smooth-ios { -webkit-overflow-scrolling: touch; }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
+
+  /* Modal de fichaje (pantalla completa) */
+  .fullscreen-modal {
+    @apply fixed inset-0 z-50 flex flex-col items-center justify-center p-6;
+    background: #FFFFFF;
+  }
+
+  /* Google Places Autocomplete — estilo limpio */
+  .pac-container {
+    z-index: 9999 !important;
+    background: #FFFFFF !important;
+    border-radius: 14px !important;
+    border: 1px solid #E0E0E8 !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12) !important;
+    margin-top: 6px;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+    overflow: hidden;
+  }
+  .pac-item {
+    padding: 10px 16px !important;
+    font-size: 0.875rem !important;
+    cursor: pointer !important;
+    border-top: 1px solid #F0F0F4 !important;
+    color: #4A5568 !important;
+  }
+  .pac-item:first-child { border-top: none !important; }
+  .pac-item:hover { background: #EEF2F8 !important; }
+  .pac-item-query { font-weight: 600 !important; color: #1A1A2E !important; }
+  .pac-matched { color: #607eaa !important; font-weight: 700 !important; }
+  .pac-icon { display: none !important; }
 }
