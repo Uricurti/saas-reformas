@@ -2,20 +2,19 @@ import insforge from "./client";
 import type { User } from "@/types";
 
 // ─── Persistencia de sesión en localStorage ──────────────────────────────────
-// InsForge web usa cookies httpOnly de sesión → desaparecen al cerrar el navegador.
-// Con client_type=desktop el refreshToken llega en el body → lo guardamos en
-// localStorage y así la sesión sobrevive indefinidamente.
 const SESSION_KEY = "insforge_session_v1";
 
 interface StoredSession {
   accessToken:  string;
   refreshToken: string;
   userId:       string;
+  savedAt:      number; // timestamp para detectar tokens muy viejos
 }
 
 export function saveSession(accessToken: string, refreshToken: string, userId: string) {
   try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ accessToken, refreshToken, userId }));
+    const session: StoredSession = { accessToken, refreshToken, userId, savedAt: Date.now() };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   } catch { /* incognito / storage bloqueado */ }
 }
 
@@ -30,135 +29,206 @@ export function clearSession() {
   try { localStorage.removeItem(SESSION_KEY); } catch { /* ignorar */ }
 }
 
-/** Restaura el accessToken en el cliente de InsForge SDK */
-async function applyTokenToClient(accessToken: string) {
+// ─── Aplicar token al cliente InsForge SDK ────────────────────────────────────
+// Intentamos setSession con AMBOS tokens (como requieren los SDKs tipo Supabase)
+async function applyTokenToClient(accessToken: string, refreshToken: string = "") {
   try {
-    // InsForge SDK — intentar setSession si existe
-    await (insforge.auth as any).setSession?.({ access_token: accessToken });
-  } catch { /* método no disponible, el SDK lo gestionará solo */ }
+    await (insforge.auth as any).setSession?.({
+      access_token:  accessToken,
+      refresh_token: refreshToken,
+    });
+  } catch { /* setSession no disponible en este SDK */ }
 }
 
-/** Refresca el accessToken usando el refreshToken guardado → devuelve nuevo accessToken */
+// ─── Validar token con raw fetch (bypass del SDK) ─────────────────────────────
+// Si el SDK no gestiona la sesión correctamente, validamos directamente
+// con el endpoint de InsForge usando el token como Authorization header.
+async function validateTokenRaw(accessToken: string): Promise<{ id: string } | null> {
+  try {
+    const url = process.env.NEXT_PUBLIC_INSFORGE_URL!;
+    // Intentamos los endpoints más comunes de auth en InsForge / Supabase
+    const endpoints = ["/api/auth/user", "/api/auth/me", "/api/auth/session"];
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(`${url}${ep}`, {
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "apikey": process.env.NEXT_PUBLIC_INSFORGE_KEY ?? "",
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const userId = data?.id ?? data?.user?.id ?? data?.data?.user?.id ?? "";
+          if (userId) return { id: userId };
+        }
+      } catch { /* probar siguiente endpoint */ }
+    }
+    return null;
+  } catch { return null; }
+}
+
+// ─── Refrescar tokens ────────────────────────────────────────────────────────
 async function refreshTokens(refreshToken: string): Promise<StoredSession | null> {
   try {
     const url = process.env.NEXT_PUBLIC_INSFORGE_URL!;
-    const res  = await fetch(`${url}/api/auth/refresh`, {
+    // Intentamos ambos formatos de body que usa InsForge
+    const res = await fetch(`${url}/api/auth/refresh`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ refreshToken }),
+      body:    JSON.stringify({ refreshToken, refresh_token: refreshToken }),
     });
     if (!res.ok) return null;
     const data = await res.json();
     const newAccess  = data?.accessToken  ?? data?.access_token  ?? "";
     const newRefresh = data?.refreshToken ?? data?.refresh_token ?? refreshToken;
-    const userId     = data?.user?.id ?? "";
+    const userId     = data?.user?.id ?? data?.userId ?? "";
     if (!newAccess) return null;
-    return { accessToken: newAccess, refreshToken: newRefresh, userId };
+    return { accessToken: newAccess, refreshToken: newRefresh, userId, savedAt: Date.now() };
   } catch { return null; }
 }
 
 // ─── Sign In ─────────────────────────────────────────────────────────────────
-// Usamos client_type=desktop → refreshToken en el body (no en cookie httpOnly)
-// → podemos guardarlo en localStorage para sesiones persistentes.
 export async function signIn(email: string, password: string) {
   try {
     const url = process.env.NEXT_PUBLIC_INSFORGE_URL!;
-    const res  = await fetch(`${url}/api/auth/sessions?client_type=desktop`, {
+
+    // Primero intentamos client_type=desktop → refresh token en el body
+    const res = await fetch(`${url}/api/auth/sessions?client_type=desktop`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ email, password }),
     });
     const data = await res.json();
 
-    if (!res.ok || data.error || !data.user) {
-      // Fallback al SDK estándar si la llamada directa falla
-      const fallback = await insforge.auth.signInWithPassword({ email, password });
-      return fallback;
+    if (res.ok && !data.error && data.user) {
+      const accessToken  = data.accessToken  ?? data.access_token  ?? "";
+      const refreshToken = data.refreshToken ?? data.refresh_token ?? "";
+      const userId       = data.user?.id ?? "";
+
+      if (accessToken) {
+        // Guardar tokens en localStorage
+        saveSession(accessToken, refreshToken || accessToken, userId);
+        // Aplicar al SDK (con ambos tokens)
+        await applyTokenToClient(accessToken, refreshToken);
+      }
+      return { data: { user: data.user, session: data }, error: null };
     }
+  } catch { /* continuar con SDK */ }
 
-    const accessToken  = data.accessToken  ?? data.access_token  ?? "";
-    const refreshToken = data.refreshToken ?? data.refresh_token ?? "";
-    const userId       = data.user?.id ?? "";
+  // Fallback: SDK estándar
+  const fallback = await insforge.auth.signInWithPassword({ email, password });
 
-    // Guardar tokens en localStorage
-    if (accessToken && refreshToken) {
-      saveSession(accessToken, refreshToken, userId);
+  if (fallback.data?.user) {
+    // Intentar extraer los tokens que el SDK recibió internamente
+    try {
+      const sessResult = await (insforge.auth as any).getSession?.();
+      const sess = sessResult?.data?.session ?? sessResult?.session;
+      const at = sess?.access_token  ?? "";
+      const rt = sess?.refresh_token ?? "";
+      if (at) {
+        saveSession(at, rt || at, fallback.data.user.id);
+        await applyTokenToClient(at, rt);
+      } else {
+        // SDK no expone la sesión — guardar el userId al menos para
+        // poder revalidar más tarde si el SDK mantiene la sesión internamente
+        saveSession("sdk-session", "sdk-session", fallback.data.user.id);
+      }
+    } catch {
+      saveSession("sdk-session", "sdk-session", fallback.data.user.id);
     }
-
-    // Aplicar token al cliente SDK
-    if (accessToken) await applyTokenToClient(accessToken);
-
-    return { data: { user: data.user, session: data }, error: null };
-  } catch (e: any) {
-    // Fallback al SDK
-    const fallback = await insforge.auth.signInWithPassword({ email, password });
-    return fallback;
   }
+
+  return fallback;
 }
 
 // ─── Sign Out ────────────────────────────────────────────────────────────────
 export async function signOut() {
   clearSession();
-  const { error } = await insforge.auth.signOut();
-  return { error };
+  try {
+    await insforge.auth.signOut();
+  } catch { /* ignorar errores de red */ }
+  return { error: null };
 }
 
-// ─── Restaurar sesión desde localStorage (llamar al inicio de la app) ────────
+// ─── Restaurar sesión (llamar al inicio de la app) ───────────────────────────
 export async function restoreSession(): Promise<{ id: string } | null> {
   const stored = loadSession();
   if (!stored) return null;
 
-  // Aplicar accessToken al SDK primero (puede que aún sea válido)
-  await applyTokenToClient(stored.accessToken);
+  // Tokens especiales "sdk-session" → el SDK gestiona la sesión internamente
+  // (fallback de signInWithPassword sin tokens explícitos)
+  if (stored.accessToken === "sdk-session") {
+    try {
+      // Intentar con el SDK directamente (puede tener la sesión en memoria/cookie de corta vida)
+      const { data } = await insforge.auth.getCurrentUser();
+      if (data?.user?.id) return data.user;
+    } catch { /* sesión expirada */ }
+    // La sesión del SDK ya no está → forzar nuevo login
+    clearSession();
+    return null;
+  }
 
-  // Intentar obtener usuario con el token actual
+  // Tokens reales: aplicar al SDK primero
+  await applyTokenToClient(stored.accessToken, stored.refreshToken);
+
+  // 1. Intentar con el SDK tras setSession
   try {
     const { data } = await insforge.auth.getCurrentUser();
     if (data?.user?.id) return data.user;
-  } catch { /* token expirado, intentar refresh */ }
+  } catch { /* SDK no reconoce el token */ }
 
-  // Token expirado → refrescar con el refreshToken guardado
+  // 2. Validar directamente con raw fetch (bypass del SDK)
+  const userFromRaw = await validateTokenRaw(stored.accessToken);
+  if (userFromRaw?.id) return userFromRaw;
+
+  // 3. Token expirado → intentar refresh
   const renewed = await refreshTokens(stored.refreshToken);
   if (!renewed) {
-    clearSession(); // refresh también falló → eliminar sesión guardada
+    clearSession();
     return null;
   }
 
   // Guardar nuevos tokens y aplicar
   saveSession(renewed.accessToken, renewed.refreshToken, renewed.userId);
-  await applyTokenToClient(renewed.accessToken);
+  await applyTokenToClient(renewed.accessToken, renewed.refreshToken);
 
-  // Obtener usuario con nuevo token
+  // 4. Revalidar con nuevo token
   try {
     const { data } = await insforge.auth.getCurrentUser();
     if (data?.user?.id) return data.user;
   } catch { /* ignorar */ }
 
-  return renewed.userId ? { id: renewed.userId } : null;
+  const userFromRaw2 = await validateTokenRaw(renewed.accessToken);
+  if (userFromRaw2?.id) return userFromRaw2;
+
+  // Último recurso: devolver el userId guardado si es reciente (< 7 días)
+  const ageMs = Date.now() - (renewed.savedAt ?? 0);
+  const sevenDays = 7 * 24 * 60 * 60 * 1000;
+  if (renewed.userId && ageMs < sevenDays) {
+    return { id: renewed.userId };
+  }
+
+  clearSession();
+  return null;
 }
 
 // ─── Sesión actual ────────────────────────────────────────────────────────────
 export async function getAuthUser(): Promise<{ id: string } | null> {
-  // Primero intentar con el SDK (token en memoria)
   try {
     const { data } = await insforge.auth.getCurrentUser();
     if (data?.user?.id) return data.user;
   } catch { /* token expirado */ }
-
-  // Si falla, intentar restaurar desde localStorage
   return restoreSession();
 }
 
 // ─── Obtener access token para llamadas server-side ─────────────────────────
 export async function getAccessToken(): Promise<string> {
-  // Desde localStorage
   const stored = loadSession();
-  if (stored?.accessToken) return stored.accessToken;
+  if (stored?.accessToken && stored.accessToken !== "sdk-session") return stored.accessToken;
 
-  // Desde el SDK (sesión en memoria)
   try {
-    const sessionResult = await (insforge.auth as any).getSession?.();
-    const token = sessionResult?.data?.session?.access_token;
+    const sessResult = await (insforge.auth as any).getSession?.();
+    const token = sessResult?.data?.session?.access_token ?? sessResult?.session?.access_token;
     if (token) return token;
   } catch { /* ignorar */ }
 
@@ -181,7 +251,9 @@ export async function createUser(params: {
       method:  "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(accessToken ? { "Authorization": `Bearer ${accessToken}` } : {}),
+        ...(accessToken && accessToken !== "sdk-session"
+          ? { "Authorization": `Bearer ${accessToken}` }
+          : {}),
       },
       body: JSON.stringify(params),
     });

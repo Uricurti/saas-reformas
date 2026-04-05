@@ -47,14 +47,20 @@ export const useAuthStore = create<AuthState>()(
             .then(async (authUser) => {
               if (authUser?.id) {
                 // Sesión válida — actualizar perfil por si ha cambiado
-                const profile = await getUserProfile(authUser.id);
-                if (profile) set({ user: profile });
+                try {
+                  const profile = await getUserProfile(authUser.id);
+                  if (profile) {
+                    set({ user: profile, sessionVerified: true });
+                    return;
+                  }
+                } catch { /* error de red → mantener usuario cacheado */ }
+                // getUserProfile falló pero el token es válido → mantener usuario de localStorage
+                set({ sessionVerified: true });
               } else {
                 // Refresh también falló → la sesión expiró de verdad
                 clearSession();
-                set({ user: null });
+                set({ user: null, sessionVerified: true });
               }
-              set({ sessionVerified: true });
             })
             .catch(() => {
               // Error de red → mantener usuario de localStorage para modo offline
