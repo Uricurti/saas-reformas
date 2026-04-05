@@ -5,7 +5,6 @@ import type { ObraConAsignados } from "@/types";
 import { Building2, MapPin, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { initials } from "@/lib/utils/format";
-import { DireccionLink } from "@/components/ui/DireccionLink";
 
 interface Props {
   obra: ObraConAsignados;
@@ -40,11 +39,20 @@ export function ObraCard({ obra, onUpdate }: Props) {
 
         <div className="flex items-center gap-1 text-sm text-content-secondary mb-3">
           <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-content-muted" />
-          <DireccionLink
-            direccion={obra.direccion}
-            showExternalIcon
-            className="truncate text-content-secondary text-sm"
-          />
+          {/* span en lugar de <a> para evitar <a> anidado dentro del <Link> padre */}
+          <span
+            className="truncate text-content-secondary text-sm hover:text-primary cursor-pointer transition-colors"
+            title="Abrir en Google Maps"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (obra.direccion) {
+                window.open(`https://maps.google.com/?q=${encodeURIComponent(obra.direccion)}`, "_blank");
+              }
+            }}
+          >
+            {obra.direccion}
+          </span>
         </div>
 
         {/* Avatares de asignados */}
