@@ -2,25 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Calendar, ShoppingCart, Camera, Bell, Calculator } from "lucide-react";
+import { Building2, Calendar, ShoppingCart, Camera, Bell, Calculator, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsAdmin } from "@/lib/stores/auth-store";
 import { useNotificacionesStore } from "@/lib/stores/notificaciones-store";
 
 const navEmpleado = [
-  { href: "/obras",          label: "Obras",    icon: Building2 },
-  { href: "/calendario",     label: "Equipo",   icon: Calendar },
-  { href: "/materiales",     label: "Material", icon: ShoppingCart },
-  { href: "/fotos",          label: "Fotos",    icon: Camera },
-  { href: "/notificaciones", label: "Avisos",   icon: Bell },
+  { href: "/obras",          label: "Obras",      icon: Building2 },
+  { href: "/calendario",     label: "Calendario", icon: Calendar },
+  { href: "/materiales",     label: "Material",   icon: ShoppingCart },
+  { href: "/fotos",          label: "Fotos",      icon: Camera },
+  { href: "/notificaciones", label: "Avisos",     icon: Bell },
 ];
 
 const navAdmin = [
-  { href: "/obras",          label: "Obras",    icon: Building2 },
-  { href: "/materiales",     label: "Material", icon: ShoppingCart },
-  { href: "/calendario",     label: "Equipo",   icon: Calendar },
-  { href: "/jornales",       label: "Jornales", icon: Calculator },
-  { href: "/notificaciones", label: "Avisos",   icon: Bell },
+  { href: "/obras",          label: "Obras",      icon: Building2 },
+  { href: "/materiales",     label: "Material",   icon: ShoppingCart },
+  { href: "/calendario",     label: "Calendario", icon: Calendar },
+  { href: "/equipo",         label: "Equipo",     icon: Users },
+  { href: "/notificaciones", label: "Avisos",     icon: Bell },
 ];
 
 export function BottomNav() {
