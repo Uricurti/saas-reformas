@@ -273,7 +273,13 @@ function DayPanel({
 
   function iniciarEdicion(userId: string, asig?: AsignacionConUsuario) {
     setEditando(userId);
-    setModoLibre((asig as any)?.es_libre === true);
+    // Si hay asignación explícita: respetar su estado
+    // Si no hay asignación en finde: empezar en modo libre (es el estado por defecto)
+    // Si no hay asignación entre semana: empezar en modo asignar obra
+    const defaultLibre = asig
+      ? (asig as any).es_libre === true
+      : esFinde;
+    setModoLibre(defaultLibre);
     setObraId(asig?.obra_id ?? "");
     setHora((asig as any)?.hora_inicio ?? "");
     setNota((asig as any)?.nota ?? "");
@@ -392,7 +398,15 @@ function DayPanel({
         <div>
           <p className="font-semibold text-content-primary capitalize">{diasLabel}</p>
           <p className="text-xs text-content-muted">
-            {esFinde ? "🏖️ Fin de semana" : `${asigs.length} trabajador${asigs.length !== 1 ? "es" : ""} asignado${asigs.length !== 1 ? "s" : ""}`}
+            {esFinde
+              ? (() => {
+                  // Contar quiénes trabajan excepcionalmente este finde
+                  const trabajando = asigs.filter(a => !(a as any).es_libre && a.obra_id);
+                  return trabajando.length > 0
+                    ? `🏗️ ${trabajando.length} trabajando excepcionalmente`
+                    : "🏖️ Fin de semana — todos libres";
+                })()
+              : `${asigs.length} trabajador${asigs.length !== 1 ? "es" : ""} asignado${asigs.length !== 1 ? "s" : ""}`}
           </p>
         </div>
       </div>
@@ -418,12 +432,14 @@ function DayPanel({
                   <p className="text-sm font-medium text-content-primary">{user.nombre}</p>
                   {asig ? (
                     (asig as any).es_libre ? (
+                      // Libre explícito (asignación guardada)
                       <div className="flex items-center gap-1 text-xs text-amber-600 font-medium">
                         <span>🏖️</span>
                         <span>Libre</span>
                         {(asig as any).nota && <span className="text-content-muted font-normal ml-1">· {(asig as any).nota}</span>}
                       </div>
                     ) : (
+                      // Asignado a obra
                       <div className="flex items-center gap-1 text-xs text-content-muted">
                         <Building2 className="w-3 h-3" />
                         <span className="truncate">{(asig as any).obra?.nombre ?? "Obra"}</span>
@@ -432,8 +448,15 @@ function DayPanel({
                         )}
                       </div>
                     )
+                  ) : esFinde ? (
+                    // Fin de semana sin asignación → libre por defecto
+                    <div className="flex items-center gap-1 text-xs text-amber-500 font-medium">
+                      <span>🏖️</span>
+                      <span>Libre</span>
+                    </div>
                   ) : (
-                    <p className="text-xs text-content-muted italic">{esFinde ? "Día libre" : "Sin asignación"}</p>
+                    // Entre semana sin asignación
+                    <p className="text-xs text-content-muted italic">Sin asignación</p>
                   )}
                 </div>
 
