@@ -25,7 +25,8 @@ export async function getAuthUser(): Promise<{ id: string } | null> {
 }
 
 // ─── Crear usuario (solo admin) ──────────────────────────────────────────────
-// Usa una API Route server-side con service key para no afectar la sesión del admin
+// Usa una API Route server-side con service key para no afectar la sesión del admin.
+// Pasa el JWT del admin para que la DB pueda evaluar is_admin() correctamente.
 export async function createUser(params: {
   nombre: string;
   email: string;
@@ -35,9 +36,27 @@ export async function createUser(params: {
   tarifa_diaria?: number;
 }) {
   try {
+    // Obtener el access token del admin para pasarlo al servidor
+    let accessToken = "";
+    try {
+      const sessionResult = await (insforge.auth as any).getSession?.();
+      accessToken = sessionResult?.data?.session?.access_token ?? "";
+    } catch { /* getSession no disponible */ }
+
+    // Si getSession no funciona, intentar con getCurrentUser (menos fiable)
+    if (!accessToken) {
+      try {
+        const { data } = await insforge.auth.getCurrentUser();
+        accessToken = (data as any)?.session?.access_token ?? "";
+      } catch { /* ignorar */ }
+    }
+
     const res = await fetch("/api/admin/create-user", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(accessToken ? { "Authorization": `Bearer ${accessToken}` } : {}),
+      },
       body: JSON.stringify(params),
     });
 
