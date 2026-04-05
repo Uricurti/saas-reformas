@@ -153,8 +153,9 @@ export default function CalendarioPage() {
               const finde    = esFinDeSemana(dia);
               const esHoy    = fechaStr === hoy;
               const sel      = diaSeleccionado === fechaStr;
-              const asigsDia = asignaciones[fechaStr] ?? [];
-              const numAsigs = asigsDia.length;
+              const asigsDia      = asignaciones[fechaStr] ?? [];
+              const asigsActivas  = asigsDia.filter(a => !(a as any).es_libre); // excluir libres
+              const numAsigs      = asigsActivas.length;
 
               return (
                 <button
@@ -179,30 +180,25 @@ export default function CalendarioPage() {
                     <div className="hidden md:block text-[9px] text-gray-400 uppercase font-medium px-0.5">Libre</div>
                   )}
 
-                  {/* Dots (móvil) */}
+                  {/* Dots (móvil) — solo trabajadores activos ese día */}
                   {delMes && numAsigs > 0 && (
                     <div className="flex flex-wrap gap-0.5 md:hidden">
-                      {asigsDia.slice(0, 4).map(a => (
+                      {asigsActivas.slice(0, 4).map(a => (
                         <span key={a.id} className={cn("w-1.5 h-1.5 rounded-full", colorPorUser[a.user_id]?.dot ?? "bg-gray-400")} />
                       ))}
                       {numAsigs > 4 && <span className="text-[9px] text-content-muted">+{numAsigs - 4}</span>}
                     </div>
                   )}
 
-                  {/* Chips (desktop) */}
+                  {/* Chips (desktop) — solo trabajadores activos ese día */}
                   {delMes && numAsigs > 0 && (
                     <div className="hidden md:flex flex-col gap-0.5">
-                      {asigsDia.slice(0, 3).map(a => {
+                      {asigsActivas.slice(0, 3).map(a => {
                         const c = colorPorUser[a.user_id];
-                        const esLibre = (a as any).es_libre;
                         return (
-                          <div key={a.id} className={cn(
-                            "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate",
-                            esLibre ? "bg-amber-100 text-amber-700" : cn(c?.bg, c?.text)
-                          )}>
-                            {esLibre ? <span>🏖️</span> : null}
+                          <div key={a.id} className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate", c?.bg, c?.text)}>
                             <span className="truncate">{a.user?.nombre?.split(" ")[0] ?? "—"}</span>
-                            {!esLibre && (a as any).hora_inicio && <Clock className="w-2.5 h-2.5 flex-shrink-0 opacity-60" />}
+                            {(a as any).hora_inicio && <Clock className="w-2.5 h-2.5 flex-shrink-0 opacity-60" />}
                           </div>
                         );
                       })}
