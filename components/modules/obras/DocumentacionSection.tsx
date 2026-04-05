@@ -60,20 +60,23 @@ function Visor({
   onClose: () => void;
 }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const [cargando, setCargando]   = useState(true);
   const [errorCarga, setErrorCarga] = useState(false);
+  // Para PDFs en móvil el iframe puede no renderizar → detectar y mostrar fallback
+  const [pdfFallback, setPdfFallback] = useState(false);
 
   const esImagen = isImagen(doc.nombre);
   const esPDF    = isPDF(doc.nombre);
 
-  // Cargar el archivo con auth al abrir el visor
   useEffect(() => {
     let url: string | null = null;
     setCargando(true);
     setErrorCarga(false);
     setBlobUrl(null);
+    setPdfFallback(false);
 
-    getStorageBlobUrl(doc.url_storage).then((result) => {
+    // Pasamos el nombre del fichero para forzar el MIME type correcto
+    getStorageBlobUrl(doc.url_storage, doc.nombre).then((result) => {
       if (result) {
         url = result;
         setBlobUrl(result);
@@ -83,140 +86,136 @@ function Visor({
       setCargando(false);
     });
 
-    return () => {
-      // Liberar memoria al cerrar el visor
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [doc.url_storage]);
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [doc.url_storage, doc.nombre]);
 
-  // Cerrar con Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  // Descargar el archivo
   function descargar() {
     if (!blobUrl) return;
     const a = document.createElement("a");
-    a.href = blobUrl;
+    a.href   = blobUrl;
     a.download = doc.nombre;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col"
-      style={{ background: "rgba(0,0,0,0.96)" }}
-    >
-      {/* Barra superior */}
-      <div
-        className="flex items-center gap-3 px-4 py-3 flex-shrink-0"
-        style={{ background: "rgba(0,0,0,0.6)" }}
-      >
+    <div className="fixed inset-0 z-50 flex flex-col bg-black">
+
+      {/* ── Barra superior ─────────────────────────────────────── */}
+      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0 bg-black/70">
         <div className="flex-1 min-w-0">
           <p className="text-white font-semibold text-sm truncate">{doc.nombre}</p>
           <p className="text-white/50 text-xs">
             {categoriaEmoji(doc.categoria)} {categoriaLabel(doc.categoria)} · {formatBytes(doc.tamano_bytes)}
           </p>
         </div>
+
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Botón descargar */}
-          <button
-            onClick={descargar}
-            disabled={!blobUrl}
-            className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white disabled:opacity-30 transition-colors"
-            title="Descargar"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-          {/* Botón cerrar */}
+          {blobUrl && (
+            <button
+              onClick={descargar}
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              title="Descargar"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={onClose}
             className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors"
-            title="Cerrar"
+            title="Cerrar (Esc)"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
       </div>
 
-      {/* Contenido */}
-      <div className="flex-1 overflow-hidden flex items-center justify-center">
+      {/* ── Contenido ──────────────────────────────────────────── */}
+      <div className="flex-1 min-h-0 relative">
+
         {/* Cargando */}
         {cargando && (
-          <div className="flex flex-col items-center gap-3 text-white/60">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/60">
             <Loader2 className="w-10 h-10 animate-spin" />
-            <p className="text-sm">Cargando documento...</p>
+            <p className="text-sm">Cargando archivo...</p>
           </div>
         )}
 
-        {/* Error */}
+        {/* Error al cargar */}
         {!cargando && errorCarga && (
-          <div className="flex flex-col items-center gap-4 text-center p-8">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-8 text-center">
             <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center">
               {getFileIcon(doc.nombre)}
             </div>
             <p className="text-white font-medium">{doc.nombre}</p>
-            <p className="text-white/50 text-sm">No se pudo cargar el archivo</p>
+            <p className="text-white/50 text-sm">No se pudo cargar el archivo. Comprueba la conexión.</p>
           </div>
         )}
 
-        {/* Imagen */}
+        {/* ── IMAGEN ───────────────────────────────────────────── */}
         {!cargando && !errorCarga && blobUrl && esImagen && (
-          <div className="w-full h-full overflow-auto flex items-center justify-center p-4">
+          <div className="absolute inset-0 flex items-center justify-center p-4 overflow-auto">
             <img
               src={blobUrl}
               alt={doc.nombre}
-              style={{
-                maxWidth: "100%",
-                maxHeight: "100%",
-                objectFit: "contain",
-              }}
+              className="max-w-full max-h-full object-contain select-none"
+              draggable={false}
             />
           </div>
         )}
 
-        {/* PDF */}
-        {!cargando && !errorCarga && blobUrl && esPDF && (
-          <div className="w-full h-full flex flex-col">
-            <object
-              data={blobUrl}
-              type="application/pdf"
-              className="w-full flex-1 border-0"
+        {/* ── PDF ──────────────────────────────────────────────── */}
+        {!cargando && !errorCarga && blobUrl && esPDF && !pdfFallback && (
+          <iframe
+            key={blobUrl}             /* forzar re-mount si cambia el URL */
+            src={blobUrl}
+            title={doc.nombre}
+            className="absolute inset-0 w-full h-full border-0"
+            onError={() => setPdfFallback(true)}
+          />
+        )}
+
+        {/* Fallback PDF (iOS Safari / navegadores sin visor PDF nativo) */}
+        {!cargando && !errorCarga && blobUrl && esPDF && pdfFallback && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 p-8 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-red-500/20 flex items-center justify-center">
+              <FileText className="w-8 h-8 text-red-400" />
+            </div>
+            <div>
+              <p className="text-white font-semibold text-lg mb-1">{doc.nombre}</p>
+              <p className="text-white/60 text-sm">Tu navegador no puede mostrar PDFs en pantalla.<br/>Ábrelo para verlo.</p>
+            </div>
+            <a
+              href={blobUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-6 py-3 bg-white text-gray-900 rounded-full font-semibold text-sm hover:bg-gray-100 transition-colors"
             >
-              {/* Fallback si el navegador no puede mostrar el PDF (común en iOS) */}
-              <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center">
-                  <FileText className="w-8 h-8 text-red-400" />
-                </div>
-                <p className="text-white font-medium">{doc.nombre}</p>
-                <p className="text-white/60 text-sm">
-                  Este navegador no puede mostrar PDFs directamente.
-                </p>
-                <button
-                  onClick={descargar}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-gray-900 rounded-full font-medium text-sm hover:bg-gray-100 transition-colors"
-                >
-                  <Download className="w-4 h-4" /> Descargar PDF
-                </button>
-              </div>
-            </object>
+              <FileText className="w-4 h-4" /> Abrir PDF
+            </a>
           </div>
         )}
 
-        {/* Otros tipos (DWG, DOC, XLS...) */}
+        {/* ── Otros formatos (DWG, DOC, XLS…) ─────────────────── */}
         {!cargando && !errorCarga && blobUrl && !esImagen && !esPDF && (
-          <div className="flex flex-col items-center gap-4 text-center p-8">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 p-8 text-center">
             <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center">
               {getFileIcon(doc.nombre)}
             </div>
-            <p className="text-white font-medium">{doc.nombre}</p>
-            <p className="text-white/50 text-sm">Este formato no tiene previsualización</p>
+            <div>
+              <p className="text-white font-semibold text-lg mb-1">{doc.nombre}</p>
+              <p className="text-white/60 text-sm">Este formato no tiene previsualización en el navegador.</p>
+            </div>
             <button
               onClick={descargar}
-              className="flex items-center gap-2 px-5 py-2.5 bg-white text-gray-900 rounded-full font-medium text-sm hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-2 px-6 py-3 bg-white text-gray-900 rounded-full font-semibold text-sm hover:bg-gray-100 transition-colors"
             >
               <Download className="w-4 h-4" /> Descargar
             </button>

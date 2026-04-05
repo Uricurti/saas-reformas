@@ -15,14 +15,43 @@ export function extractStoragePath(urlOrPath: string): string {
   return urlOrPath;
 }
 
-// ─── Obtener URL visualizable (blob) usando el SDK con auth ──────────────────
-// Usar esto para mostrar documentos/imágenes en el visor.
-export async function getStorageBlobUrl(storedUrl: string): Promise<string | null> {
+// Mapa de extensiones → MIME type correcto
+const MIME_TYPES: Record<string, string> = {
+  pdf:  "application/pdf",
+  png:  "image/png",
+  jpg:  "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif:  "image/gif",
+  svg:  "image/svg+xml",
+  dwg:  "application/acad",
+  dxf:  "application/dxf",
+  doc:  "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls:  "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+
+// ─── Obtener blob URL con el MIME type correcto ───────────────────────────────
+// InsForge devuelve el blob como application/octet-stream (genérico).
+// Forzamos el tipo correcto a partir del nombre del fichero para que el
+// navegador sepa renderizarlo en vez de descargarlo.
+export async function getStorageBlobUrl(
+  storedUrl: string,
+  fileName: string = ""
+): Promise<string | null> {
   try {
     const path = extractStoragePath(storedUrl);
     const { data, error } = await insforge.storage.from(BUCKET).download(path);
     if (error || !data) return null;
-    return URL.createObjectURL(data);
+
+    // Detectar MIME type por extensión del nombre del fichero
+    const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+    const mimeType = MIME_TYPES[ext] ?? data.type ?? "application/octet-stream";
+
+    // Re-crear el blob con el tipo correcto (el SDK lo devuelve como octet-stream)
+    const typedBlob = new Blob([await data.arrayBuffer()], { type: mimeType });
+    return URL.createObjectURL(typedBlob);
   } catch {
     return null;
   }
