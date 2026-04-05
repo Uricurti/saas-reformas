@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { User } from "@/types";
-import { signIn, signOut, getUserProfile, getAuthUser } from "@/lib/insforge/auth";
+import { signIn, signOut, getUserProfile, getAuthUser, restoreSession, clearSession } from "@/lib/insforge/auth";
 
 interface AuthState {
   user: User | null;
@@ -41,21 +41,26 @@ export const useAuthStore = create<AuthState>()(
 
         const currentUser = get().user;
         if (currentUser) {
-          getAuthUser()
+          // Intentar restaurar sesión desde localStorage (refreshToken guardado)
+          // o desde la cookie httpOnly (sesión en memoria del SDK)
+          restoreSession()
             .then(async (authUser) => {
-              if (!authUser?.id) {
-                set({ user: null, sessionVerified: true });
-                return;
+              if (authUser?.id) {
+                // Sesión válida — actualizar perfil por si ha cambiado
+                const profile = await getUserProfile(authUser.id);
+                if (profile) set({ user: profile });
+              } else {
+                // Refresh también falló → la sesión expiró de verdad
+                clearSession();
+                set({ user: null });
               }
-              const profile = await getUserProfile(authUser.id);
-              if (profile) set({ user: profile });
               set({ sessionVerified: true });
             })
             .catch(() => {
-              set({ sessionVerified: true }); // offline → unlock anyway
+              // Error de red → mantener usuario de localStorage para modo offline
+              set({ sessionVerified: true });
             });
         } else {
-          // No user in localStorage → already verified (no session)
           set({ sessionVerified: true });
         }
       },
@@ -97,7 +102,8 @@ export const useAuthStore = create<AuthState>()(
       logout: async () => {
         set({ isLoading: true });
         try { await signOut(); } catch { /* ignorar errores de red */ }
-        set({ user: null, isLoading: false, isInitialized: true, error: null });
+        clearSession();
+        set({ user: null, isLoading: false, isInitialized: true, error: null, sessionVerified: false });
       },
 
       setUser: (user) => set({ user }),
