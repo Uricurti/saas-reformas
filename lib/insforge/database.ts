@@ -99,11 +99,14 @@ export async function getAsignacionHoyByUser(userId: string): Promise<Obra | nul
 }
 
 export async function createAsignacion(
-  obraId: string, userId: string, fechaInicio: string,
-  fechaFin?: string, horaInicio?: string, nota?: string,
+  obraId: string | null, userId: string, fechaInicio: string,
+  fechaFin?: string, horaInicio?: string, nota?: string, esLibre?: boolean,
 ) {
   const payload: Record<string, any> = {
-    obra_id: obraId, user_id: userId, fecha_inicio: fechaInicio,
+    user_id: userId,
+    fecha_inicio: fechaInicio,
+    es_libre: esLibre ?? false,
+    ...(obraId     ? { obra_id:     obraId }     : {}),
     ...(fechaFin   ? { fecha_fin:   fechaFin }   : {}),
     ...(horaInicio ? { hora_inicio: horaInicio } : {}),
     ...(nota       ? { nota }                    : {}),
@@ -111,7 +114,9 @@ export async function createAsignacion(
   const result = await insforge.database.from("asignaciones").insert(payload).select().single();
   // Si las columnas opcionales no existen aún, reintentar sin ellas
   if ((result as any).error?.code === "PGRST204") {
-    const base = { obra_id: obraId, user_id: userId, fecha_inicio: fechaInicio, ...(fechaFin ? { fecha_fin: fechaFin } : {}) };
+    const base: Record<string, any> = { user_id: userId, fecha_inicio: fechaInicio, es_libre: esLibre ?? false };
+    if (obraId) base.obra_id = obraId;
+    if (fechaFin) base.fecha_fin = fechaFin;
     return insforge.database.from("asignaciones").insert(base).select().single();
   }
   return result;
@@ -119,7 +124,7 @@ export async function createAsignacion(
 
 export async function updateAsignacion(
   id: string,
-  params: { obra_id?: string; hora_inicio?: string; nota?: string; fecha_fin?: string },
+  params: { obra_id?: string | null; hora_inicio?: string; nota?: string; fecha_fin?: string; es_libre?: boolean },
 ) {
   return insforge.database.from("asignaciones").update(params).eq("id", id).select().single();
 }

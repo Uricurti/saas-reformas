@@ -53,12 +53,13 @@ export interface ObraConAsignados extends Obra {
 // ─── Asignación ───────────────────────────────────────────────────────────
 export interface Asignacion {
   id: string;
-  obra_id: string;
+  obra_id: string | null;  // null cuando es_libre = true
   user_id: string;
   fecha_inicio: string;
   fecha_fin?: string;
-  hora_inicio?: string; // "HH:MM" — requiere migración 001
-  nota?: string;        // nota opcional — requiere migración 001
+  hora_inicio?: string;    // "HH:MM" — requiere migración 001
+  nota?: string;           // nota opcional — requiere migración 001
+  es_libre?: boolean;      // día libre — requiere migración 003
   created_at: string;
 }
 

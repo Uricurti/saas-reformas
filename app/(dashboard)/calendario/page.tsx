@@ -8,7 +8,7 @@ import {
 } from "@/lib/insforge/database";
 import type { AsignacionConUsuario, User, Obra } from "@/types";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { ChevronLeft, ChevronRight, Building2, Edit3, Plus, Check, X, Clock, Bell, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Building2, Edit3, Plus, Check, X, Clock, Bell, Loader2, Sunset } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isoDate } from "@/lib/utils/format";
 import {
@@ -194,10 +194,15 @@ export default function CalendarioPage() {
                     <div className="hidden md:flex flex-col gap-0.5">
                       {asigsDia.slice(0, 3).map(a => {
                         const c = colorPorUser[a.user_id];
+                        const esLibre = (a as any).es_libre;
                         return (
-                          <div key={a.id} className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate", c?.bg, c?.text)}>
+                          <div key={a.id} className={cn(
+                            "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate",
+                            esLibre ? "bg-amber-100 text-amber-700" : cn(c?.bg, c?.text)
+                          )}>
+                            {esLibre ? <span>🏖️</span> : null}
                             <span className="truncate">{a.user?.nombre?.split(" ")[0] ?? "—"}</span>
-                            {(a as any).hora_inicio && <Clock className="w-2.5 h-2.5 flex-shrink-0 opacity-60" />}
+                            {!esLibre && (a as any).hora_inicio && <Clock className="w-2.5 h-2.5 flex-shrink-0 opacity-60" />}
                           </div>
                         );
                       })}
@@ -245,6 +250,7 @@ function DayPanel({
   onRefresh: () => void;
 }) {
   const [editando, setEditando] = useState<string | null>(null); // userId que se está reasignando
+  const [modoLibre, setModoLibre] = useState(false);  // true = día libre
   const [obraId, setObraId]     = useState("");
   const [hora, setHora]         = useState("");
   const [nota, setNota]         = useState("");
@@ -266,44 +272,65 @@ function DayPanel({
 
   function iniciarEdicion(userId: string, asig?: AsignacionConUsuario) {
     setEditando(userId);
+    setModoLibre((asig as any)?.es_libre === true);
     setObraId(asig?.obra_id ?? "");
     setHora((asig as any)?.hora_inicio ?? "");
     setNota((asig as any)?.nota ?? "");
   }
 
   async function guardarReasignacion(userId: string, asigExistente?: AsignacionConUsuario) {
-    if (!obraId) return;
+    if (!modoLibre && !obraId) return;
     setSaving(true);
     const obraSeleccionada = obras.find(o => o.id === obraId);
 
     try {
       if (asigExistente) {
-        // Si la asignación es solo para este día (fecha_fin == fecha_inicio), actualizarla
-        // Si es un rango, crear override de un día
         const esSoloDia = asigExistente.fecha_fin === asigExistente.fecha_inicio;
         if (esSoloDia) {
           await updateAsignacion(asigExistente.id, {
-            obra_id: obraId,
-            ...(hora ? { hora_inicio: hora } : {}),
-            ...(nota ? { nota } : {}),
+            obra_id: modoLibre ? null : obraId,
+            es_libre: modoLibre,
+            ...(modoLibre ? {} : hora ? { hora_inicio: hora } : {}),
+            ...(modoLibre ? {} : nota ? { nota } : {}),
           });
         } else {
-          // Crear override de un día
-          await createAsignacion(obraId, userId, fecha, fecha, hora || undefined, nota || undefined);
+          await createAsignacion(
+            modoLibre ? null : obraId,
+            userId, fecha, fecha,
+            modoLibre ? undefined : hora || undefined,
+            modoLibre ? undefined : nota || undefined,
+            modoLibre,
+          );
         }
       } else {
-        await createAsignacion(obraId, userId, fecha, fecha, hora || undefined, nota || undefined);
+        await createAsignacion(
+          modoLibre ? null : obraId,
+          userId, fecha, fecha,
+          modoLibre ? undefined : hora || undefined,
+          modoLibre ? undefined : nota || undefined,
+          modoLibre,
+        );
       }
 
-      // Enviar notificación al empleado
-      const horaTexto = hora ? ` a las ${hora}` : "";
-      await crearNotificacion({
-        userId,
-        tenantId,
-        titulo: "Nueva asignación",
-        mensaje: `El ${diasLabel}, vas a la obra "${obraSeleccionada?.nombre ?? obraId}"${horaTexto}.`,
-        tipo: "asignacion_nueva",
-      });
+      // Notificación al empleado
+      if (modoLibre) {
+        await crearNotificacion({
+          userId,
+          tenantId,
+          titulo: "Día libre",
+          mensaje: `El ${diasLabel} tienes el día libre.`,
+          tipo: "asignacion_cambio",
+        });
+      } else {
+        const horaTexto = hora ? ` a las ${hora}` : "";
+        await crearNotificacion({
+          userId,
+          tenantId,
+          titulo: "Nueva asignación",
+          mensaje: `El ${diasLabel}, vas a la obra "${obraSeleccionada?.nombre ?? obraId}"${horaTexto}.`,
+          tipo: "asignacion_nueva",
+        });
+      }
 
       setEditando(null);
       onRefresh();
@@ -371,13 +398,21 @@ function DayPanel({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-content-primary">{user.nombre}</p>
                   {asig ? (
-                    <div className="flex items-center gap-1 text-xs text-content-muted">
-                      <Building2 className="w-3 h-3" />
-                      <span className="truncate">{(asig as any).obra?.nombre ?? "Obra"}</span>
-                      {(asig as any).hora_inicio && (
-                        <><Clock className="w-3 h-3 ml-1" /><span>{(asig as any).hora_inicio}</span></>
-                      )}
-                    </div>
+                    (asig as any).es_libre ? (
+                      <div className="flex items-center gap-1 text-xs text-amber-600 font-medium">
+                        <span>🏖️</span>
+                        <span>Libre</span>
+                        {(asig as any).nota && <span className="text-content-muted font-normal ml-1">· {(asig as any).nota}</span>}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 text-xs text-content-muted">
+                        <Building2 className="w-3 h-3" />
+                        <span className="truncate">{(asig as any).obra?.nombre ?? "Obra"}</span>
+                        {(asig as any).hora_inicio && (
+                          <><Clock className="w-3 h-3 ml-1" /><span>{(asig as any).hora_inicio}</span></>
+                        )}
+                      </div>
+                    )
                   ) : (
                     <p className="text-xs text-content-muted italic">{esFinde ? "Día libre" : "Sin asignación"}</p>
                   )}
@@ -402,37 +437,85 @@ function DayPanel({
 
               {/* Formulario de reasignación (admin) */}
               {isAdmin && esEditando && (
-                <div className="px-3 pb-3 space-y-2 border-t border-primary/20 pt-3">
+                <div className="px-3 pb-3 space-y-3 border-t border-primary/20 pt-3">
+                  {/* Toggle Obra / Libre */}
                   <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="label text-xs">Obra</label>
-                      <select value={obraId} onChange={e => setObraId(e.target.value)} className="input py-1.5 text-sm">
-                        <option value="">Seleccionar...</option>
-                        {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="label text-xs flex items-center gap-1"><Clock className="w-3 h-3" />Hora (opcional)</label>
-                      <input type="time" value={hora} onChange={e => setHora(e.target.value)} className="input py-1.5 text-sm" />
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setModoLibre(false)}
+                      className={cn(
+                        "flex items-center justify-center gap-2 py-2 rounded-xl border-2 text-sm font-medium transition-all",
+                        !modoLibre
+                          ? "border-primary bg-primary-light text-primary"
+                          : "border-border text-content-secondary hover:border-primary/40"
+                      )}
+                    >
+                      <Building2 className="w-4 h-4" /> Asignar obra
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModoLibre(true)}
+                      className={cn(
+                        "flex items-center justify-center gap-2 py-2 rounded-xl border-2 text-sm font-medium transition-all",
+                        modoLibre
+                          ? "border-amber-400 bg-amber-50 text-amber-700"
+                          : "border-border text-content-secondary hover:border-amber-300"
+                      )}
+                    >
+                      🏖️ Libre
+                    </button>
                   </div>
-                  <div>
-                    <label className="label text-xs">Nota (opcional)</label>
-                    <input type="text" value={nota} onChange={e => setNota(e.target.value)} className="input py-1.5 text-sm" placeholder="Ej: traer herramienta específica" />
-                  </div>
+
+                  {/* Campos de obra (solo si no es libre) */}
+                  {!modoLibre && (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="label text-xs">Obra</label>
+                          <select value={obraId} onChange={e => setObraId(e.target.value)} className="input py-1.5 text-sm">
+                            <option value="">Seleccionar...</option>
+                            {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="label text-xs flex items-center gap-1"><Clock className="w-3 h-3" />Hora (opcional)</label>
+                          <input type="time" value={hora} onChange={e => setHora(e.target.value)} className="input py-1.5 text-sm" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="label text-xs">Nota (opcional)</label>
+                        <input type="text" value={nota} onChange={e => setNota(e.target.value)} className="input py-1.5 text-sm" placeholder="Ej: traer herramienta específica" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mensaje cuando es libre */}
+                  {modoLibre && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+                      🏖️ <strong>{user.nombre}</strong> tendrá el día libre. Se le enviará una notificación.
+                    </div>
+                  )}
+
+                  {/* Botones guardar */}
                   <div className="flex items-center gap-2 pt-1">
                     <div className="flex items-center gap-1 text-xs text-content-muted flex-1">
                       <Bell className="w-3 h-3" />
-                      Se enviará notificación al empleado
+                      Notificación automática al empleado
                     </div>
                     <button onClick={() => setEditando(null)} className="btn-ghost py-1.5 px-3 text-sm">Cancelar</button>
                     <button
                       onClick={() => guardarReasignacion(user.id, asig)}
-                      disabled={!obraId || saving}
-                      className={cn("btn-primary py-1.5 px-3 text-sm gap-1.5", (!obraId || saving) && "opacity-60 cursor-not-allowed")}
+                      disabled={(!modoLibre && !obraId) || saving}
+                      className={cn(
+                        "py-1.5 px-3 text-sm gap-1.5 rounded-xl font-medium flex items-center transition-all",
+                        modoLibre
+                          ? "bg-amber-500 text-white hover:bg-amber-600"
+                          : "btn-primary",
+                        ((!modoLibre && !obraId) || saving) && "opacity-60 cursor-not-allowed"
+                      )}
                     >
                       {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                      Guardar
+                      {modoLibre ? "Poner libre" : "Guardar"}
                     </button>
                   </div>
                 </div>
