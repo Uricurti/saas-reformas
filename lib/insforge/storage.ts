@@ -78,26 +78,25 @@ export function detectarTipoArchivo(file: File): "foto" | "video" {
 }
 
 // ─── Subir documento (PDF, plano, imagen, etc.) ──────────────────────────────
-const BUCKET_DOCS = "obras-docs";
-
+// Usa el mismo bucket obras-media (ya existe) con prefijo docs/
 export async function subirDocumento(
   file: File,
   tenantId: string,
   obraId: string,
   userId: string
 ): Promise<{ url: string | null; error: string | null; tamano: number }> {
-  const ext = file.name.split(".").pop() ?? "bin";
-  const nombre = `${tenantId}/${obraId}/${userId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const nombreSeguro = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `docs/${tenantId}/${obraId}/${userId}/${Date.now()}_${nombreSeguro}`;
 
   const { data, error } = await insforge.storage
-    .from(BUCKET_DOCS)
-    .upload(nombre, file);
+    .from(BUCKET)
+    .upload(path, file);
 
   if (error || !data) {
-    return { url: null, error: (error as any)?.message ?? "Error al subir", tamano: 0 };
+    return { url: null, error: (error as any)?.message ?? "Error al subir documento", tamano: 0 };
   }
 
-  const url = (data as any).url ?? (data as any).path ?? nombre;
+  const url = (data as any).url ?? (data as any).path ?? path;
   return { url, error: null, tamano: file.size };
 }
 
