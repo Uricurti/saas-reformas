@@ -4,7 +4,7 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import {
   FileText, File, Upload, Trash2, Download,
   Plus, Loader2, FileImage, FilePlus2,
-  FolderOpen, X,
+  FolderOpen, X, ZoomIn, ZoomOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createDocumentoRecord, deleteDocumento } from "@/lib/insforge/database";
@@ -60,13 +60,24 @@ function Visor({
   onClose: () => void;
 }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [cargando, setCargando]   = useState(true);
+  const [cargando, setCargando]     = useState(true);
   const [errorCarga, setErrorCarga] = useState(false);
-  // Para PDFs en móvil el iframe puede no renderizar → detectar y mostrar fallback
   const [pdfFallback, setPdfFallback] = useState(false);
+
+  // Zoom + pan para imágenes
+  const [zoom, setZoom]       = useState(1);
+  const [pan, setPan]         = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const dragOrigin = useRef({ mx: 0, my: 0, px: 0, py: 0 });
+
+  // Pinch-to-zoom en móvil
+  const lastDist = useRef<number | null>(null);
 
   const esImagen = isImagen(doc.nombre);
   const esPDF    = isPDF(doc.nombre);
+
+  // Resetear zoom al cambiar documento
+  useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, [doc.url_storage]);
 
   useEffect(() => {
     let url: string | null = null;
@@ -117,7 +128,31 @@ function Visor({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Controles de zoom — solo imágenes */}
+          {blobUrl && esImagen && (
+            <>
+              <button
+                onClick={() => { setZoom(z => Math.max(1, +(z - 0.5).toFixed(1))); if (zoom <= 1.5) setPan({ x: 0, y: 0 }); }}
+                disabled={zoom <= 1}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white disabled:opacity-30 transition-colors"
+                title="Alejar"
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              <span className="text-white/60 text-xs w-10 text-center tabular-nums">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                onClick={() => setZoom(z => Math.min(8, +(z + 0.5).toFixed(1)))}
+                disabled={zoom >= 8}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white disabled:opacity-30 transition-colors"
+                title="Acercar"
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
+            </>
+          )}
           {blobUrl && (
             <button
               onClick={descargar}
@@ -159,15 +194,84 @@ function Visor({
           </div>
         )}
 
-        {/* ── IMAGEN ───────────────────────────────────────────── */}
+        {/* ── IMAGEN con zoom + drag + pinch ───────────────────── */}
         {!cargando && !errorCarga && blobUrl && esImagen && (
-          <div className="absolute inset-0 flex items-center justify-center p-4 overflow-auto">
+          <div
+            className="absolute inset-0 overflow-hidden flex items-center justify-center"
+            style={{
+              cursor: zoom > 1 ? (dragging ? "grabbing" : "grab") : "default",
+              touchAction: zoom > 1 ? "none" : "pinch-zoom",
+            }}
+            /* ── Mouse drag ── */
+            onMouseDown={(e) => {
+              if (zoom <= 1) return;
+              setDragging(true);
+              dragOrigin.current = { mx: e.clientX, my: e.clientY, px: pan.x, py: pan.y };
+            }}
+            onMouseMove={(e) => {
+              if (!dragging) return;
+              setPan({
+                x: dragOrigin.current.px + e.clientX - dragOrigin.current.mx,
+                y: dragOrigin.current.py + e.clientY - dragOrigin.current.my,
+              });
+            }}
+            onMouseUp={() => setDragging(false)}
+            onMouseLeave={() => setDragging(false)}
+            /* ── Pinch-to-zoom (touch) ── */
+            onTouchStart={(e) => {
+              if (e.touches.length === 2) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                lastDist.current = Math.hypot(dx, dy);
+              }
+            }}
+            onTouchMove={(e) => {
+              if (e.touches.length === 2 && lastDist.current !== null) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const dist = Math.hypot(dx, dy);
+                const delta = dist - lastDist.current;
+                setZoom(z => Math.min(8, Math.max(1, +(z + delta * 0.01).toFixed(2))));
+                lastDist.current = dist;
+              }
+            }}
+            onTouchEnd={() => { lastDist.current = null; }}
+            /* ── Wheel zoom ── */
+            onWheel={(e) => {
+              e.preventDefault();
+              setZoom(z => {
+                const next = z - e.deltaY * 0.001;
+                const clamped = Math.min(8, Math.max(1, +next.toFixed(2)));
+                if (clamped <= 1) setPan({ x: 0, y: 0 });
+                return clamped;
+              });
+            }}
+          >
             <img
               src={blobUrl}
               alt={doc.nombre}
-              className="max-w-full max-h-full object-contain select-none"
               draggable={false}
+              onDoubleClick={() => {
+                if (zoom > 1) { setZoom(1); setPan({ x: 0, y: 0 }); }
+                else setZoom(2.5);
+              }}
+              style={{
+                transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+                transformOrigin: "center center",
+                transition: dragging ? "none" : "transform 0.15s ease",
+                maxWidth: "100%",
+                maxHeight: "100%",
+                objectFit: "contain",
+                userSelect: "none",
+                pointerEvents: "none",   // el drag lo captura el div padre
+              }}
             />
+            {/* Hint doble clic */}
+            {zoom === 1 && (
+              <p className="absolute bottom-3 left-0 right-0 text-center text-white/30 text-xs pointer-events-none select-none">
+                Doble clic para ampliar · Rueda del ratón para zoom · Arrastra para mover
+              </p>
+            )}
           </div>
         )}
 
