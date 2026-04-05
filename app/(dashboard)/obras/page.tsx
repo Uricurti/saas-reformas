@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuthStore, useIsAdmin, useTenantId } from "@/lib/stores/auth-store";
+import { useAuthStore, useIsAdmin, useTenantId, useSessionVerified } from "@/lib/stores/auth-store";
 import { getObrasActivas } from "@/lib/insforge/database";
 import { getAsignacionHoyByUser } from "@/lib/insforge/database";
 import type { ObraConAsignados, Obra } from "@/types";
@@ -22,9 +22,11 @@ export default function ObrasPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showCrearModal, setShowCrearModal] = useState(false);
 
+  const sessionVerified = useSessionVerified();
+
   useEffect(() => {
-    if (tenantId) cargar();
-  }, [tenantId]);
+    if (tenantId && sessionVerified) cargar();
+  }, [tenantId, sessionVerified]);
 
   async function cargar() {
     setIsLoading(true);

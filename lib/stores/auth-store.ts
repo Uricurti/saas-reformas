@@ -9,6 +9,7 @@ interface AuthState {
   user: User | null;
   isLoading: boolean;
   isInitialized: boolean;
+  sessionVerified: boolean;
   error: string | null;
 
   initialize: () => void;
@@ -24,6 +25,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isLoading: false,
       isInitialized: false,
+      sessionVerified: false,
       error: null,
 
       /**
@@ -35,27 +37,26 @@ export const useAuthStore = create<AuthState>()(
        */
       initialize: () => {
         if (get().isInitialized) return;
-
-        // Marcar como inicializado INMEDIATAMENTE con lo que hay en localStorage
         set({ isInitialized: true, isLoading: false });
 
-        // Verificar y REFRESCAR la sesión en segundo plano (no bloquea la UI)
         const currentUser = get().user;
         if (currentUser) {
           getAuthUser()
             .then(async (authUser) => {
               if (!authUser?.id) {
-                // Sesión expirada — limpiar para forzar login
-                set({ user: null });
+                set({ user: null, sessionVerified: true });
                 return;
               }
-              // Sesión válida — refrescar el perfil por si cambió algo
               const profile = await getUserProfile(authUser.id);
               if (profile) set({ user: profile });
+              set({ sessionVerified: true });
             })
             .catch(() => {
-              // Error de red → offline-first: mantenemos el usuario de localStorage
+              set({ sessionVerified: true }); // offline → unlock anyway
             });
+        } else {
+          // No user in localStorage → already verified (no session)
+          set({ sessionVerified: true });
         }
       },
 
@@ -113,3 +114,4 @@ export const useUser     = () => useAuthStore((s) => s.user);
 export const useIsAdmin  = () => useAuthStore((s) => s.user?.rol === "admin");
 export const useIsLoading = () => useAuthStore((s) => s.isLoading);
 export const useTenantId = () => useAuthStore((s) => s.user?.tenant_id);
+export const useSessionVerified = () => useAuthStore((s) => s.sessionVerified);

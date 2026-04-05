@@ -248,12 +248,14 @@ function DayPanel({
   colorPorUser: Record<string, typeof PALETTE[0]>;
   onRefresh: () => void;
 }) {
-  const [editando, setEditando] = useState<string | null>(null); // userId que se está reasignando
-  const [modoLibre, setModoLibre] = useState(false);  // true = día libre
+  const [editando, setEditando] = useState<string | null>(null);
+  const [modoLibre, setModoLibre] = useState(false);
   const [obraId, setObraId]     = useState("");
   const [hora, setHora]         = useState("");
   const [nota, setNota]         = useState("");
   const [saving, setSaving]     = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveOk, setSaveOk]     = useState(false);
 
   // Estado para "trabajar hoy" (empleado en fin de semana)
   const [trabajarObraId, setTrabajorObraId] = useState("");
@@ -280,42 +282,54 @@ function DayPanel({
   async function guardarReasignacion(userId: string, asigExistente?: AsignacionConUsuario) {
     if (!modoLibre && !obraId) return;
     setSaving(true);
+    setSaveError(null);
+    setSaveOk(false);
     const obraSeleccionada = obras.find(o => o.id === obraId);
 
     try {
+      let err: any = null;
+
       if (asigExistente) {
         const esSoloDia = asigExistente.fecha_fin === asigExistente.fecha_inicio;
         if (esSoloDia) {
-          await updateAsignacion(asigExistente.id, {
+          const res = await updateAsignacion(asigExistente.id, {
             obra_id: modoLibre ? null : obraId,
             es_libre: modoLibre,
             ...(modoLibre ? {} : hora ? { hora_inicio: hora } : {}),
             ...(modoLibre ? {} : nota ? { nota } : {}),
           });
+          err = (res as any).error;
         } else {
-          await createAsignacion(
+          const res = await createAsignacion(
             modoLibre ? null : obraId,
             userId, fecha, fecha,
             modoLibre ? undefined : hora || undefined,
             modoLibre ? undefined : nota || undefined,
             modoLibre,
           );
+          err = (res as any).error;
         }
       } else {
-        await createAsignacion(
+        const res = await createAsignacion(
           modoLibre ? null : obraId,
           userId, fecha, fecha,
           modoLibre ? undefined : hora || undefined,
           modoLibre ? undefined : nota || undefined,
           modoLibre,
         );
+        err = (res as any).error;
+      }
+
+      if (err) {
+        const msg = err?.message ?? err?.code ?? JSON.stringify(err);
+        setSaveError(`Error al guardar: ${msg}`);
+        return;
       }
 
       // Notificación al empleado
       if (modoLibre) {
         await crearNotificacion({
-          userId,
-          tenantId,
+          userId, tenantId,
           titulo: "Día libre",
           mensaje: `El ${diasLabel} tienes el día libre.`,
           tipo: "asignacion_cambio",
@@ -323,16 +337,22 @@ function DayPanel({
       } else {
         const horaTexto = hora ? ` a las ${hora}` : "";
         await crearNotificacion({
-          userId,
-          tenantId,
+          userId, tenantId,
           titulo: "Nueva asignación",
           mensaje: `El ${diasLabel}, vas a la obra "${obraSeleccionada?.nombre ?? obraId}"${horaTexto}.`,
           tipo: "asignacion_nueva",
         });
       }
 
-      setEditando(null);
-      onRefresh();
+      setSaveOk(true);
+      setTimeout(() => {
+        setEditando(null);
+        setSaveOk(false);
+        onRefresh();
+      }, 800);
+
+    } catch (e: any) {
+      setSaveError(`Error inesperado: ${e?.message ?? "desconocido"}`);
     } finally {
       setSaving(false);
     }
@@ -492,6 +512,18 @@ function DayPanel({
                   {modoLibre && (
                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
                       🏖️ <strong>{user.nombre}</strong> tendrá el día libre. Se le enviará una notificación.
+                    </div>
+                  )}
+
+                  {/* Feedback */}
+                  {saveError && editando === user.id && (
+                    <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                      {saveError}
+                    </div>
+                  )}
+                  {saveOk && editando === user.id && (
+                    <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5" /> Guardado correctamente
                     </div>
                   )}
 
