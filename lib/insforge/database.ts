@@ -68,11 +68,14 @@ export async function archivarObra(id: string) {
 
 export async function getAsignacionesByFecha(tenantId: string, fecha: string) {
   // Asignaciones activas para una fecha (la fecha cae entre inicio y fin)
+  // Ordenamos por created_at DESC para que los overrides de un día (más recientes)
+  // tengan prioridad sobre asignaciones de rango más antiguas
   return insforge.database
     .from("asignaciones")
     .select(`*, user:users(*), obra:obras(*)`)
     .lte("fecha_inicio", fecha)
-    .or(`fecha_fin.is.null,fecha_fin.gte.${fecha}`);
+    .or(`fecha_fin.is.null,fecha_fin.gte.${fecha}`)
+    .order("created_at", { ascending: false });
 }
 
 export async function getAsignacionesByUser(userId: string) {

@@ -73,9 +73,12 @@ export default function CalendarioPage() {
     const mapa: Record<string, AsignacionConUsuario[]> = {};
     diasDelMes.forEach((d, i) => {
       const raw = (asigResults[i].data as AsignacionConUsuario[]) ?? [];
-      // Deduplicar: si un user tiene varias asignaciones ese día, tomar la más reciente
+      // Deduplicar: el API devuelve created_at DESC, así que el primero por user es el más reciente
+      // (override de un día o "libre" tiene prioridad sobre asignación de rango antigua)
       const porUser: Record<string, AsignacionConUsuario> = {};
-      raw.forEach(a => { porUser[a.user_id] = a; }); // last write wins (orden por created_at desc lo da el API)
+      raw.forEach(a => {
+        if (!porUser[a.user_id]) porUser[a.user_id] = a; // first wins = más reciente
+      });
       mapa[isoDate(d)] = Object.values(porUser);
     });
     setAsignaciones(mapa);
