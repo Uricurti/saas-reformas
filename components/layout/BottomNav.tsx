@@ -15,10 +15,11 @@ const navEmpleado = [
   { href: "/notificaciones", label: "Avisos",     icon: Bell },
 ];
 
+// Admin: Material accesible desde obra, así que lo quitamos y metemos Jornales
 const navAdmin = [
   { href: "/obras",          label: "Obras",      icon: Building2 },
-  { href: "/materiales",     label: "Material",   icon: ShoppingCart },
   { href: "/calendario",     label: "Calendario", icon: Calendar },
+  { href: "/jornales",       label: "Jornales",   icon: Calculator },
   { href: "/equipo",         label: "Equipo",     icon: Users },
   { href: "/notificaciones", label: "Avisos",     icon: Bell },
 ];
