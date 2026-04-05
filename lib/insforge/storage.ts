@@ -3,6 +3,31 @@ import imageCompression from "browser-image-compression";
 
 const BUCKET = "obras-media";
 
+// ─── Helper: extraer path relativo de una URL de InsForge Storage ────────────
+// La URL puede ser:
+//   https://xxx.insforge.app/api/storage/buckets/obras-media/objects/docs%2F...
+// o directamente un path relativo: docs/tenant/obra/user/file.pdf
+export function extractStoragePath(urlOrPath: string): string {
+  if (!urlOrPath.startsWith("http")) return urlOrPath; // ya es un path
+  // Extraer todo lo que va después de /objects/
+  const match = urlOrPath.match(/\/objects\/(.+?)(\?|$)/);
+  if (match) return decodeURIComponent(match[1]);
+  return urlOrPath;
+}
+
+// ─── Obtener URL visualizable (blob) usando el SDK con auth ──────────────────
+// Usar esto para mostrar documentos/imágenes en el visor.
+export async function getStorageBlobUrl(storedUrl: string): Promise<string | null> {
+  try {
+    const path = extractStoragePath(storedUrl);
+    const { data, error } = await insforge.storage.from(BUCKET).download(path);
+    if (error || !data) return null;
+    return URL.createObjectURL(data);
+  } catch {
+    return null;
+  }
+}
+
 // ─── Comprimir foto antes de subir ──────────────────────────────────────────
 async function comprimirFoto(file: File): Promise<File> {
   const options = {
@@ -16,7 +41,7 @@ async function comprimirFoto(file: File): Promise<File> {
   try {
     return await imageCompression(file, options);
   } catch {
-    return file; // si falla la compresión, subir el original
+    return file;
   }
 }
 
@@ -28,21 +53,17 @@ export async function subirFoto(
   userId: string
 ): Promise<{ url: string | null; error: string | null; tamano: number }> {
   const comprimido = await comprimirFoto(file);
-  const ext = "webp";
-  const nombre = `${tenantId}/${obraId}/${userId}/${Date.now()}.${ext}`;
+  const ext    = "webp";
+  const path   = `${tenantId}/${obraId}/${userId}/${Date.now()}.${ext}`;
 
-  const { data, error } = await insforge.storage
-    .from(BUCKET)
-    .upload(nombre, comprimido);
-
+  const { data, error } = await insforge.storage.from(BUCKET).upload(path, comprimido);
   if (error || !data) {
     return { url: null, error: (error as any)?.message ?? "Error al subir", tamano: 0 };
   }
 
-  // Obtener URL pública (InsForge Storage devuelve la URL del archivo)
-  const url = (data as any).url ?? (data as any).path ?? nombre;
-
-  return { url, error: null, tamano: comprimido.size };
+  // Guardar el path relativo (no la URL autenticada)
+  const storedPath = (data as any).path ?? path;
+  return { url: storedPath, error: null, tamano: comprimido.size };
 }
 
 // ─── Subir vídeo (sin compresión en MVP) ────────────────────────────────────
@@ -52,24 +73,22 @@ export async function subirVideo(
   obraId: string,
   userId: string
 ): Promise<{ url: string | null; error: string | null; tamano: number }> {
-  const ext = file.name.split(".").pop() ?? "mp4";
-  const nombre = `${tenantId}/${obraId}/${userId}/${Date.now()}.${ext}`;
+  const ext  = file.name.split(".").pop() ?? "mp4";
+  const path = `${tenantId}/${obraId}/${userId}/${Date.now()}.${ext}`;
 
-  const { data, error } = await insforge.storage
-    .from(BUCKET)
-    .upload(nombre, file);
-
+  const { data, error } = await insforge.storage.from(BUCKET).upload(path, file);
   if (error || !data) {
     return { url: null, error: (error as any)?.message ?? "Error al subir vídeo", tamano: 0 };
   }
 
-  const url = (data as any).url ?? (data as any).path ?? nombre;
-  return { url, error: null, tamano: file.size };
+  const storedPath = (data as any).path ?? path;
+  return { url: storedPath, error: null, tamano: file.size };
 }
 
 // ─── Eliminar archivo ────────────────────────────────────────────────────────
-export async function eliminarArchivo(path: string) {
-  return insforge.storage.from(BUCKET).download(path); // placeholder — adaptar con delete cuando esté en SDK
+export async function eliminarArchivo(storedUrl: string) {
+  const path = extractStoragePath(storedUrl);
+  return insforge.storage.from(BUCKET).remove([path]);
 }
 
 // ─── Helper: detectar tipo de archivo ────────────────────────────────────────
@@ -78,7 +97,6 @@ export function detectarTipoArchivo(file: File): "foto" | "video" {
 }
 
 // ─── Subir documento (PDF, plano, imagen, etc.) ──────────────────────────────
-// Usa el mismo bucket obras-media (ya existe) con prefijo docs/
 export async function subirDocumento(
   file: File,
   tenantId: string,
@@ -88,32 +106,29 @@ export async function subirDocumento(
   const nombreSeguro = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const path = `docs/${tenantId}/${obraId}/${userId}/${Date.now()}_${nombreSeguro}`;
 
-  const { data, error } = await insforge.storage
-    .from(BUCKET)
-    .upload(path, file);
-
+  const { data, error } = await insforge.storage.from(BUCKET).upload(path, file);
   if (error || !data) {
     return { url: null, error: (error as any)?.message ?? "Error al subir documento", tamano: 0 };
   }
 
-  const url = (data as any).url ?? (data as any).path ?? path;
-  return { url, error: null, tamano: file.size };
+  // Guardar el path relativo para poder descargar con auth más tarde
+  const storedPath = (data as any).path ?? path;
+  return { url: storedPath, error: null, tamano: file.size };
 }
 
-export const MAX_DOC_MB = 50;
+// ─── Límites de tamaño ───────────────────────────────────────────────────────
+export const MAX_DOC_MB  = 50;
+export const MAX_FOTO_MB = 10;
+export const MAX_VIDEO_MB = 100;
 
 export function validarDocumento(file: File): string | null {
-  const mb = file.size / (1024 * 1024);
+  const mb  = file.size / (1024 * 1024);
   if (mb > MAX_DOC_MB) return `El archivo supera el límite de ${MAX_DOC_MB} MB`;
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   const permitidos = ["pdf", "png", "jpg", "jpeg", "webp", "svg", "dwg", "dxf", "doc", "docx", "xls", "xlsx"];
   if (!permitidos.includes(ext)) return `Formato no permitido (.${ext})`;
   return null;
 }
-
-// ─── Límite de tamaño ────────────────────────────────────────────────────────
-export const MAX_FOTO_MB = 10;
-export const MAX_VIDEO_MB = 100;
 
 export function validarTamanoArchivo(file: File): string | null {
   const mb = file.size / (1024 * 1024);
