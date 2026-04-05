@@ -3,7 +3,7 @@ import { isoDate } from "@/lib/utils";
 import type {
   Obra, ObraFormData, Asignacion, Fichaje, FichajeEstado,
   Material, MaterialFormData, Archivo, TarifaEmpleado,
-  Notificacion, User
+  Notificacion, User, Documento, DocumentoCategoria
 } from "@/types";
 
 // ══════════════════════════════════════════════════════════════════
@@ -301,6 +301,48 @@ export async function createArchivoRecord(params: {
 
 export async function deleteArchivo(id: string) {
   return insforge.database.from("archivos").delete().eq("id", id);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DOCUMENTOS (planos, PDFs, medidas, contratos…)
+// ══════════════════════════════════════════════════════════════════
+
+export async function getDocumentosByObra(obraId: string) {
+  return insforge.database
+    .from("documentos")
+    .select(`*, autor:users(nombre)`)
+    .eq("obra_id", obraId)
+    .order("created_at", { ascending: false });
+}
+
+export async function createDocumentoRecord(params: {
+  obraId: string;
+  userId: string;
+  tenantId: string;
+  nombre: string;
+  categoria: DocumentoCategoria;
+  urlStorage: string;
+  tamanoByte: number;
+  descripcion?: string;
+}) {
+  return insforge.database
+    .from("documentos")
+    .insert({
+      obra_id: params.obraId,
+      user_id: params.userId,
+      tenant_id: params.tenantId,
+      nombre: params.nombre,
+      categoria: params.categoria,
+      url_storage: params.urlStorage,
+      tamano_bytes: params.tamanoByte,
+      descripcion: params.descripcion,
+    })
+    .select()
+    .single();
+}
+
+export async function deleteDocumento(id: string) {
+  return insforge.database.from("documentos").delete().eq("id", id);
 }
 
 // ══════════════════════════════════════════════════════════════════

@@ -12,8 +12,9 @@ import {
   getUsuariosByTenant,
   getMaterialesByObra,
   getArchivosByObra,
+  getDocumentosByObra,
 } from "@/lib/insforge/database";
-import type { ObraConAsignados, User, Material, Archivo } from "@/types";
+import type { ObraConAsignados, User, Material, Archivo, Documento } from "@/types";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft, Building2, MapPin, Calendar, Phone, Users,
@@ -25,6 +26,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { DireccionInput } from "@/components/ui/DireccionInput";
 import { DireccionLink } from "@/components/ui/DireccionLink";
+import { DocumentacionSection } from "@/components/modules/obras/DocumentacionSection";
 
 // ─────────────────────────────────────────────────────────────
 // Página principal
@@ -40,6 +42,7 @@ export default function ObraDetallePage() {
   const [usuarios, setUsuarios] = useState<User[]>([]);
   const [materiales, setMateriales] = useState<Material[]>([]);
   const [archivos, setArchivos] = useState<Archivo[]>([]);
+  const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editando, setEditando] = useState(false);
 
@@ -60,10 +63,11 @@ export default function ObraDetallePage() {
 
   async function cargar() {
     setIsLoading(true);
-    const [obraRes, matsRes, archRes] = await Promise.all([
+    const [obraRes, matsRes, archRes, docsRes] = await Promise.all([
       getObraById(id),
       getMaterialesByObra(id),
       getArchivosByObra(id),
+      getDocumentosByObra(id),
     ]);
 
     if (obraRes.error || !obraRes.data) {
@@ -81,6 +85,7 @@ export default function ObraDetallePage() {
 
     setMateriales((matsRes.data as Material[]) ?? []);
     setArchivos((archRes.data as Archivo[]) ?? []);
+    setDocumentos((docsRes.data as Documento[]) ?? []);
 
     if (tenantId) {
       const usersRes = await getUsuariosByTenant(tenantId);
@@ -307,12 +312,22 @@ export default function ObraDetallePage() {
             <Image className="w-5 h-5" />
           </div>
           <div>
-            <p className="font-semibold text-content-primary text-sm">Fotos</p>
-            <p className="text-xs text-content-muted">{archivos.length > 0 ? `${archivos.length} archivo${archivos.length > 1 ? "s" : ""}` : "Sin archivos"}</p>
+            <p className="font-semibold text-content-primary text-sm">Fotos obra</p>
+            <p className="text-xs text-content-muted">{archivos.length > 0 ? `${archivos.length} archivo${archivos.length > 1 ? "s" : ""}` : "Sin fotos"}</p>
           </div>
           <ChevronRight className="w-4 h-4 text-content-muted self-end" />
         </Link>
       </div>
+
+      {/* Documentación */}
+      <DocumentacionSection
+        obraId={obra.id}
+        tenantId={tenantId!}
+        userId={user!.id}
+        isAdmin={isAdmin}
+        documentos={documentos}
+        onActualizar={cargar}
+      />
 
       {/* Archivar obra */}
       {isAdmin && obra.estado !== "archivada" && (

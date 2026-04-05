@@ -124,6 +124,29 @@ export interface MaterialConDetalles extends Material {
   solicitante: User;
 }
 
+// ─── Documento (planos, PDFs, medidas, contratos…) ───────────────────────
+export type DocumentoCategoria =
+  | "plano"
+  | "medidas"
+  | "presupuesto"
+  | "contrato"
+  | "foto"
+  | "otro";
+
+export interface Documento {
+  id: string;
+  obra_id: string;
+  user_id: string;
+  tenant_id: string;
+  nombre: string;               // nombre original del archivo
+  categoria: DocumentoCategoria;
+  url_storage: string;
+  tamano_bytes: number;
+  descripcion?: string;
+  created_at: string;
+  autor?: { nombre: string };   // join con users
+}
+
 // ─── Archivo (foto/vídeo) ─────────────────────────────────────────────────
 export type ArchivoTipo = "foto" | "video";
 

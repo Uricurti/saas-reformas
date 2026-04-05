@@ -77,6 +77,41 @@ export function detectarTipoArchivo(file: File): "foto" | "video" {
   return file.type.startsWith("video/") ? "video" : "foto";
 }
 
+// ─── Subir documento (PDF, plano, imagen, etc.) ──────────────────────────────
+const BUCKET_DOCS = "obras-docs";
+
+export async function subirDocumento(
+  file: File,
+  tenantId: string,
+  obraId: string,
+  userId: string
+): Promise<{ url: string | null; error: string | null; tamano: number }> {
+  const ext = file.name.split(".").pop() ?? "bin";
+  const nombre = `${tenantId}/${obraId}/${userId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+
+  const { data, error } = await insforge.storage
+    .from(BUCKET_DOCS)
+    .upload(nombre, file);
+
+  if (error || !data) {
+    return { url: null, error: (error as any)?.message ?? "Error al subir", tamano: 0 };
+  }
+
+  const url = (data as any).url ?? (data as any).path ?? nombre;
+  return { url, error: null, tamano: file.size };
+}
+
+export const MAX_DOC_MB = 50;
+
+export function validarDocumento(file: File): string | null {
+  const mb = file.size / (1024 * 1024);
+  if (mb > MAX_DOC_MB) return `El archivo supera el límite de ${MAX_DOC_MB} MB`;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const permitidos = ["pdf", "png", "jpg", "jpeg", "webp", "svg", "dwg", "dxf", "doc", "docx", "xls", "xlsx"];
+  if (!permitidos.includes(ext)) return `Formato no permitido (.${ext})`;
+  return null;
+}
+
 // ─── Límite de tamaño ────────────────────────────────────────────────────────
 export const MAX_FOTO_MB = 10;
 export const MAX_VIDEO_MB = 100;
