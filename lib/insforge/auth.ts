@@ -25,6 +25,7 @@ export async function getAuthUser(): Promise<{ id: string } | null> {
 }
 
 // ─── Crear usuario (solo admin) ──────────────────────────────────────────────
+// Usa una API Route server-side con service key para no afectar la sesión del admin
 export async function createUser(params: {
   nombre: string;
   email: string;
@@ -33,48 +34,23 @@ export async function createUser(params: {
   tenant_id: string;
   tarifa_diaria?: number;
 }) {
-  // 1. Crear la cuenta de autenticación en InsForge
-  const { data: authData, error: authError } = await insforge.auth.signUp({
-    email: params.email,
-    password: params.password,
-    name: params.nombre,
-  });
-
-  if (authError || !authData?.user) {
-    return { data: null, error: authError || "Error al crear el usuario" };
-  }
-
-  const userId = authData.user.id;
-
-  // 2. Insertar el perfil en nuestra tabla users
-  const { data: profileData, error: profileError } = await insforge.database
-    .from("users")
-    .insert({
-      id: userId,
-      tenant_id: params.tenant_id,
-      nombre: params.nombre,
-      email: params.email,
-      rol: params.rol,
-      activo: true,
-    })
-    .select()
-    .single();
-
-  if (profileError) {
-    return { data: null, error: profileError.message };
-  }
-
-  // 3. Si es empleado y tiene tarifa, guardarla
-  if (params.rol === "empleado" && params.tarifa_diaria) {
-    await insforge.database.from("tarifas_empleado").insert({
-      user_id: userId,
-      tenant_id: params.tenant_id,
-      tarifa_diaria: params.tarifa_diaria,
-      fecha_desde: new Date().toISOString().split("T")[0],
+  try {
+    const res = await fetch("/api/admin/create-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
     });
-  }
 
-  return { data: profileData as User, error: null };
+    const json = await res.json();
+
+    if (!res.ok || json.error) {
+      return { data: null, error: json.error ?? "Error al crear usuario" };
+    }
+
+    return { data: json.data as User, error: null };
+  } catch (err: any) {
+    return { data: null, error: err?.message ?? "Error de red al crear usuario" };
+  }
 }
 
 // ─── Obtener perfil completo desde nuestra tabla users ──────────────────────
