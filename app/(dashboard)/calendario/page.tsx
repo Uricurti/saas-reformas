@@ -33,6 +33,15 @@ const PALETTE = [
 const esFinDeSemana = (fecha: Date) => { const d = getDay(fecha); return d === 0 || d === 6; };
 const initials = (nombre: string) => nombre.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
+/**
+ * En fin de semana, solo se considera "trabajando" una asignación que fue
+ * creada EXPLÍCITAMENTE para ese día concreto (fecha_inicio = fecha_fin = día).
+ * Las asignaciones de rango (ej: lun-vie) que se solapan con el finde
+ * se ignoran — el fin de semana es libre por defecto.
+ */
+const esOverrideExplicito = (a: AsignacionConUsuario, fechaStr: string): boolean =>
+  !(a as any).es_libre && a.fecha_inicio === fechaStr && (a as any).fecha_fin === fechaStr;
+
 // ─────────────────────────────────────────────────────────────
 export default function CalendarioPage() {
   const tenantId  = useTenantId();
@@ -156,9 +165,13 @@ export default function CalendarioPage() {
               const finde    = esFinDeSemana(dia);
               const esHoy    = fechaStr === hoy;
               const sel      = diaSeleccionado === fechaStr;
-              const asigsDia      = asignaciones[fechaStr] ?? [];
-              const asigsActivas  = asigsDia.filter(a => !(a as any).es_libre); // excluir libres
-              const numAsigs      = asigsActivas.length;
+              const asigsDia = asignaciones[fechaStr] ?? [];
+              // En finde: solo contar asignaciones explícitas de ese día exacto
+              // (ignorar rangos lun-vie que se solapan con el finde)
+              const asigsActivas = finde
+                ? asigsDia.filter(a => esOverrideExplicito(a, fechaStr))
+                : asigsDia.filter(a => !(a as any).es_libre);
+              const numAsigs = asigsActivas.length;
 
               return (
                 <button
@@ -400,13 +413,13 @@ function DayPanel({
           <p className="text-xs text-content-muted">
             {esFinde
               ? (() => {
-                  // Contar quiénes trabajan excepcionalmente este finde
-                  const trabajando = asigs.filter(a => !(a as any).es_libre && a.obra_id);
+                  // Solo los overrides explícitos de ese día cuentan como "trabajando"
+                  const trabajando = asigs.filter(a => esOverrideExplicito(a, fecha));
                   return trabajando.length > 0
                     ? `🏗️ ${trabajando.length} trabajando excepcionalmente`
                     : "🏖️ Fin de semana — todos libres";
                 })()
-              : `${asigs.length} trabajador${asigs.length !== 1 ? "es" : ""} asignado${asigs.length !== 1 ? "s" : ""}`}
+              : `${asigs.filter(a => !(a as any).es_libre).length} trabajador${asigs.length !== 1 ? "es" : ""} asignado${asigs.length !== 1 ? "s" : ""}`}
           </p>
         </div>
       </div>
@@ -414,7 +427,12 @@ function DayPanel({
       {/* Lista de todos los empleados */}
       <div className="space-y-2 mb-4">
         {empleados.map(user => {
-          const asig = asigs.find(a => a.user_id === user.id);
+          // En finde: solo mostrar "trabajando" si es un override explícito de ese día
+          // Las asignaciones de rango (lun-vie) se ignoran — finde = libre por defecto
+          const asigRaw = asigs.find(a => a.user_id === user.id);
+          const asig = (esFinde && asigRaw && !esOverrideExplicito(asigRaw, fecha) && !(asigRaw as any).es_libre)
+            ? undefined  // ignorar rango en finde → aparece como libre
+            : asigRaw;
           const c    = colorPorUser[user.id];
           const esEditando = editando === user.id;
 
