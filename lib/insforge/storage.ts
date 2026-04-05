@@ -61,8 +61,9 @@ export async function subirFoto(
     return { url: null, error: (error as any)?.message ?? "Error al subir", tamano: 0 };
   }
 
-  // Guardar el path relativo (no la URL autenticada)
-  const storedPath = (data as any).path ?? path;
+  // La doc de InsForge dice: usa siempre el "key" que devuelve el upload
+  // (no el path que enviaste — puede haberse renombrado si había duplicado)
+  const storedPath = (data as any).key ?? (data as any).path ?? path;
   return { url: storedPath, error: null, tamano: comprimido.size };
 }
 
@@ -81,7 +82,7 @@ export async function subirVideo(
     return { url: null, error: (error as any)?.message ?? "Error al subir vídeo", tamano: 0 };
   }
 
-  const storedPath = (data as any).path ?? path;
+  const storedPath = (data as any).key ?? (data as any).path ?? path;
   return { url: storedPath, error: null, tamano: file.size };
 }
 
@@ -111,8 +112,8 @@ export async function subirDocumento(
     return { url: null, error: (error as any)?.message ?? "Error al subir documento", tamano: 0 };
   }
 
-  // Guardar el path relativo para poder descargar con auth más tarde
-  const storedPath = (data as any).path ?? path;
+  // Guardar el key que devuelve InsForge (puede diferir del path enviado si hay duplicado)
+  const storedPath = (data as any).key ?? (data as any).path ?? path;
   return { url: storedPath, error: null, tamano: file.size };
 }
 

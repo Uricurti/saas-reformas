@@ -1,15 +1,13 @@
 /**
- * Cliente InsForge con SERVICE KEY — solo usar en server-side (API Routes).
- * NUNCA importar en componentes del cliente (expone la clave de servicio).
+ * NOTA: InsForge NO usa un "service role client" como Supabase.
+ * El API key (INSFORGE_SERVICE_KEY, formato ins_xxxx) se usa como
+ * header "x-api-key" en llamadas REST directas — no como anonKey en createClient.
+ *
+ * Las operaciones de administración (crear usuarios, insertar perfiles)
+ * se hacen en app/api/admin/create-user/route.ts con raw fetch + x-api-key.
+ *
+ * Este fichero se mantiene por compatibilidad pero no se debe usar para
+ * operaciones que requieren bypasear RLS.
  */
-import { createClient } from "@insforge/sdk";
 
-const insforgeUrl = process.env.NEXT_PUBLIC_INSFORGE_URL!;
-const serviceKey  = process.env.INSFORGE_SERVICE_KEY!;
-
-export const insforgeAdmin = createClient({
-  baseUrl: insforgeUrl || "",
-  anonKey: serviceKey  || "",
-});
-
-export default insforgeAdmin;
+export {}; // módulo vacío — ver app/api/admin/create-user/route.ts

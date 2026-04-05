@@ -1,9 +1,46 @@
+/**
+ * API Route: crear usuario (admin only)
+ *
+ * InsForge usa x-api-key como header para operaciones de administración.
+ * Con ese header la petición corre como "project_admin", que bypassa RLS
+ * completamente — es la forma correcta de hacer operaciones de servidor.
+ *
+ * NO usamos createClient con el service key como anonKey (eso es Supabase).
+ */
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@insforge/sdk";
 
-const INSFORGE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL!;
-const INSFORGE_KEY = process.env.NEXT_PUBLIC_INSFORGE_KEY!;
-const SERVICE_KEY  = process.env.INSFORGE_SERVICE_KEY!;
+const INSFORGE_URL  = process.env.NEXT_PUBLIC_INSFORGE_URL!;
+const SERVICE_KEY   = process.env.INSFORGE_SERVICE_KEY!;
+
+/** Cabeceras para todas las llamadas admin con x-api-key */
+function adminHeaders() {
+  return {
+    "Content-Type": "application/json",
+    "x-api-key": SERVICE_KEY,
+  };
+}
+
+/** Llamada directa a la REST API de InsForge con x-api-key */
+async function insforgeAdmin(
+  path: string,
+  options: RequestInit = {}
+): Promise<{ data: any; error: string | null; status: number }> {
+  const url = `${INSFORGE_URL}${path}`;
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      ...adminHeaders(),
+      ...(options.headers ?? {}),
+    },
+  });
+  let data: any = null;
+  try { data = await res.json(); } catch { /* no JSON */ }
+  if (!res.ok) {
+    const msg = data?.message ?? data?.error ?? `HTTP ${res.status}`;
+    return { data: null, error: msg, status: res.status };
+  }
+  return { data, error: null, status: res.status };
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,121 +51,115 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
     }
 
-    // ── Cliente con service key: SOLO para crear el auth user ──────────────
-    // (el service key no afecta la sesión del admin en el navegador)
-    const authClient = createClient({ baseUrl: INSFORGE_URL, anonKey: SERVICE_KEY || INSFORGE_KEY });
+    if (!SERVICE_KEY) {
+      return NextResponse.json({ error: "INSFORGE_SERVICE_KEY no configurado en Vercel" }, { status: 500 });
+    }
 
-    // ── Cliente con el JWT del admin: para operaciones de DB ──────────────
-    // Así auth.uid() devuelve el ID del admin y is_admin() → true
-    const authHeader  = req.headers.get("authorization") ?? "";
-    const adminToken  = authHeader.replace(/^Bearer\s+/i, "").trim();
-    const dbClient    = createClient({
-      baseUrl: INSFORGE_URL,
-      anonKey: adminToken || INSFORGE_KEY,
-    });
+    // ── 1. Crear cuenta auth ─────────────────────────────────────────────────
+    // Usamos client_type=server para que el refreshToken llegue en el body
+    // (no como cookie httpOnly), evitando afectar la sesión del admin
+    const { data: authData, error: authError, status: authStatus } = await insforgeAdmin(
+      "/api/auth/users?client_type=server",
+      {
+        method: "POST",
+        body: JSON.stringify({ email, password, name: nombre }),
+      }
+    );
 
-    // ── 1. Crear cuenta auth ───────────────────────────────────────────────
-    const { data: authData, error: authError } = await authClient.auth.signUp({
-      email,
-      password,
-      name: nombre,
-    });
-
-    // Si ya existe en auth, intentar insertar el perfil de todas formas
-    // (puede que un intento anterior fallase a medias)
     let userId: string | null = null;
 
     if (authError) {
-      const msg = (authError as any)?.message ?? String(authError);
-      const yaExiste = msg.toLowerCase().includes("already") ||
-                       msg.toLowerCase().includes("exist")   ||
-                       msg.toLowerCase().includes("duplicate");
+      const yaExiste =
+        authStatus === 409 ||
+        authError.toLowerCase().includes("already") ||
+        authError.toLowerCase().includes("exist") ||
+        authError.toLowerCase().includes("duplicate");
 
       if (!yaExiste) {
-        return NextResponse.json({ error: msg }, { status: 400 });
+        return NextResponse.json({ error: authError }, { status: 400 });
       }
 
-      // Ya existe en auth — comprobar si ya tiene perfil en users
-      const { data: perfilExistente } = await dbClient.database
-        .from("users")
-        .select("id")
-        .eq("email", email)
-        .maybeSingle();
+      // Ya existe en auth — buscar su UUID para crear solo el perfil
+      const { data: listData, error: listError } = await insforgeAdmin(
+        `/api/auth/users?search=${encodeURIComponent(email)}`
+      );
 
-      if (perfilExistente) {
-        return NextResponse.json(
-          { error: "Este email ya está registrado y tiene perfil. El usuario ya existe en la aplicación." },
-          { status: 400 }
-        );
-      }
+      const existingUser = listData?.users?.find(
+        (u: any) => u.email?.toLowerCase() === email.toLowerCase()
+      );
 
-      // Tiene auth pero no perfil — intentar recuperar su UUID
-      // probando con la API de admin si está disponible
-      try {
-        const adminAuth = (authClient.auth as any).admin;
-        if (adminAuth?.getUserByEmail) {
-          const { data: existingAuthUser } = await adminAuth.getUserByEmail(email);
-          userId = existingAuthUser?.user?.id ?? null;
-        }
-      } catch { /* API admin no disponible */ }
-
-      if (!userId) {
+      if (!existingUser?.id) {
         return NextResponse.json(
           {
             error:
-              "Este email ya existe en el sistema de autenticación pero sin perfil. " +
-              "Ve a InsForge → Authentication, copia el UUID del usuario '" + email + "' " +
-              "y ejecuta en SQL Editor:\n" +
-              "INSERT INTO users (id, tenant_id, nombre, email, rol, activo) VALUES " +
-              "('<UUID_COPIADO>', '" + tenant_id + "', '" + nombre + "', '" + email + "', '" + rol + "', true);",
+              "Este email ya existe en InsForge Auth pero no se puede recuperar su UUID. " +
+              "Ve a InsForge → Authentication, copia el UUID del usuario y crea el perfil manualmente.",
           },
           { status: 400 }
         );
       }
-    } else {
-      if (!authData?.user) {
-        return NextResponse.json({ error: "No se pudo obtener el usuario creado" }, { status: 400 });
+
+      // Comprobar si ya tiene perfil en users
+      const { data: perfil } = await insforgeAdmin(
+        `/api/database/records/users?email=eq.${encodeURIComponent(email)}&select=id`
+      );
+      if (perfil && perfil.length > 0) {
+        return NextResponse.json(
+          { error: "Este usuario ya existe en la aplicación." },
+          { status: 400 }
+        );
       }
-      userId = authData.user.id;
+
+      userId = existingUser.id;
+    } else {
+      userId = authData?.user?.id ?? null;
+      if (!userId) {
+        return NextResponse.json({ error: "No se pudo obtener el ID del usuario creado" }, { status: 400 });
+      }
     }
 
-    // ── 2. Insertar perfil en tabla users (con JWT del admin) ──────────────
-    const { data: profileData, error: profileError } = await dbClient.database
-      .from("users")
-      .insert({
-        id:        userId,
-        tenant_id,
-        nombre,
-        email,
-        rol,
-        activo:    true,
-      })
-      .select()
-      .single();
+    // ── 2. Insertar perfil en tabla users ────────────────────────────────────
+    // Con x-api-key corre como project_admin → bypassa RLS
+    const { data: profileData, error: profileError } = await insforgeAdmin(
+      "/api/database/records/users",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          id:       userId,
+          tenant_id,
+          nombre,
+          email,
+          rol,
+          activo:   true,
+        }),
+      }
+    );
 
     if (profileError) {
-      const msg = (profileError as any)?.message ?? JSON.stringify(profileError);
       console.error("[create-user] Error al insertar perfil:", profileError);
       return NextResponse.json(
-        { error: "El usuario auth se creó pero falló la creación del perfil: " + msg },
+        { error: "Usuario auth creado pero falló el perfil: " + profileError },
         { status: 400 }
       );
     }
 
-    // ── 3. Tarifa diaria (opcional, solo empleados) ────────────────────────
+    // ── 3. Tarifa diaria (opcional, solo empleados) ──────────────────────────
     if (rol === "empleado" && tarifa_diaria) {
-      const { error: tarifaError } = await dbClient.database
-        .from("tarifas_empleado")
-        .insert({
-          user_id:      userId,
-          tenant_id,
-          tarifa_diaria: Number(tarifa_diaria),
-          fecha_desde:   new Date().toISOString().split("T")[0],
-        });
-
+      const { error: tarifaError } = await insforgeAdmin(
+        "/api/database/records/tarifas_empleado",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            user_id:       userId,
+            tenant_id,
+            tarifa_diaria: Number(tarifa_diaria),
+            fecha_desde:   new Date().toISOString().split("T")[0],
+          }),
+        }
+      );
       if (tarifaError) {
         console.warn("[create-user] Tarifa no guardada:", tarifaError);
-        // No fallar por esto — el usuario ya está creado
+        // No fallar — usuario ya creado correctamente
       }
     }
 
@@ -136,6 +167,6 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     console.error("[create-user] error inesperado:", err);
-    return NextResponse.json({ error: err?.message ?? "Error interno del servidor" }, { status: 500 });
+    return NextResponse.json({ error: err?.message ?? "Error interno" }, { status: 500 });
   }
 }
