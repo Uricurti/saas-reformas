@@ -118,7 +118,7 @@ export async function subirVideo(
 // ─── Eliminar archivo ────────────────────────────────────────────────────────
 export async function eliminarArchivo(storedUrl: string) {
   const path = extractStoragePath(storedUrl);
-  return insforge.storage.from(BUCKET).remove([path]);
+  return insforge.storage.from(BUCKET).remove(path as any);
 }
 
 // ─── Helper: detectar tipo de archivo ────────────────────────────────────────
