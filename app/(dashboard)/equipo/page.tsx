@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import { useTenantId, useIsAdmin, useUser } from "@/lib/stores/auth-store";
 import { useRouter } from "next/navigation";
-import { getUsuariosByTenant, toggleUsuarioActivo, getTarifaEmpleado, setTarifaEmpleado } from "@/lib/insforge/database";
+import { getUsuariosByTenant, toggleUsuarioActivo, getTarifaEmpleado, setTarifaEmpleado, getObrasActivas, getFichajeHoy, registrarFichaje } from "@/lib/insforge/database";
 import { createUser } from "@/lib/insforge/auth";
-import type { User } from "@/types";
+import type { User, Obra, FichajeEstado } from "@/types";
 import { PageHeader } from "@/components/ui/PageHeader";
 import {
   Users, Plus, UserCheck, UserX, Loader2, X,
-  Shield, HardHat, Euro, Edit3, Check, Lock,
+  Shield, HardHat, Euro, Edit3, Check, Lock, Clock,
 } from "lucide-react";
+import insforge from "@/lib/insforge/client";
 import { cn } from "@/lib/utils";
 import { initials, formatCurrency } from "@/lib/utils/format";
 
@@ -33,6 +34,9 @@ export default function EquipoPage() {
   const [editandoTarifa, setEditandoTarifa] = useState<string | null>(null);
   const [valorTarifa, setValorTarifa] = useState("");
   const [guardandoTarifa, setGuardandoTarifa] = useState(false);
+
+  // Fichaje manual por admin
+  const [fichajeEmpleado, setFichajeEmpleado] = useState<UserConTarifa | null>(null);
 
   useEffect(() => {
     if (!isAdmin) router.replace("/obras");
@@ -216,6 +220,17 @@ export default function EquipoPage() {
                           </button>
                         )}
 
+                        {/* Fichar empleado (admin) */}
+                        {editandoTarifa !== user.id && (
+                          <button
+                            onClick={() => setFichajeEmpleado(user)}
+                            title="Registrar fichaje manualmente"
+                            className="p-2 rounded-lg text-content-muted hover:bg-primary-light hover:text-primary transition-colors flex-shrink-0"
+                          >
+                            <Clock className="w-4 h-4" />
+                          </button>
+                        )}
+
                         {/* Activar/desactivar */}
                         {user.id !== currentUser?.id && editandoTarifa !== user.id && (
                           <button
@@ -296,6 +311,162 @@ export default function EquipoPage() {
           onCreated={() => { setShowCrear(false); cargar(); }}
         />
       )}
+
+      {fichajeEmpleado && (
+        <FichajeAdminModal
+          empleado={fichajeEmpleado}
+          tenantId={tenantId!}
+          onClose={() => setFichajeEmpleado(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Modal fichaje manual (admin)
+// ─────────────────────────────────────────────────────────────
+const ESTADOS_FICHAJE: { value: FichajeEstado; label: string; emoji: string }[] = [
+  { value: "trabajando",  label: "Trabajando",    emoji: "🏗️" },
+  { value: "baja",        label: "Baja médica",   emoji: "🏥" },
+  { value: "permiso",     label: "Permiso",        emoji: "📋" },
+  { value: "vacaciones",  label: "Vacaciones",     emoji: "🏖️" },
+  { value: "otro",        label: "Otro motivo",    emoji: "💬" },
+];
+
+function FichajeAdminModal({
+  empleado, tenantId, onClose,
+}: { empleado: UserConTarifa; tenantId: string; onClose: () => void }) {
+  const [obras, setObras] = useState<Obra[]>([]);
+  const [fichajeActual, setFichajeActual] = useState<any>(null);
+  const [obraId, setObraId] = useState("");
+  const [estado, setEstado] = useState<FichajeEstado>("trabajando");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const [obrasRes, fichaje] = await Promise.all([
+        getObrasActivas(tenantId),
+        getFichajeHoy(empleado.id),
+      ]);
+      setObras((obrasRes.data as Obra[]) ?? []);
+      if (fichaje) {
+        setFichajeActual(fichaje);
+        setObraId((fichaje as any).obra_id ?? "");
+        setEstado((fichaje as any).estado ?? "trabajando");
+      }
+      setIsLoading(false);
+    })();
+  }, []);
+
+  async function guardar() {
+    if (!obraId) { setError("Selecciona una obra"); return; }
+    setIsSaving(true);
+    setError(null);
+    try {
+      // Si ya existe fichaje hoy → eliminar primero (no hay upsert en InsForge SDK)
+      if (fichajeActual?.id) {
+        await insforge.database.from("fichajes").delete().eq("id", fichajeActual.id);
+      }
+      const { error: err } = await registrarFichaje({
+        userId: empleado.id,
+        obraId,
+        tenantId,
+        estado,
+        esCambioObra: false,
+      });
+      if (err) { setError("Error al guardar"); }
+      else { setOk(true); setTimeout(onClose, 1200); }
+    } catch { setError("Error de red"); }
+    setIsSaving(false);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-panel max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="icon-container w-9 h-9"><Clock className="w-4 h-4" /></div>
+            <div>
+              <h2 className="text-lg font-semibold">Fichar empleado</h2>
+              <p className="text-xs text-content-muted">{empleado.nombre} · hoy</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="btn-ghost p-2"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-5 space-y-5">
+          {isLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+          ) : ok ? (
+            <div className="flex flex-col items-center py-8 gap-2">
+              <div className="w-14 h-14 rounded-full bg-success-light flex items-center justify-center">
+                <Check className="w-7 h-7 text-success" />
+              </div>
+              <p className="font-semibold text-content-primary">Fichaje guardado</p>
+            </div>
+          ) : (
+            <>
+              {fichajeActual && (
+                <div className="bg-warning-light text-warning-foreground text-sm px-3 py-2 rounded-lg">
+                  ⚠️ Ya tiene un fichaje hoy ({fichajeActual.estado}). Se reemplazará.
+                </div>
+              )}
+
+              {/* Obra */}
+              <div>
+                <label className="label">Obra *</label>
+                <select
+                  className="input"
+                  value={obraId}
+                  onChange={(e) => setObraId(e.target.value)}
+                >
+                  <option value="">Selecciona obra…</option>
+                  {obras.map((o) => (
+                    <option key={o.id} value={o.id}>{o.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Estado */}
+              <div>
+                <label className="label">Estado</label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {ESTADOS_FICHAJE.map((e) => (
+                    <button
+                      key={e.value}
+                      type="button"
+                      onClick={() => setEstado(e.value)}
+                      className={cn(
+                        "flex items-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all text-left",
+                        estado === e.value
+                          ? "border-primary bg-primary-light text-primary"
+                          : "border-border text-content-secondary hover:border-primary/50",
+                      )}
+                    >
+                      <span>{e.emoji}</span>{e.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {error && <p className="text-danger text-sm">{error}</p>}
+            </>
+          )}
+        </div>
+
+        {!ok && !isLoading && (
+          <div className="p-5 border-t border-border flex gap-3 justify-end">
+            <button onClick={onClose} className="btn-secondary">Cancelar</button>
+            <button onClick={guardar} disabled={isSaving} className="btn-primary">
+              {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando…</> : "Guardar fichaje"}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

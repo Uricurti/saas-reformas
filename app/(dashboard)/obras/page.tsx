@@ -59,21 +59,38 @@ export default function ObrasPage() {
         ) : undefined}
       />
 
-      {/* Vista empleado: obra de hoy destacada */}
+      {/* Vista empleado: obra de hoy + lista de todas las obras */}
       {!isAdmin && (
-        <div className="mb-6">
-          {obraHoy ? (
-            <ObraEmpleadoCard obra={obraHoy} />
-          ) : (
-            <div className="card p-6 flex flex-col items-center text-center gap-3">
-              <div className="icon-container-gray w-12 h-12">
-                <Building2 className="w-6 h-6" />
+        <>
+          {/* Asignación de hoy */}
+          <div className="mb-6">
+            {obraHoy ? (
+              <ObraEmpleadoCard obra={obraHoy} />
+            ) : (
+              <div className="card p-4 flex items-center gap-3 border-l-4 border-warning">
+                <Building2 className="w-5 h-5 text-warning flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-content-primary text-sm">Sin asignación hoy</p>
+                  <p className="text-xs text-content-secondary">Día libre o ausencia registrada</p>
+                </div>
               </div>
-              <p className="font-medium text-content-primary">Sin asignación hoy</p>
-              <p className="text-sm text-content-secondary">No tienes ninguna obra asignada para hoy.</p>
+            )}
+          </div>
+
+          {/* Todas las obras activas */}
+          {obras.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-content-muted uppercase tracking-wide mb-3">
+                Obras activas del equipo
+              </p>
+              <div className="space-y-3">
+                {obras.map((obra) => (
+                  <ObraCard key={obra.id} obra={obra as ObraConAsignados} onUpdate={cargar} />
+                ))}
+              </div>
             </div>
           )}
-        </div>
+        </>
       )}
 
       {/* Lista de obras (admin) */}
