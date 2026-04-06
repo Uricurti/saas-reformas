@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTenantId, useIsAdmin, useUser } from "@/lib/stores/auth-store";
 import { useRouter } from "next/navigation";
-import { getUsuariosByTenant, toggleUsuarioActivo, getTarifaEmpleado, setTarifaEmpleado, getObrasActivas, getFichajeHoy, registrarFichaje } from "@/lib/insforge/database";
+import { getUsuariosByTenant, toggleUsuarioActivo, getTarifaEmpleado, setTarifaEmpleado, getObrasActivas, getFichajeByFecha, registrarFichaje } from "@/lib/insforge/database";
 import { createUser } from "@/lib/insforge/auth";
 import type { User, Obra, FichajeEstado } from "@/types";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -327,134 +327,191 @@ export default function EquipoPage() {
 // Modal fichaje manual (admin)
 // ─────────────────────────────────────────────────────────────
 const ESTADOS_FICHAJE: { value: FichajeEstado; label: string; emoji: string }[] = [
-  { value: "trabajando",  label: "Trabajando",    emoji: "🏗️" },
-  { value: "libre",       label: "Libre",          emoji: "🏖️" },
-  { value: "baja",        label: "Baja médica",   emoji: "🏥" },
-  { value: "permiso",     label: "Permiso",        emoji: "📋" },
-  { value: "vacaciones",  label: "Vacaciones",     emoji: "🏖️" },
-  { value: "otro",        label: "Otro motivo",    emoji: "💬" },
+  { value: "trabajando",  label: "Trabajando",  emoji: "🏗️" },
+  { value: "libre",       label: "Libre",        emoji: "🏖️" },
+  { value: "baja",        label: "Baja médica", emoji: "🏥" },
+  { value: "permiso",     label: "Permiso",      emoji: "📋" },
+  { value: "vacaciones",  label: "Vacaciones",   emoji: "🏖️" },
+  { value: "otro",        label: "Otro motivo",  emoji: "💬" },
 ];
+
+// Estados que no requieren seleccionar una obra
+const ESTADOS_SIN_OBRA: FichajeEstado[] = ["libre", "baja", "permiso", "vacaciones", "otro"];
+
+function isoToday() {
+  return new Date().toISOString().split("T")[0];
+}
 
 function FichajeAdminModal({
   empleado, tenantId, onClose,
 }: { empleado: UserConTarifa; tenantId: string; onClose: () => void }) {
-  const [obras, setObras] = useState<Obra[]>([]);
+  const [obras, setObras]               = useState<Obra[]>([]);
   const [fichajeActual, setFichajeActual] = useState<any>(null);
-  const [obraId, setObraId] = useState("");
-  const [estado, setEstado] = useState<FichajeEstado>("trabajando");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState(false);
+  const [fecha, setFecha]               = useState(isoToday());
+  const [obraId, setObraId]             = useState("");
+  const [estado, setEstado]             = useState<FichajeEstado>("trabajando");
+  const [isLoading, setIsLoading]       = useState(true);
+  const [isSaving, setIsSaving]         = useState(false);
+  const [error, setError]               = useState<string | null>(null);
+  const [ok, setOk]                     = useState(false);
 
+  // Carga inicial: obras activas
   useEffect(() => {
-    (async () => {
-      const [obrasRes, fichaje] = await Promise.all([
-        getObrasActivas(tenantId),
-        getFichajeHoy(empleado.id),
-      ]);
-      setObras((obrasRes.data as Obra[]) ?? []);
-      if (fichaje) {
-        setFichajeActual(fichaje);
-        setObraId((fichaje as any).obra_id ?? "");
-        setEstado((fichaje as any).estado ?? "trabajando");
+    getObrasActivas(tenantId).then(({ data }) => {
+      setObras((data as Obra[]) ?? []);
+    });
+  }, [tenantId]);
+
+  // Cada vez que cambia la fecha, busca si ya hay fichaje ese día
+  useEffect(() => {
+    setIsLoading(true);
+    setFichajeActual(null);
+    setOk(false);
+    setError(null);
+    getFichajeByFecha(empleado.id, fecha).then((f) => {
+      if (f) {
+        setFichajeActual(f);
+        setObraId((f as any).obra_id ?? "");
+        setEstado((f as any).estado ?? "trabajando");
+      } else {
+        setObraId("");
+        setEstado("trabajando");
       }
       setIsLoading(false);
-    })();
-  }, []);
+    }).catch(() => setIsLoading(false));
+  }, [fecha, empleado.id]);
+
+  const necesitaObra = !ESTADOS_SIN_OBRA.includes(estado);
 
   async function guardar() {
-    if (!obraId) { setError("Selecciona una obra"); return; }
+    if (necesitaObra && !obraId) { setError("Selecciona una obra"); return; }
     setIsSaving(true);
     setError(null);
     try {
-      // Si ya existe fichaje hoy → eliminar primero (no hay upsert en InsForge SDK)
+      // Si ya existe fichaje ese día → eliminar primero
       if (fichajeActual?.id) {
         await insforge.database.from("fichajes").delete().eq("id", fichajeActual.id);
       }
       const { error: err } = await registrarFichaje({
         userId: empleado.id,
-        obraId,
+        obraId: obraId || undefined,
         tenantId,
+        fecha,
         estado,
         esCambioObra: false,
       });
-      if (err) { setError("Error al guardar"); }
-      else { setOk(true); setTimeout(onClose, 1200); }
+      if (err) { setError("Error al guardar el fichaje"); }
+      else { setOk(true); setTimeout(onClose, 1400); }
     } catch { setError("Error de red"); }
     setIsSaving(false);
   }
 
+  // Fecha formateada para mostrar
+  const fechaLabel = fecha === isoToday() ? "hoy" : new Date(fecha + "T12:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "long" });
+
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-panel max-h-[90vh] flex flex-col">
+
+        {/* Cabecera */}
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="icon-container w-9 h-9"><Clock className="w-4 h-4" /></div>
             <div>
               <h2 className="text-lg font-semibold">Fichar empleado</h2>
-              <p className="text-xs text-content-muted">{empleado.nombre} · hoy</p>
+              <p className="text-xs text-content-muted">{empleado.nombre}</p>
             </div>
           </div>
           <button onClick={onClose} className="btn-ghost p-2"><X className="w-4 h-4" /></button>
         </div>
 
         <div className="overflow-y-auto flex-1 p-5 space-y-5">
-          {isLoading ? (
-            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-          ) : ok ? (
-            <div className="flex flex-col items-center py-8 gap-2">
+          {ok ? (
+            <div className="flex flex-col items-center py-8 gap-3">
               <div className="w-14 h-14 rounded-full bg-success-light flex items-center justify-center">
                 <Check className="w-7 h-7 text-success" />
               </div>
-              <p className="font-semibold text-content-primary">Fichaje guardado</p>
+              <p className="font-semibold text-content-primary">Fichaje guardado correctamente</p>
+              <p className="text-sm text-content-muted">{empleado.nombre} · {fechaLabel}</p>
             </div>
           ) : (
             <>
-              {fichajeActual && (
-                <div className="bg-warning-light text-warning-foreground text-sm px-3 py-2 rounded-lg">
-                  ⚠️ Ya tiene un fichaje hoy ({fichajeActual.estado}). Se reemplazará.
-                </div>
-              )}
-
-              {/* Obra */}
+              {/* Selector de fecha */}
               <div>
-                <label className="label">Obra *</label>
-                <select
+                <label className="label">Fecha del fichaje</label>
+                <input
+                  type="date"
                   className="input"
-                  value={obraId}
-                  onChange={(e) => setObraId(e.target.value)}
-                >
-                  <option value="">Selecciona obra…</option>
-                  {obras.map((o) => (
-                    <option key={o.id} value={o.id}>{o.nombre}</option>
-                  ))}
-                </select>
+                  value={fecha}
+                  max={isoToday()}
+                  onChange={(e) => setFecha(e.target.value)}
+                />
               </div>
 
-              {/* Estado */}
-              <div>
-                <label className="label">Estado</label>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {ESTADOS_FICHAJE.map((e) => (
-                    <button
-                      key={e.value}
-                      type="button"
-                      onClick={() => setEstado(e.value)}
-                      className={cn(
-                        "flex items-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all text-left",
-                        estado === e.value
-                          ? "border-primary bg-primary-light text-primary"
-                          : "border-border text-content-secondary hover:border-primary/50",
-                      )}
-                    >
-                      <span>{e.emoji}</span>{e.label}
-                    </button>
-                  ))}
+              {isLoading ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
-              </div>
+              ) : (
+                <>
+                  {/* Banner si ya hay fichaje ese día */}
+                  {fichajeActual ? (
+                    <div className="flex items-center gap-3 bg-success-light border border-success-foreground/20 text-success-foreground text-sm px-4 py-3 rounded-xl">
+                      <Check className="w-4 h-4 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium">Ya fichado {fechaLabel}</p>
+                        <p className="text-xs opacity-80">Estado actual: <strong>{fichajeActual.estado}</strong>. Puedes modificarlo abajo.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 bg-gray-50 border border-border text-content-muted text-sm px-4 py-3 rounded-xl">
+                      <Clock className="w-4 h-4 flex-shrink-0" />
+                      <p>Sin fichaje registrado {fechaLabel}</p>
+                    </div>
+                  )}
 
-              {error && <p className="text-danger text-sm">{error}</p>}
+                  {/* Estado */}
+                  <div>
+                    <label className="label">Estado</label>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {ESTADOS_FICHAJE.map((e) => (
+                        <button
+                          key={e.value}
+                          type="button"
+                          onClick={() => { setEstado(e.value); setError(null); }}
+                          className={cn(
+                            "flex items-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all text-left",
+                            estado === e.value
+                              ? "border-primary bg-primary-light text-primary"
+                              : "border-border text-content-secondary hover:border-primary/50",
+                          )}
+                        >
+                          <span>{e.emoji}</span>{e.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Obra (solo si el estado lo requiere) */}
+                  {necesitaObra && (
+                    <div>
+                      <label className="label">Obra *</label>
+                      <select
+                        className="input"
+                        value={obraId}
+                        onChange={(e) => { setObraId(e.target.value); setError(null); }}
+                      >
+                        <option value="">Selecciona obra…</option>
+                        {obras.map((o) => (
+                          <option key={o.id} value={o.id}>{o.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {error && <p className="text-danger text-sm">{error}</p>}
+                </>
+              )}
             </>
           )}
         </div>
@@ -463,7 +520,9 @@ function FichajeAdminModal({
           <div className="p-5 border-t border-border flex gap-3 justify-end">
             <button onClick={onClose} className="btn-secondary">Cancelar</button>
             <button onClick={guardar} disabled={isSaving} className="btn-primary">
-              {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando…</> : "Guardar fichaje"}
+              {isSaving
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando…</>
+                : fichajeActual ? "Actualizar fichaje" : "Guardar fichaje"}
             </button>
           </div>
         )}

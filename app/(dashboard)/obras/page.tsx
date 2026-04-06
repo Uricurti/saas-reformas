@@ -35,20 +35,26 @@ export default function ObrasPage() {
 
   async function cargar() {
     setIsLoading(true);
-    if (isAdmin) {
-      const { data, error } = await getObrasActivas(tenantId!);
-      if (error) console.error("[obras] Error cargando obras:", error);
-      setObras((data as ObraConAsignados[]) ?? []);
-    } else if (user) {
-      // Empleado: carga en paralelo su obra de hoy y sus obras asignadas
-      const [obraHoyRes, obrasAsignadas] = await Promise.all([
-        getAsignacionHoyByUser(user.id),
-        getObrasAsignadasByUser(user.id),
-      ]);
-      setObraHoy(obraHoyRes);
-      setObrasEmpleado(obrasAsignadas);
+    try {
+      if (isAdmin) {
+        const { data, error } = await getObrasActivas(tenantId!);
+        if (error) console.error("[obras] Error cargando obras:", error);
+        setObras((data as ObraConAsignados[]) ?? []);
+      } else if (user) {
+        // Empleado: carga en paralelo su obra de hoy + todas sus obras asignadas
+        // Las obras asignadas NO dependen del fichaje ni del estado de hoy
+        const [obraHoyRes, obrasAsignadas] = await Promise.all([
+          getAsignacionHoyByUser(user.id).catch(() => null),
+          getObrasAsignadasByUser(user.id).catch(() => []),
+        ]);
+        setObraHoy(obraHoyRes);
+        setObrasEmpleado(obrasAsignadas);
+      }
+    } catch (e) {
+      console.error("[obras] Error inesperado:", e);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }
 
   if (isLoading) return <LoadingSkeleton />;

@@ -30,7 +30,7 @@ function openDB(): Promise<IDBDatabase> {
 // ─── Guardar fichaje pendiente ───────────────────────────────────────────────
 export async function guardarFichajePendiente(params: {
   userId: string;
-  obraId: string;
+  obraId?: string;
   obraAsignadaId?: string;
   tenantId: string;
   estado: FichajeEstado;
@@ -40,7 +40,7 @@ export async function guardarFichajePendiente(params: {
   const fichaje: FichajePendiente = {
     id,
     user_id: params.userId,
-    obra_id: params.obraId,
+    obra_id: params.obraId ?? "",
     obra_asignada_id: params.obraAsignadaId,
     tenant_id: params.tenantId,
     fecha: new Date().toISOString().split("T")[0],

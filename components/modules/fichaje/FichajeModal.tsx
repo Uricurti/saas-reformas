@@ -7,78 +7,94 @@ import { getAsignacionHoyByUser } from "@/lib/insforge/database";
 import { guardarFichajePendiente, sincronizarFichajesPendientes, isOnline } from "@/lib/offline/fichaje-offline";
 import { isoDate } from "@/lib/utils";
 import type { Obra, FichajeEstado } from "@/types";
-import { CheckCircle2, XCircle, ArrowLeftRight, Loader2, Wifi, WifiOff, Building2 } from "lucide-react";
+import { CheckCircle2, XCircle, ArrowLeftRight, Loader2, Wifi, WifiOff, Building2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import insforge from "@/lib/insforge/client";
 import { DireccionLink } from "@/components/ui/DireccionLink";
 
 type Paso = "pregunta" | "cambio_obra" | "ausencia" | "completado";
-
 type MotivoAusencia = "libre" | "baja" | "permiso" | "vacaciones" | "otro";
 
 const motivosAusencia: { value: MotivoAusencia; label: string; emoji: string }[] = [
-  { value: "libre", label: "Libre", emoji: "🏖️" },
-  { value: "baja", label: "Baja médica", emoji: "🏥" },
-  { value: "permiso", label: "Permiso", emoji: "📋" },
-  { value: "vacaciones", label: "Vacaciones", emoji: "🏖️" },
-  { value: "otro", label: "Otro motivo", emoji: "💬" },
+  { value: "libre",      label: "Libre",      emoji: "🏖️" },
+  { value: "baja",       label: "Baja médica", emoji: "🏥" },
+  { value: "permiso",    label: "Permiso",     emoji: "📋" },
+  { value: "vacaciones", label: "Vacaciones",  emoji: "🏖️" },
+  { value: "otro",       label: "Otro motivo", emoji: "💬" },
 ];
+
+// ── Helpers de localStorage ───────────────────────────────────
+function fichajeKey(userId: string) {
+  return `fichaje_done_${userId}_${isoDate()}`;
+}
+function marcarFichadoLocal(userId: string) {
+  try { localStorage.setItem(fichajeKey(userId), "1"); } catch { /* ignore */ }
+}
+function yaFichadoLocal(userId: string): boolean {
+  try { return localStorage.getItem(fichajeKey(userId)) === "1"; } catch { return false; }
+}
 
 export function FichajeModal() {
   const user = useAuthStore((s) => s.user);
 
-  const [visible, setVisible] = useState(false);
-  const [paso, setPaso] = useState<Paso>("pregunta");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [visible, setVisible]           = useState(false);
+  const [paso, setPaso]                 = useState<Paso>("pregunta");
+  const [isLoading, setIsLoading]       = useState(true);
+  const [isSaving, setIsSaving]         = useState(false);
+  const [saveError, setSaveError]       = useState<string | null>(null);
   const [obraAsignada, setObraAsignada] = useState<Obra | null>(null);
   const [obrasActivas, setObrasActivas] = useState<Obra[]>([]);
-  const [online, setOnline] = useState(isOnline());
+  const [online, setOnline]             = useState(isOnline());
   const [guardadoOffline, setGuardadoOffline] = useState(false);
 
-  // Escuchar cambios de conectividad
+  // Conectividad
   useEffect(() => {
-    const onOnline = () => {
-      setOnline(true);
-      if (user) sincronizar();
-    };
+    const onOnline  = () => { setOnline(true);  if (user) sincronizar(); };
     const onOffline = () => setOnline(false);
-    window.addEventListener("online", onOnline);
+    window.addEventListener("online",  onOnline);
     window.addEventListener("offline", onOffline);
     return () => {
-      window.removeEventListener("online", onOnline);
+      window.removeEventListener("online",  onOnline);
       window.removeEventListener("offline", onOffline);
     };
   }, [user]);
 
-  // Comprobar si el empleado debe fichar hoy
+  // Comprobar si debe aparecer el modal (solo la primera vez por día)
   useEffect(() => {
     if (!user || user.rol === "admin") return;
     comprobarFichaje();
-  }, [user]);
+  }, [user?.id]); // solo cuando cambia el ID de usuario, no en cada render
 
   async function comprobarFichaje() {
     setIsLoading(true);
     try {
-      // 1. ¿Ya fichó hoy?
-      const fichaje = await getFichajeHoy(user!.id);
-      if (fichaje) {
+      // 1. Comprobar localStorage primero (rápido, offline-friendly)
+      if (yaFichadoLocal(user!.id)) {
         setIsLoading(false);
-        return; // Ya fichó, no mostrar modal
+        return;
       }
 
-      // 2. ¿Tiene obra asignada hoy?
+      // 2. Comprobar en la BD (por si fichó desde otro dispositivo / admin fichó por él)
+      const fichaje = await getFichajeHoy(user!.id);
+      if (fichaje) {
+        // Sincronizar caché local
+        marcarFichadoLocal(user!.id);
+        setIsLoading(false);
+        return;
+      }
+
+      // 3. ¿Tiene obra asignada hoy?
       const obra = await getAsignacionHoyByUser(user!.id);
       if (!obra) {
         setIsLoading(false);
         return; // Sin asignación hoy, no mostrar modal
       }
 
-      // 3. Mostrar modal
       setObraAsignada(obra);
       setVisible(true);
     } catch (e) {
-      console.error("Error al comprobar fichaje:", e);
+      console.error("[FichajeModal] Error al comprobar fichaje:", e);
+      // En caso de error de red, no mostrar el modal para no bloquear al usuario
     } finally {
       setIsLoading(false);
     }
@@ -122,25 +138,26 @@ export function FichajeModal() {
   }
 
   async function ficharAusencia(motivo: MotivoAusencia) {
-    if (!user || !obraAsignada) return;
+    if (!user) return;
     setIsSaving(true);
-    const estado: FichajeEstado = motivo === "libre" ? "libre"
-      : motivo === "baja" ? "baja"
-      : motivo === "permiso" ? "permiso"
+    const estado: FichajeEstado = motivo === "libre"      ? "libre"
+      : motivo === "baja"       ? "baja"
+      : motivo === "permiso"    ? "permiso"
       : motivo === "vacaciones" ? "vacaciones"
       : "otro";
-    await fichar(estado, obraAsignada.id, undefined, false);
+    await fichar(estado, obraAsignada?.id, undefined, false);
   }
 
   async function fichar(
     estado: FichajeEstado,
-    obraId: string,
+    obraId?: string,
     obraAsignadaId?: string,
-    esCambioObra = false
+    esCambioObra = false,
   ) {
+    setSaveError(null);
     try {
       if (online) {
-        await registrarFichaje({
+        const { error } = await registrarFichaje({
           userId: user!.id,
           obraId,
           obraAsignadaId,
@@ -148,10 +165,15 @@ export function FichajeModal() {
           estado,
           esCambioObra,
         });
+        if (error) {
+          setSaveError("Error al guardar el fichaje. Inténtalo de nuevo.");
+          setIsSaving(false);
+          return;
+        }
       } else {
         await guardarFichajePendiente({
           userId: user!.id,
-          obraId,
+          obraId: obraId ?? "",
           obraAsignadaId,
           tenantId: user!.tenant_id,
           estado,
@@ -159,9 +181,13 @@ export function FichajeModal() {
         });
         setGuardadoOffline(true);
       }
+
+      // Marcar en localStorage para no volver a preguntar hoy
+      marcarFichadoLocal(user!.id);
       setPaso("completado");
     } catch (e) {
-      console.error("Error al fichar:", e);
+      console.error("[FichajeModal] Error al fichar:", e);
+      setSaveError("Error de conexión. Inténtalo de nuevo.");
     } finally {
       setIsSaving(false);
     }
@@ -184,7 +210,7 @@ export function FichajeModal() {
       {/* Indicador de conexión */}
       <div className={cn(
         "absolute top-4 right-4 flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full",
-        online ? "bg-success-light text-success-foreground" : "bg-warning-light text-warning-foreground"
+        online ? "bg-success-light text-success-foreground" : "bg-warning-light text-warning-foreground",
       )}>
         {online ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
         {online ? "Conectado" : "Sin conexión"}
@@ -192,7 +218,7 @@ export function FichajeModal() {
 
       <div className="w-full max-w-sm mx-auto">
 
-        {/* ── PASO 1: Pregunta principal ─────────────────────────────────── */}
+        {/* ── PASO 1: Pregunta principal ─────────────────────────────── */}
         {paso === "pregunta" && (
           <div className="flex flex-col items-center text-center animate-slide-up">
             <div className="w-20 h-20 bg-primary-light rounded-2xl flex items-center justify-center mb-6">
@@ -201,9 +227,7 @@ export function FichajeModal() {
             <p className="text-content-secondary text-sm mb-2">
               Buenos días, <strong>{user?.nombre.split(" ")[0]}</strong>
             </p>
-            <h1 className="text-2xl font-bold text-content-primary mb-1">
-              ¿Trabajas hoy en
-            </h1>
+            <h1 className="text-2xl font-bold text-content-primary mb-1">¿Trabajas hoy en</h1>
             <h2 className="text-xl font-bold text-primary mb-1">{obraAsignada?.nombre}?</h2>
             <DireccionLink
               direccion={obraAsignada?.direccion ?? ""}
@@ -211,8 +235,14 @@ export function FichajeModal() {
               className="text-sm text-content-muted mb-10 hover:text-primary"
             />
 
+            {saveError && (
+              <div className="w-full flex items-center gap-2 bg-danger-light text-danger-foreground text-sm px-3 py-2 rounded-lg mb-4">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {saveError}
+              </div>
+            )}
+
             <div className="w-full space-y-3">
-              {/* Sí, estoy en la obra */}
               <button
                 onClick={ficharSi}
                 disabled={isSaving}
@@ -222,7 +252,6 @@ export function FichajeModal() {
                 Sí, estoy en la obra
               </button>
 
-              {/* Voy a otra obra */}
               <button
                 onClick={irACambioObra}
                 disabled={isSaving}
@@ -232,7 +261,6 @@ export function FichajeModal() {
                 Voy a otra obra
               </button>
 
-              {/* Hoy no trabajo */}
               <button
                 onClick={() => setPaso("ausencia")}
                 disabled={isSaving}
@@ -245,7 +273,7 @@ export function FichajeModal() {
           </div>
         )}
 
-        {/* ── PASO 2: Cambio de obra ─────────────────────────────────────── */}
+        {/* ── PASO 2: Cambio de obra ─────────────────────────────────── */}
         {paso === "cambio_obra" && (
           <div className="flex flex-col items-center w-full animate-slide-up">
             <h1 className="text-xl font-bold text-content-primary mb-2">¿A qué obra vas?</h1>
@@ -264,10 +292,7 @@ export function FichajeModal() {
                     <Building2 className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="font-semibold text-content-primary">{obra.nombre}</p>
-                      <DireccionLink
-                        direccion={obra.direccion}
-                        className="text-xs text-content-muted"
-                      />
+                      <DireccionLink direccion={obra.direccion} className="text-xs text-content-muted" />
                     </div>
                     {isSaving && <Loader2 className="w-4 h-4 animate-spin ml-auto" />}
                   </button>
@@ -280,11 +305,19 @@ export function FichajeModal() {
           </div>
         )}
 
-        {/* ── PASO 3: Motivo de ausencia ─────────────────────────────────── */}
+        {/* ── PASO 3: Motivo de ausencia ─────────────────────────────── */}
         {paso === "ausencia" && (
           <div className="flex flex-col items-center w-full animate-slide-up">
             <h1 className="text-xl font-bold text-content-primary mb-2">¿Cuál es el motivo?</h1>
             <p className="text-sm text-content-secondary mb-6">Indica por qué no trabajas hoy</p>
+
+            {saveError && (
+              <div className="w-full flex items-center gap-2 bg-danger-light text-danger-foreground text-sm px-3 py-2 rounded-lg mb-4">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {saveError}
+              </div>
+            )}
+
             <div className="w-full space-y-2">
               {motivosAusencia.map((m) => (
                 <button
@@ -305,7 +338,7 @@ export function FichajeModal() {
           </div>
         )}
 
-        {/* ── PASO 4: Confirmación ───────────────────────────────────────── */}
+        {/* ── PASO 4: Confirmación ───────────────────────────────────── */}
         {paso === "completado" && (
           <div className="flex flex-col items-center text-center animate-scale-in">
             <div className="w-24 h-24 bg-success-light rounded-full flex items-center justify-center mb-6">

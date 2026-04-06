@@ -164,12 +164,15 @@ export async function deleteAsignacion(id: string) {
 // ══════════════════════════════════════════════════════════════════
 
 export async function getFichajeHoy(userId: string): Promise<Fichaje | null> {
-  const hoy = isoDate();
+  return getFichajeByFecha(userId, isoDate());
+}
+
+export async function getFichajeByFecha(userId: string, fecha: string): Promise<Fichaje | null> {
   const { data, error } = await insforge.database
     .from("fichajes")
     .select("*")
     .eq("user_id", userId)
-    .eq("fecha", hoy)
+    .eq("fecha", fecha)
     .maybeSingle();
 
   if (error || !data) return null;
@@ -211,28 +214,27 @@ export async function getFichajesByTenantMes(tenantId: string, anio: number, mes
 
 export async function registrarFichaje(params: {
   userId: string;
-  obraId: string;
+  obraId?: string;            // opcional para ausencias (libre, baja, etc.)
   obraAsignadaId?: string;
   tenantId: string;
+  fecha?: string;             // opcional, por defecto hoy
   estado: FichajeEstado;
   esCambioObra?: boolean;
 }) {
-  const hoy = isoDate();
-  return insforge.database
-    .from("fichajes")
-    .insert({
-      user_id: params.userId,
-      obra_id: params.obraId,
-      obra_asignada_id: params.obraAsignadaId,
-      tenant_id: params.tenantId,
-      fecha: hoy,
-      estado: params.estado,
-      hora_registro: new Date().toISOString(),
-      sincronizado: true,
-      es_cambio_obra: params.esCambioObra ?? false,
-    })
-    .select()
-    .single();
+  const fecha = params.fecha ?? isoDate();
+  const payload: Record<string, any> = {
+    user_id: params.userId,
+    tenant_id: params.tenantId,
+    fecha,
+    estado: params.estado,
+    hora_registro: new Date().toISOString(),
+    sincronizado: true,
+    es_cambio_obra: params.esCambioObra ?? false,
+  };
+  if (params.obraId)         payload.obra_id          = params.obraId;
+  if (params.obraAsignadaId) payload.obra_asignada_id = params.obraAsignadaId;
+
+  return insforge.database.from("fichajes").insert(payload).select().single();
 }
 
 // ══════════════════════════════════════════════════════════════════
