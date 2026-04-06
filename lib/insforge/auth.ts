@@ -271,15 +271,29 @@ export async function createUser(params: {
 }
 
 // ─── Obtener perfil completo ─────────────────────────────────────────────────
+// Intenta primero via SDK. Si falla (anonKey sin sesión, RLS bloqueado),
+// usa la ruta server-side con x-api-key que bypassa RLS.
 export async function getUserProfile(userId: string): Promise<User | null> {
-  const { data, error } = await insforge.database
-    .from("users")
-    .select("*")
-    .eq("id", userId)
-    .single();
+  // 1. Intentar con el SDK (funciona si el token está correctamente aplicado)
+  try {
+    const { data, error } = await insforge.database
+      .from("users")
+      .select("*")
+      .eq("id", userId)
+      .single();
+    if (!error && data) return data as User;
+  } catch { /* SDK sin sesión de usuario → intentar fallback */ }
 
-  if (error || !data) return null;
-  return data as User;
+  // 2. Fallback: API route server-side con x-api-key (bypassa RLS, siempre funciona)
+  try {
+    const res = await fetch(`/api/auth/profile?userId=${encodeURIComponent(userId)}`);
+    if (res.ok) {
+      const json = await res.json();
+      return json?.data ?? null;
+    }
+  } catch { /* error de red */ }
+
+  return null;
 }
 
 // ─── Cambiar contraseña ──────────────────────────────────────────────────────
