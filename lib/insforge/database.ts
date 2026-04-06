@@ -538,13 +538,15 @@ export async function upsertJornada(params: {
   nota?: string;
 }): Promise<{ data: Jornada | null; error: any }> {
   const esLibre = params.esLibre ?? params.estado !== "trabajando";
+  const obraId  = esLibre ? null : (params.obraId ?? null);
+
   const payload: Record<string, any> = {
-    user_id:   params.userId,
-    tenant_id: params.tenantId,
-    fecha:     params.fecha,
-    estado:    params.estado,
-    es_libre:  esLibre,
-    obra_id:   esLibre ? null : (params.obraId ?? null),
+    user_id:    params.userId,
+    tenant_id:  params.tenantId,
+    fecha:      params.fecha,
+    estado:     params.estado,
+    es_libre:   esLibre,
+    obra_id:    obraId,
     ha_fichado: params.haFichado ?? false,
     updated_at: new Date().toISOString(),
   };
@@ -558,7 +560,39 @@ export async function upsertJornada(params: {
     .select()
     .single();
 
+  // Auto-asignar a la obra si trabaja en ella y aún no está asignado
+  if (!esLibre && obraId) {
+    ensureAsignacionObra(params.userId, obraId, params.fecha).catch(() => {});
+  }
+
   return result as { data: Jornada | null; error: any };
+}
+
+/**
+ * Comprueba si el trabajador ya tiene una asignación activa a la obra.
+ * Si no la tiene, la crea automáticamente con fecha_inicio = fecha.
+ * Se llama en segundo plano (fire-and-forget) desde upsertJornada.
+ */
+async function ensureAsignacionObra(
+  userId: string, obraId: string, fecha: string
+): Promise<void> {
+  // Buscar asignación activa (sin fecha_fin, o fecha_fin >= fecha de hoy)
+  const hoy = isoDate();
+  const { data } = await insforge.database
+    .from("asignaciones")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("obra_id", obraId)
+    .or(`fecha_fin.is.null,fecha_fin.gte.${hoy}`)
+    .limit(1)
+    .maybeSingle();
+
+  if (data) return; // Ya está asignado, no hacer nada
+
+  // No está asignado → crear asignación desde la fecha indicada (sin fecha_fin = abierta)
+  await insforge.database
+    .from("asignaciones")
+    .insert({ user_id: userId, obra_id: obraId, fecha_inicio: fecha, es_libre: false });
 }
 
 export async function deleteJornada(id: string) {
