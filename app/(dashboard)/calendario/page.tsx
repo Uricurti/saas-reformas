@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useTenantId, useIsAdmin, useUser } from "@/lib/stores/auth-store";
+import { useRefreshOnFocus } from "@/lib/hooks/useRefreshOnFocus";
 import {
   getAsignacionesByFecha, getUsuariosByTenant, getObrasActivas,
   createAsignacion, updateAsignacion, deleteAsignacion, crearNotificacion,
@@ -95,6 +96,7 @@ export default function CalendarioPage() {
   }, [tenantId, diasCalendario, mesBase]);
 
   useEffect(() => { cargar(); }, [cargar]);
+  useRefreshOnFocus(cargar);
 
   const hoy = isoDate();
   const asigsDia = asignaciones[diaSeleccionado] ?? [];

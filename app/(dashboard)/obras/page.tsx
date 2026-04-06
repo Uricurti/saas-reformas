@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRefreshOnFocus } from "@/lib/hooks/useRefreshOnFocus";
 import { useAuthStore, useIsAdmin, useTenantId, useSessionVerified } from "@/lib/stores/auth-store";
 import { getObrasActivas, getObrasAsignadasByUser } from "@/lib/insforge/database";
 import { getAsignacionHoyByUser } from "@/lib/insforge/database";
@@ -28,6 +29,9 @@ export default function ObrasPage() {
   useEffect(() => {
     if (tenantId && sessionVerified) cargar();
   }, [tenantId, sessionVerified]);
+
+  // Recargar datos cuando el usuario vuelve a la pestaña
+  useRefreshOnFocus(() => { if (tenantId && sessionVerified) cargar(); });
 
   async function cargar() {
     setIsLoading(true);
