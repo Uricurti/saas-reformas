@@ -5,7 +5,7 @@ import { useTenantId, useIsAdmin } from "@/lib/stores/auth-store";
 import { useRouter } from "next/navigation";
 import {
   getFichajesByTenantMes, getUsuariosByTenant, getTarifaEmpleado,
-  getObrasActivas, getFichajeByFecha, registrarFichaje,
+  getObrasActivas, getFichajeByFecha, registrarFichaje, createAsignacion,
 } from "@/lib/insforge/database";
 import insforge from "@/lib/insforge/client";
 import type { User, Fichaje, JornalMes, Obra, FichajeEstado } from "@/types";
@@ -470,6 +470,20 @@ function FichajeInlineForm({
         obraId: obraId || undefined,
       });
       if (err) { setError("Error al guardar"); setSaving(false); return; }
+
+      // ── Sincronizar asignación para que el calendario refleje el cambio ──
+      // Creamos un override de día concreto (fecha_inicio = fecha_fin = fecha)
+      // La query del calendario toma el más reciente por usuario → sobreescribe rangos anteriores
+      await createAsignacion(
+        estado === "trabajando" ? obraId : null,
+        userId,
+        fecha,
+        fecha,   // fecha_fin = mismo día → override exacto
+        undefined,
+        undefined,
+        estado !== "trabajando", // es_libre = true para cualquier ausencia
+      ).catch(() => {}); // no bloquear si falla (ya tenemos el fichaje guardado)
+
       onDone();
     } catch { setError("Error de red"); setSaving(false); }
   }
