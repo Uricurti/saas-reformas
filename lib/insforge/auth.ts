@@ -68,14 +68,16 @@ async function validateTokenRaw(accessToken: string): Promise<{ id: string } | n
 }
 
 // ─── Refrescar tokens ────────────────────────────────────────────────────────
+// Usamos nuestra API route /api/auth/refresh como proxy servidor:
+// InsForge acepta el refreshToken en el body para clientes no-browser (sin CSRF).
+// Desde el navegador el endpoint directo está bloqueado por SameSite cookies.
 async function refreshTokens(refreshToken: string): Promise<StoredSession | null> {
+  if (!refreshToken || refreshToken === "sdk-session") return null;
   try {
-    const url = process.env.NEXT_PUBLIC_INSFORGE_URL!;
-    // Intentamos ambos formatos de body que usa InsForge
-    const res = await fetch(`${url}/api/auth/refresh`, {
+    const res = await fetch("/api/auth/refresh", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ refreshToken, refresh_token: refreshToken }),
+      body:    JSON.stringify({ refreshToken }),
     });
     if (!res.ok) return null;
     const data = await res.json();
