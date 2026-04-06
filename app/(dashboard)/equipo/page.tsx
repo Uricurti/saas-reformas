@@ -328,6 +328,7 @@ export default function EquipoPage() {
 // ─────────────────────────────────────────────────────────────
 const ESTADOS_FICHAJE: { value: FichajeEstado; label: string; emoji: string }[] = [
   { value: "trabajando",  label: "Trabajando",    emoji: "🏗️" },
+  { value: "libre",       label: "Libre",          emoji: "🏖️" },
   { value: "baja",        label: "Baja médica",   emoji: "🏥" },
   { value: "permiso",     label: "Permiso",        emoji: "📋" },
   { value: "vacaciones",  label: "Vacaciones",     emoji: "🏖️" },

@@ -14,9 +14,10 @@ import { DireccionLink } from "@/components/ui/DireccionLink";
 
 type Paso = "pregunta" | "cambio_obra" | "ausencia" | "completado";
 
-type MotivoAusencia = "baja" | "permiso" | "vacaciones" | "otro";
+type MotivoAusencia = "libre" | "baja" | "permiso" | "vacaciones" | "otro";
 
 const motivosAusencia: { value: MotivoAusencia; label: string; emoji: string }[] = [
+  { value: "libre", label: "Libre", emoji: "🏖️" },
   { value: "baja", label: "Baja médica", emoji: "🏥" },
   { value: "permiso", label: "Permiso", emoji: "📋" },
   { value: "vacaciones", label: "Vacaciones", emoji: "🏖️" },
@@ -123,7 +124,8 @@ export function FichajeModal() {
   async function ficharAusencia(motivo: MotivoAusencia) {
     if (!user || !obraAsignada) return;
     setIsSaving(true);
-    const estado: FichajeEstado = motivo === "baja" ? "baja"
+    const estado: FichajeEstado = motivo === "libre" ? "libre"
+      : motivo === "baja" ? "baja"
       : motivo === "permiso" ? "permiso"
       : motivo === "vacaciones" ? "vacaciones"
       : "otro";

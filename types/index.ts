@@ -72,7 +72,7 @@ export interface AsignacionConObra extends Asignacion {
 }
 
 // ─── Fichaje ──────────────────────────────────────────────────────────────
-export type FichajeEstado = "trabajando" | "baja" | "permiso" | "vacaciones" | "otro";
+export type FichajeEstado = "trabajando" | "baja" | "permiso" | "vacaciones" | "otro" | "libre";
 
 export interface Fichaje {
   id: string;
