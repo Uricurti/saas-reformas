@@ -205,7 +205,7 @@ export async function getFichajesByTenantMes(tenantId: string, anio: number, mes
   const fin = new Date(anio, mes, 0).toISOString().split("T")[0];
   return insforge.database
     .from("fichajes")
-    .select(`*, user:users(*)`)
+    .select(`*, user:users(*), obra:obras(id, nombre, direccion)`)
     .eq("tenant_id", tenantId)
     .gte("fecha", inicio)
     .lte("fecha", fin)
