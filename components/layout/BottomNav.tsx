@@ -6,7 +6,8 @@ import { Building2, Calendar, ShoppingCart, Camera, Bell, Calculator, Users, Log
 import { cn } from "@/lib/utils";
 import { useIsAdmin, useAuthStore } from "@/lib/stores/auth-store";
 import { useNotificacionesStore } from "@/lib/stores/notificaciones-store";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { initials } from "@/lib/utils/format";
 
 const navEmpleado = [
@@ -24,6 +25,158 @@ const navAdmin = [
   { href: "/equipo",         label: "Equipo",     icon: Users },
   { href: "/notificaciones", label: "Avisos",     icon: Bell },
 ];
+
+function PerfilSheet({
+  open,
+  onClose,
+  user,
+  isAdmin,
+  logout,
+}: {
+  open: boolean;
+  onClose: () => void;
+  user: { nombre?: string; email?: string } | null;
+  isAdmin: boolean;
+  logout: () => Promise<void>;
+}) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  if (!mounted || !open) return null;
+
+  return createPortal(
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 99999,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "flex-end",
+      }}
+      onClick={onClose}
+    >
+      {/* Overlay oscuro */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          backgroundColor: "rgba(0,0,0,0.55)",
+        }}
+      />
+
+      {/* Sheet desde abajo */}
+      <div
+        style={{
+          position: "relative",
+          backgroundColor: "#ffffff",
+          borderRadius: "20px 20px 0 0",
+          padding: "24px 24px 48px",
+          boxShadow: "0 -4px 30px rgba(0,0,0,0.2)",
+          zIndex: 1,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Handle */}
+        <div
+          style={{
+            width: 40,
+            height: 4,
+            backgroundColor: "#e5e7eb",
+            borderRadius: 99,
+            margin: "0 auto 20px",
+          }}
+        />
+
+        {/* Botón cerrar */}
+        <button
+          onClick={onClose}
+          style={{
+            position: "absolute",
+            top: 16,
+            right: 16,
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            backgroundColor: "#f3f4f6",
+            border: "none",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <X style={{ width: 16, height: 16, color: "#6b7280" }} />
+        </button>
+
+        {/* Info usuario */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              backgroundColor: "#2563eb",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ color: "#ffffff", fontSize: 20, fontWeight: 700 }}>
+              {initials(user?.nombre ?? "?")}
+            </span>
+          </div>
+          <div>
+            <p style={{ fontWeight: 600, fontSize: 18, color: "#111827", margin: 0 }}>
+              {user?.nombre}
+            </p>
+            <p style={{ fontSize: 14, color: "#9ca3af", margin: "2px 0 6px" }}>
+              {user?.email}
+            </p>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 500,
+                padding: "2px 10px",
+                borderRadius: 99,
+                backgroundColor: isAdmin ? "#dbeafe" : "#f3f4f6",
+                color: isAdmin ? "#2563eb" : "#6b7280",
+              }}
+            >
+              {isAdmin ? "👑 Admin" : "👷 Empleado"}
+            </span>
+          </div>
+        </div>
+
+        {/* Botón cerrar sesión */}
+        <button
+          onClick={async () => { onClose(); await logout(); }}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            padding: "14px 0",
+            borderRadius: 12,
+            border: "2px solid #ef4444",
+            backgroundColor: "#ffffff",
+            color: "#ef4444",
+            fontWeight: 600,
+            fontSize: 16,
+            cursor: "pointer",
+          }}
+        >
+          <LogOut style={{ width: 20, height: 20 }} />
+          Cerrar sesión
+        </button>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 export function BottomNav() {
   const pathname  = usePathname();
@@ -63,7 +216,7 @@ export function BottomNav() {
           );
         })}
 
-        {/* Botón de perfil / cerrar sesión */}
+        {/* Botón de perfil */}
         <button
           onClick={() => setShowPerfil(true)}
           className="bottom-nav-item"
@@ -77,62 +230,13 @@ export function BottomNav() {
         </button>
       </nav>
 
-      {/* Panel de perfil */}
-      {showPerfil && (
-        <div
-          className="fixed inset-0 z-50 md:hidden"
-          onClick={() => setShowPerfil(false)}
-        >
-          {/* Overlay */}
-          <div className="absolute inset-0 bg-black/40" />
-
-          {/* Sheet */}
-          <div
-            className="absolute bottom-0 left-0 right-0 bg-app-surface rounded-t-2xl p-6 pb-10 shadow-xl animate-slide-up"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Cerrar */}
-            <button
-              onClick={() => setShowPerfil(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-full text-content-muted hover:bg-gray-100"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            {/* Info usuario */}
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-lg font-bold">
-                  {initials(user?.nombre ?? "?")}
-                </span>
-              </div>
-              <div>
-                <p className="font-semibold text-content-primary text-lg leading-tight">
-                  {user?.nombre}
-                </p>
-                <p className="text-sm text-content-muted">{user?.email}</p>
-                <span className={cn(
-                  "inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-full",
-                  isAdmin
-                    ? "bg-primary-light text-primary"
-                    : "bg-gray-100 text-content-secondary"
-                )}>
-                  {isAdmin ? "👑 Admin" : "👷 Empleado"}
-                </span>
-              </div>
-            </div>
-
-            {/* Botón cerrar sesión */}
-            <button
-              onClick={async () => { setShowPerfil(false); await logout(); }}
-              className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border-2 border-danger text-danger font-semibold text-base hover:bg-danger-light transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-              Cerrar sesión
-            </button>
-          </div>
-        </div>
-      )}
+      <PerfilSheet
+        open={showPerfil}
+        onClose={() => setShowPerfil(false)}
+        user={user}
+        isAdmin={isAdmin}
+        logout={logout}
+      />
     </>
   );
 }
