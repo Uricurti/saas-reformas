@@ -4,10 +4,10 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { useTenantId, useIsAdmin, useUser } from "@/lib/stores/auth-store";
 import { useRefreshOnFocus } from "@/lib/hooks/useRefreshOnFocus";
 import {
-  getAsignacionesByFecha, getUsuariosByTenant, getObrasActivas,
-  createAsignacion, updateAsignacion, crearNotificacion,
+  getJornadasByMes, upsertJornada, getUsuariosByTenant, getObrasActivas,
+  crearNotificacion,
 } from "@/lib/insforge/database";
-import type { AsignacionConUsuario, User, Obra } from "@/types";
+import type { JornadaConDetalles, User, Obra } from "@/types";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ChevronLeft, ChevronRight, Building2, Edit3, Plus, Check, X, Clock, Bell, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,8 +18,8 @@ import {
   format, isSameMonth, getDay,
 } from "date-fns";
 import { es } from "date-fns/locale";
+import type { FichajeEstado } from "@/types";
 
-// ── Colores por empleado ──────────────────────────────────────
 const PALETTE = [
   { bg: "bg-blue-100",    text: "text-blue-700",    dot: "bg-blue-500"    },
   { bg: "bg-emerald-100", text: "text-emerald-700", dot: "bg-emerald-500" },
@@ -31,29 +31,20 @@ const PALETTE = [
   { bg: "bg-teal-100",    text: "text-teal-700",    dot: "bg-teal-500"    },
 ];
 
-const esFinDeSemana  = (d: Date) => { const w = getDay(d); return w === 0 || w === 6; };
-const initials       = (n: string) => n.split(" ").map(x => x[0]).join("").slice(0, 2).toUpperCase();
+const esFinDeSemana = (d: Date) => { const w = getDay(d); return w === 0 || w === 6; };
+const initials = (n: string) => n.split(" ").map(x => x[0]).join("").slice(0, 2).toUpperCase();
 
-/**
- * Override explícito: una asignación que cubre SOLO ese día concreto
- * (fecha_inicio = fecha_fin = día). En fin de semana, esto es lo único
- * que cuenta como "trabajando".
- */
-const esOverrideExplicito = (a: AsignacionConUsuario, f: string): boolean =>
-  !(a as any).es_libre && a.fecha_inicio === f && (a as any).fecha_fin === f;
-
-// ─────────────────────────────────────────────────────────────
 export default function CalendarioPage() {
   const tenantId    = useTenantId();
   const isAdmin     = useIsAdmin();
   const currentUser = useUser();
 
-  const [mesBase, setMesBase]           = useState(() => startOfMonth(new Date()));
-  const [diaSeleccionado, setDia]       = useState<string>(isoDate());
-  const [asignaciones, setAsignaciones] = useState<Record<string, AsignacionConUsuario[]>>({});
-  const [usuarios, setUsuarios]         = useState<User[]>([]);
-  const [obras, setObras]               = useState<Obra[]>([]);
-  const [isLoading, setIsLoading]       = useState(true);
+  const [mesBase, setMesBase]     = useState(() => startOfMonth(new Date()));
+  const [diaSeleccionado, setDia] = useState<string>(isoDate());
+  const [jornadasByFecha, setJornadasByFecha] = useState<Record<string, JornadaConDetalles[]>>({});
+  const [usuarios, setUsuarios]   = useState<User[]>([]);
+  const [obras, setObras]         = useState<Obra[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const diasCalendario = useMemo(() => {
     const ini = startOfWeek(startOfMonth(mesBase), { weekStartsOn: 1 });
@@ -71,27 +62,26 @@ export default function CalendarioPage() {
     if (!tenantId) return;
     setIsLoading(true);
     try {
-      const diasDelMes = diasCalendario.filter(d => isSameMonth(d, mesBase));
+      const fechaInicio = isoDate(diasCalendario[0]);
+      const fechaFin    = isoDate(diasCalendario[diasCalendario.length - 1]);
 
-      const [usersRes, obrasRes, ...asigResults] = await Promise.all([
+      const [usersRes, obrasRes, jornadasRes] = await Promise.all([
         getUsuariosByTenant(tenantId),
         getObrasActivas(tenantId),
-        ...diasDelMes.map(d => getAsignacionesByFecha(tenantId, isoDate(d))),
+        getJornadasByMes(tenantId, fechaInicio, fechaFin),
       ]);
 
       setUsuarios((usersRes.data as User[]) ?? []);
       setObras((obrasRes.data as Obra[]) ?? []);
 
-      // Mapa fecha → asignaciones (1 por empleado, más reciente gana)
-      const aMap: Record<string, AsignacionConUsuario[]> = {};
-      diasDelMes.forEach((d, i) => {
-        const raw = (asigResults[i].data as AsignacionConUsuario[]) ?? [];
-        const porUser: Record<string, AsignacionConUsuario> = {};
-        // created_at DESC → la más reciente es la primera → gana sobre rangos antiguos
-        raw.forEach(a => { if (!porUser[a.user_id]) porUser[a.user_id] = a; });
-        aMap[isoDate(d)] = Object.values(porUser);
+      // Agrupar jornadas por fecha
+      const byFecha: Record<string, JornadaConDetalles[]> = {};
+      const jornadas = (jornadasRes.data as JornadaConDetalles[]) ?? [];
+      jornadas.forEach(j => {
+        if (!byFecha[j.fecha]) byFecha[j.fecha] = [];
+        byFecha[j.fecha].push(j);
       });
-      setAsignaciones(aMap);
+      setJornadasByFecha(byFecha);
     } catch (e) {
       console.error("[calendario] Error cargando:", e);
     } finally {
@@ -102,9 +92,9 @@ export default function CalendarioPage() {
   useEffect(() => { cargar(); }, [cargar]);
   useRefreshOnFocus(cargar);
 
-  const hoy      = isoDate();
-  const asigsDia = asignaciones[diaSeleccionado] ?? [];
-  const DIAS     = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+  const hoy       = isoDate();
+  const jornadasDia = jornadasByFecha[diaSeleccionado] ?? [];
+  const DIAS      = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
   const empleados = usuarios.filter(u => u.rol === "empleado");
 
   return (
@@ -157,19 +147,13 @@ export default function CalendarioPage() {
 
           <div className="grid grid-cols-7 divide-x divide-y divide-border">
             {diasCalendario.map(dia => {
-              const fechaStr  = isoDate(dia);
-              const delMes    = isSameMonth(dia, mesBase);
-              const finde     = esFinDeSemana(dia);
-              const esHoy     = fechaStr === hoy;
-              const sel       = diaSeleccionado === fechaStr;
-              const asigsDiaCell = asignaciones[fechaStr] ?? [];
-
-              // Empleados que trabajan ese día según asignaciones
-              const trabajando = delMes ? asigsDiaCell.filter(a => {
-                if ((a as any).es_libre) return false;
-                if (finde) return esOverrideExplicito(a, fechaStr);
-                return true;
-              }) : [];
+              const fechaStr = isoDate(dia);
+              const delMes   = isSameMonth(dia, mesBase);
+              const finde    = esFinDeSemana(dia);
+              const esHoy    = fechaStr === hoy;
+              const sel      = diaSeleccionado === fechaStr;
+              const jornadasCell = jornadasByFecha[fechaStr] ?? [];
+              const trabajando = jornadasCell.filter(j => !j.es_libre);
 
               return (
                 <button
@@ -180,7 +164,7 @@ export default function CalendarioPage() {
                     finde && delMes ? "bg-gray-50" : "bg-white",
                     !delMes && "opacity-40",
                     sel && "bg-primary-light ring-2 ring-inset ring-primary/30",
-                    !sel && delMes && !finde && "hover:bg-gray-50",
+                    !sel && delMes && "hover:bg-gray-50",
                   )}
                 >
                   <div className={cn(
@@ -188,15 +172,11 @@ export default function CalendarioPage() {
                     esHoy ? "bg-primary text-white" : finde ? "text-gray-400" : "text-content-primary",
                   )}>{format(dia, "d")}</div>
 
-                  {finde && delMes && trabajando.length === 0 && (
-                    <div className="hidden md:block text-[9px] text-gray-400 uppercase font-medium px-0.5">Libre</div>
-                  )}
-
                   {/* Dots (móvil) */}
                   {delMes && trabajando.length > 0 && (
                     <div className="flex flex-wrap gap-0.5 md:hidden">
-                      {trabajando.slice(0, 4).map(a => (
-                        <span key={a.id} className={cn("w-1.5 h-1.5 rounded-full", colorPorUser[a.user_id]?.dot ?? "bg-gray-400")} />
+                      {trabajando.slice(0, 4).map(j => (
+                        <span key={j.id} className={cn("w-1.5 h-1.5 rounded-full", colorPorUser[j.user_id]?.dot ?? "bg-gray-400")} />
                       ))}
                       {trabajando.length > 4 && <span className="text-[9px] text-content-muted">+{trabajando.length - 4}</span>}
                     </div>
@@ -205,12 +185,17 @@ export default function CalendarioPage() {
                   {/* Chips (desktop) */}
                   {delMes && trabajando.length > 0 && (
                     <div className="hidden md:flex flex-col gap-0.5">
-                      {trabajando.slice(0, 3).map(a => {
-                        const c = colorPorUser[a.user_id];
+                      {trabajando.slice(0, 3).map(j => {
+                        const c = colorPorUser[j.user_id];
+                        const fichado = j.ha_fichado;
                         return (
-                          <div key={a.id} className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate", c?.bg, c?.text)}>
-                            <span className="truncate">{a.user?.nombre?.split(" ")[0] ?? "—"}</span>
-                            {(a as any).hora_inicio && <Clock className="w-2.5 h-2.5 flex-shrink-0 opacity-60" />}
+                          <div key={j.id} className={cn(
+                            "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate",
+                            c?.bg, c?.text,
+                            !fichado && "opacity-60",
+                          )}>
+                            <span className="truncate">{(j as any).user?.nombre?.split(" ")[0] ?? "—"}</span>
+                            {fichado && <Check className="w-2.5 h-2.5 flex-shrink-0 opacity-70" />}
                           </div>
                         );
                       })}
@@ -227,7 +212,7 @@ export default function CalendarioPage() {
       {/* Panel de detalle del día */}
       <DayPanel
         fecha={diaSeleccionado}
-        asigs={asigsDia}
+        jornadas={jornadasDia}
         usuarios={usuarios}
         obras={obras}
         tenantId={tenantId!}
@@ -241,14 +226,12 @@ export default function CalendarioPage() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Panel de detalle del día seleccionado
-// ─────────────────────────────────────────────────────────────
 function DayPanel({
-  fecha, asigs, usuarios, obras, tenantId,
+  fecha, jornadas, usuarios, obras, tenantId,
   isAdmin, currentUser, colorPorUser, onRefresh,
 }: {
   fecha: string;
-  asigs: AsignacionConUsuario[];
+  jornadas: JornadaConDetalles[];
   usuarios: User[];
   obras: Obra[];
   tenantId: string;
@@ -257,118 +240,72 @@ function DayPanel({
   colorPorUser: Record<string, typeof PALETTE[0]>;
   onRefresh: () => void;
 }) {
-  const [editando, setEditando]     = useState<string | null>(null);
-  const [modoLibre, setModoLibre]   = useState(false);
-  const [obraId, setObraId]         = useState("");
-  const [hora, setHora]             = useState("");
-  const [nota, setNota]             = useState("");
-  const [saving, setSaving]         = useState(false);
-  const [saveError, setSaveError]   = useState<string | null>(null);
-  const [saveOk, setSaveOk]         = useState(false);
+  const [editando, setEditando]   = useState<string | null>(null);
+  const [modoLibre, setModoLibre] = useState(false);
+  const [obraId, setObraId]       = useState("");
+  const [hora, setHora]           = useState("");
+  const [nota, setNota]           = useState("");
+  const [saving, setSaving]       = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveOk, setSaveOk]       = useState(false);
 
-  const [trabajarObraId, setTrabajorObraId] = useState("");
-  const [trabajarHora, setTrabajorHora]     = useState("");
-  const [savingTrabajo, setSavingTrabajo]   = useState(false);
-
-  const hoy      = isoDate();
-  const esHoy    = fecha === hoy;
-  const esFinde  = esFinDeSemana(new Date(fecha + "T12:00:00"));
+  const hoy     = isoDate();
+  const esHoy   = fecha === hoy;
+  const esFinde = esFinDeSemana(new Date(fecha + "T12:00:00"));
   const empleados = usuarios.filter(u => u.rol === "empleado");
   const diasLabel = format(new Date(fecha + "T12:00:00"), "EEEE, d 'de' MMMM", { locale: es });
-  const miAsig    = asigs.find(a => a.user_id === currentUser?.id);
+  const numTrabajando = jornadas.filter(j => !j.es_libre).length;
 
-  const numTrabajando = asigs.filter(a => {
-    if ((a as any).es_libre) return false;
-    if (esFinde) return esOverrideExplicito(a, fecha);
-    return true;
-  }).length;
+  // Map userId → jornada for quick lookup
+  const jornadaByUser: Record<string, JornadaConDetalles> = {};
+  jornadas.forEach(j => { jornadaByUser[j.user_id] = j; });
 
-  function iniciarEdicion(userId: string, asig?: AsignacionConUsuario) {
+  function iniciarEdicion(userId: string) {
+    const j = jornadaByUser[userId];
     setEditando(userId);
-    const defaultLibre = asig ? (asig as any).es_libre === true : esFinde;
-    setModoLibre(defaultLibre);
-    setObraId(asig?.obra_id ?? "");
-    setHora((asig as any)?.hora_inicio ?? "");
-    setNota((asig as any)?.nota ?? "");
+    setModoLibre(j ? j.es_libre : esFinde);
+    setObraId(j?.obra_id ?? "");
+    setHora((j as any)?.hora_inicio ?? "");
+    setNota(j?.nota ?? "");
     setSaveError(null);
     setSaveOk(false);
   }
 
-  async function guardarReasignacion(userId: string, asigExistente?: AsignacionConUsuario) {
-    if (!modoLibre && !obraId) return;
+  async function guardar(userId: string) {
+    if (!modoLibre && !obraId) { setSaveError("Selecciona una obra"); return; }
     setSaving(true);
     setSaveError(null);
     setSaveOk(false);
-    const obraSeleccionada = obras.find(o => o.id === obraId);
 
-    try {
-      let err: any = null;
+    const estado: FichajeEstado = modoLibre ? "libre" : "trabajando";
+    const { error } = await upsertJornada({
+      userId,
+      tenantId,
+      fecha,
+      estado,
+      obraId: modoLibre ? null : obraId,
+      esLibre: modoLibre,
+      horaInicio: hora || undefined,
+      nota: nota || undefined,
+    });
 
-      if (asigExistente) {
-        const esSoloDia = asigExistente.fecha_fin === asigExistente.fecha_inicio;
-        if (esSoloDia) {
-          // Actualizar override existente
-          const res = await updateAsignacion(asigExistente.id, {
-            obra_id: modoLibre ? null : obraId,
-            es_libre: modoLibre,
-            ...(modoLibre ? {} : hora ? { hora_inicio: hora } : {}),
-            ...(modoLibre ? {} : nota ? { nota } : {}),
-          });
-          err = (res as any).error;
-        } else {
-          // Crear override para este día concreto (sin tocar el rango)
-          const res = await createAsignacion(
-            modoLibre ? null : obraId,
-            userId, fecha, fecha,
-            modoLibre ? undefined : hora || undefined,
-            modoLibre ? undefined : nota || undefined,
-            modoLibre,
-          );
-          err = (res as any).error;
-        }
-      } else {
-        // Sin asignación previa → crear nueva
-        const res = await createAsignacion(
-          modoLibre ? null : obraId,
-          userId, fecha, fecha,
-          modoLibre ? undefined : hora || undefined,
-          modoLibre ? undefined : nota || undefined,
-          modoLibre,
-        );
-        err = (res as any).error;
-      }
-
-      if (err) {
-        setSaveError(`Error al guardar: ${err?.message ?? err?.code ?? JSON.stringify(err)}`);
-        return;
-      }
-
-      // Notificación al empleado
-      if (modoLibre) {
-        await crearNotificacion({ userId, tenantId, titulo: "Día libre", mensaje: `El ${diasLabel} tienes el día libre.`, tipo: "asignacion_cambio" });
-      } else {
-        const horaTexto = hora ? ` a las ${hora}` : "";
-        await crearNotificacion({ userId, tenantId, titulo: "Nueva asignación", mensaje: `El ${diasLabel}, vas a la obra "${obraSeleccionada?.nombre ?? obraId}"${horaTexto}.`, tipo: "asignacion_nueva" });
-      }
-
-      setSaveOk(true);
-      setTimeout(() => { setEditando(null); setSaveOk(false); onRefresh(); }, 800);
-    } catch (e: any) {
-      setSaveError(`Error inesperado: ${e?.message ?? "desconocido"}`);
-    } finally {
+    if (error) {
+      setSaveError(`Error al guardar: ${error?.message ?? JSON.stringify(error)}`);
       setSaving(false);
+      return;
     }
-  }
 
-  async function guardarTrabajoExcepcional() {
-    if (!trabajarObraId || !currentUser) return;
-    setSavingTrabajo(true);
-    try {
-      await createAsignacion(trabajarObraId, currentUser.id, fecha, fecha, trabajarHora || undefined);
-      await crearNotificacion({ userId: currentUser.id, tenantId, titulo: "Trabajo excepcional registrado", mensaje: `Has registrado trabajo en fin de semana (${diasLabel}).`, tipo: "asignacion_nueva" });
-      setTrabajorObraId(""); setTrabajorHora("");
-      onRefresh();
-    } finally { setSavingTrabajo(false); }
+    // Notificación al empleado
+    const obraNombre = obras.find(o => o.id === obraId)?.nombre;
+    if (modoLibre) {
+      await crearNotificacion({ userId, tenantId, titulo: "Día libre", mensaje: `El ${diasLabel} tienes el día libre.`, tipo: "asignacion_cambio" });
+    } else {
+      await crearNotificacion({ userId, tenantId, titulo: "Nueva asignación", mensaje: `El ${diasLabel}, vas a la obra "${obraNombre ?? obraId}".`, tipo: "asignacion_nueva" });
+    }
+
+    setSaveOk(true);
+    setSaving(false);
+    setTimeout(() => { setEditando(null); setSaveOk(false); onRefresh(); }, 800);
   }
 
   return (
@@ -385,8 +322,8 @@ function DayPanel({
         <div>
           <p className="font-semibold text-content-primary capitalize">{diasLabel}</p>
           <p className="text-xs text-content-muted">
-            {esFinde && numTrabajando === 0
-              ? "🏖️ Fin de semana — todos libres"
+            {numTrabajando === 0
+              ? esFinde ? "🏖️ Fin de semana" : "📋 Sin asignaciones"
               : `🏗️ ${numTrabajando} trabajador${numTrabajando !== 1 ? "es" : ""} asignado${numTrabajando !== 1 ? "s" : ""}`}
           </p>
         </div>
@@ -395,12 +332,8 @@ function DayPanel({
       {/* Lista de empleados */}
       <div className="space-y-2 mb-4">
         {empleados.map(user => {
-          // En finde, ignorar rangos lun-vie → el empleado aparece como libre
-          const asigRaw = asigs.find(a => a.user_id === user.id);
-          const asig = (esFinde && asigRaw && !esOverrideExplicito(asigRaw, fecha) && !(asigRaw as any).es_libre)
-            ? undefined
-            : asigRaw;
-          const c          = colorPorUser[user.id];
+          const j = jornadaByUser[user.id];
+          const c = colorPorUser[user.id];
           const esEditando = editando === user.id;
 
           return (
@@ -416,31 +349,27 @@ function DayPanel({
 
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-content-primary">{user.nombre}</p>
-
-                  {asig ? (
-                    (asig as any).es_libre ? (
+                  {j ? (
+                    j.es_libre ? (
                       <div className="flex items-center gap-1 text-xs text-amber-600 font-medium">
                         <span>🏖️</span><span>Libre</span>
-                        {(asig as any).nota && <span className="text-content-muted font-normal ml-1">· {(asig as any).nota}</span>}
+                        {j.nota && <span className="text-content-muted font-normal ml-1">· {j.nota}</span>}
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1 text-xs text-content-muted">
-                        <Building2 className="w-3 h-3" />
-                        <span className="truncate">{(asig as any).obra?.nombre ?? "Obra"}</span>
-                        {(asig as any).hora_inicio && <><Clock className="w-3 h-3 ml-1" /><span>{(asig as any).hora_inicio}</span></>}
+                      <div className="flex items-center gap-1.5 text-xs text-content-muted flex-wrap">
+                        <Building2 className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{(j as any).obra?.nombre ?? "Obra"}</span>
+                        {j.hora_inicio && <><Clock className="w-3 h-3 ml-1" /><span>{j.hora_inicio}</span></>}
+                        {j.ha_fichado && <span className="text-success font-medium flex items-center gap-0.5"><Check className="w-3 h-3" />Fichado</span>}
                       </div>
                     )
-                  ) : esFinde ? (
-                    <div className="flex items-center gap-1 text-xs text-amber-500 font-medium">
-                      <span>🏖️</span><span>Libre</span>
-                    </div>
                   ) : (
                     <p className="text-xs text-content-muted italic">Sin asignación</p>
                   )}
                 </div>
 
                 {isAdmin && !esEditando && (
-                  <button onClick={() => iniciarEdicion(user.id, asig)} className="btn-ghost p-1.5 flex-shrink-0" title="Editar asignación">
+                  <button onClick={() => iniciarEdicion(user.id)} className="btn-ghost p-1.5 flex-shrink-0" title="Editar jornada">
                     <Edit3 className="w-4 h-4" />
                   </button>
                 )}
@@ -511,7 +440,7 @@ function DayPanel({
                     <div className="flex gap-2 w-full sm:w-auto">
                       <button onClick={() => setEditando(null)} className="btn-ghost py-2 px-3 text-sm flex-1 sm:flex-none">Cancelar</button>
                       <button
-                        onClick={() => guardarReasignacion(user.id, asig)}
+                        onClick={() => guardar(user.id)}
                         disabled={(!modoLibre && !obraId) || saving}
                         className={cn(
                           "py-2 px-3 text-sm gap-1.5 rounded-xl font-medium flex items-center justify-center transition-all flex-1 sm:flex-none",
@@ -529,36 +458,11 @@ function DayPanel({
             </div>
           );
         })}
-      </div>
 
-      {/* Botón "Trabajar hoy" — empleado, finde, hoy, sin asig */}
-      {!isAdmin && esFinde && esHoy && !miAsig && currentUser && (
-        <div className="border border-dashed border-primary/30 rounded-xl p-4 bg-primary-light/20">
-          <p className="text-sm font-semibold text-content-primary mb-1">¿Trabajas hoy excepcionalmente?</p>
-          <p className="text-xs text-content-muted mb-3">Es fin de semana — si vas a una obra, regístralo aquí.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-            <div>
-              <label className="label text-xs">¿En qué obra?</label>
-              <select value={trabajarObraId} onChange={e => setTrabajorObraId(e.target.value)} className="input py-1.5 text-sm">
-                <option value="">Seleccionar...</option>
-                {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label text-xs flex items-center gap-1"><Clock className="w-3 h-3" />Hora entrada</label>
-              <input type="time" value={trabajarHora} onChange={e => setTrabajorHora(e.target.value)} className="input py-1.5 text-sm" />
-            </div>
-          </div>
-          <button
-            onClick={guardarTrabajoExcepcional}
-            disabled={!trabajarObraId || savingTrabajo}
-            className={cn("btn-primary w-full justify-center gap-2", (!trabajarObraId || savingTrabajo) && "opacity-60 cursor-not-allowed")}
-          >
-            {savingTrabajo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            Registrar trabajo excepcional
-          </button>
-        </div>
-      )}
+        {empleados.length === 0 && (
+          <p className="text-sm text-center text-content-muted py-4">No hay empleados en el equipo aún.</p>
+        )}
+      </div>
     </div>
   );
 }

@@ -179,6 +179,28 @@ export interface TarifaEmpleado {
   fecha_hasta?: string;
 }
 
+// ─── Jornada (unifica asignaciones diarias + fichajes) ────────────────────────
+export interface Jornada {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  obra_id: string | null;
+  fecha: string;             // YYYY-MM-DD
+  estado: FichajeEstado;
+  es_libre: boolean;
+  ha_fichado: boolean;
+  fichado_at: string | null;
+  hora_inicio: string | null;
+  nota: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface JornadaConDetalles extends Jornada {
+  user: User;
+  obra: Obra | null;
+}
+
 // ─── Jornal calculado ────────────────────────────────────────────────────
 export interface JornalMes {
   user: User;
@@ -189,7 +211,7 @@ export interface JornalMes {
   dias_permiso: number;
   tarifa_diaria: number;
   total_bruto: number;
-  fichajes: Fichaje[];
+  jornadas: Jornada[];
 }
 
 // ─── Notificación ─────────────────────────────────────────────────────────

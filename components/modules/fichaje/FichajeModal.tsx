@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { getFichajeHoy, registrarFichaje, getMaterialesPendientes } from "@/lib/insforge/database";
-import { getAsignacionHoyByUser } from "@/lib/insforge/database";
+import { getJornadaHoy, upsertJornada, getAsignacionHoyByUser } from "@/lib/insforge/database";
 import { guardarFichajePendiente, sincronizarFichajesPendientes, isOnline } from "@/lib/offline/fichaje-offline";
 import { isoDate } from "@/lib/utils";
-import type { Obra, FichajeEstado } from "@/types";
+import type { Obra, FichajeEstado, Jornada } from "@/types";
 import { CheckCircle2, XCircle, ArrowLeftRight, Loader2, Wifi, WifiOff, Building2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import insforge from "@/lib/insforge/client";
@@ -16,19 +15,18 @@ type Paso = "pregunta" | "cambio_obra" | "ausencia" | "completado";
 type MotivoAusencia = "libre" | "baja" | "permiso" | "vacaciones" | "otro";
 
 const motivosAusencia: { value: MotivoAusencia; label: string; emoji: string }[] = [
-  { value: "libre",      label: "Libre",      emoji: "🏖️" },
+  { value: "libre",      label: "Libre",       emoji: "🏖️" },
   { value: "baja",       label: "Baja médica", emoji: "🏥" },
   { value: "permiso",    label: "Permiso",     emoji: "📋" },
   { value: "vacaciones", label: "Vacaciones",  emoji: "🏖️" },
   { value: "otro",       label: "Otro motivo", emoji: "💬" },
 ];
 
-// ── Helpers de localStorage ───────────────────────────────────
 function fichajeKey(userId: string) {
   return `fichaje_done_${userId}_${isoDate()}`;
 }
 function marcarFichadoLocal(userId: string) {
-  try { localStorage.setItem(fichajeKey(userId), "1"); } catch { /* ignore */ }
+  try { localStorage.setItem(fichajeKey(userId), "1"); } catch { }
 }
 function yaFichadoLocal(userId: string): boolean {
   try { return localStorage.getItem(fichajeKey(userId)) === "1"; } catch { return false; }
@@ -42,14 +40,14 @@ export function FichajeModal() {
   const [isLoading, setIsLoading]       = useState(true);
   const [isSaving, setIsSaving]         = useState(false);
   const [saveError, setSaveError]       = useState<string | null>(null);
+  const [jornadaHoy, setJornadaHoy]     = useState<Jornada | null>(null);
   const [obraAsignada, setObraAsignada] = useState<Obra | null>(null);
   const [obrasActivas, setObrasActivas] = useState<Obra[]>([]);
   const [online, setOnline]             = useState(isOnline());
   const [guardadoOffline, setGuardadoOffline] = useState(false);
 
-  // Conectividad
   useEffect(() => {
-    const onOnline  = () => { setOnline(true);  if (user) sincronizar(); };
+    const onOnline  = () => { setOnline(true); if (user) sincronizar(); };
     const onOffline = () => setOnline(false);
     window.addEventListener("online",  onOnline);
     window.addEventListener("offline", onOffline);
@@ -59,42 +57,50 @@ export function FichajeModal() {
     };
   }, [user]);
 
-  // Comprobar si debe aparecer el modal (solo la primera vez por día)
   useEffect(() => {
     if (!user || user.rol === "admin") return;
-    comprobarFichaje();
-  }, [user?.id]); // solo cuando cambia el ID de usuario, no en cada render
+    comprobarJornada();
+  }, [user?.id]);
 
-  async function comprobarFichaje() {
+  async function comprobarJornada() {
     setIsLoading(true);
     try {
-      // 1. Comprobar localStorage primero (rápido, offline-friendly)
+      // 1. Check localStorage (fastest, offline-friendly)
       if (yaFichadoLocal(user!.id)) {
         setIsLoading(false);
         return;
       }
 
-      // 2. Comprobar en la BD (por si fichó desde otro dispositivo / admin fichó por él)
-      const fichaje = await getFichajeHoy(user!.id);
-      if (fichaje) {
-        // Sincronizar caché local
+      // 2. Check today's jornada
+      const jornada = await getJornadaHoy(user!.id);
+
+      if (jornada?.ha_fichado) {
         marcarFichadoLocal(user!.id);
         setIsLoading(false);
         return;
       }
 
-      // 3. ¿Tiene obra asignada hoy?
+      if (jornada && !jornada.ha_fichado) {
+        // Admin planned a jornada for today → show modal with pre-filled obra
+        setJornadaHoy(jornada);
+        const obra = (jornada as any).obra as Obra | null;
+        if (obra) setObraAsignada(obra);
+        setVisible(true);
+        setIsLoading(false);
+        return;
+      }
+
+      // 3. No jornada → fall back to long-term asignacion
       const obra = await getAsignacionHoyByUser(user!.id);
       if (!obra) {
         setIsLoading(false);
-        return; // Sin asignación hoy, no mostrar modal
+        return; // Not scheduled today
       }
 
       setObraAsignada(obra);
       setVisible(true);
     } catch (e) {
-      console.error("[FichajeModal] Error al comprobar fichaje:", e);
-      // En caso de error de red, no mostrar el modal para no bloquear al usuario
+      console.error("[FichajeModal] Error:", e);
     } finally {
       setIsLoading(false);
     }
@@ -102,13 +108,13 @@ export function FichajeModal() {
 
   async function sincronizar() {
     await sincronizarFichajesPendientes(async (f) => {
-      const { error } = await registrarFichaje({
+      const { error } = await upsertJornada({
         userId: f.user_id,
-        obraId: f.obra_id,
-        obraAsignadaId: f.obra_asignada_id,
         tenantId: f.tenant_id,
+        fecha: f.fecha,
         estado: f.estado,
-        esCambioObra: f.es_cambio_obra,
+        obraId: f.obra_id || null,
+        haFichado: true,
       });
       return { error };
     });
@@ -125,45 +131,17 @@ export function FichajeModal() {
     setObrasActivas((data as Obra[]) ?? []);
   }
 
-  async function ficharSi() {
-    if (!user || !obraAsignada) return;
-    setIsSaving(true);
-    await fichar("trabajando", obraAsignada.id, undefined, false);
-  }
-
-  async function ficharCambioObra(obraId: string) {
-    if (!user || !obraAsignada) return;
-    setIsSaving(true);
-    await fichar("trabajando", obraId, obraAsignada.id, true);
-  }
-
-  async function ficharAusencia(motivo: MotivoAusencia) {
-    if (!user) return;
-    setIsSaving(true);
-    const estado: FichajeEstado = motivo === "libre"      ? "libre"
-      : motivo === "baja"       ? "baja"
-      : motivo === "permiso"    ? "permiso"
-      : motivo === "vacaciones" ? "vacaciones"
-      : "otro";
-    await fichar(estado, obraAsignada?.id, undefined, false);
-  }
-
-  async function fichar(
-    estado: FichajeEstado,
-    obraId?: string,
-    obraAsignadaId?: string,
-    esCambioObra = false,
-  ) {
+  async function fichar(estado: FichajeEstado, obraId?: string) {
     setSaveError(null);
     try {
       if (online) {
-        const { error } = await registrarFichaje({
+        const { error } = await upsertJornada({
           userId: user!.id,
-          obraId,
-          obraAsignadaId,
           tenantId: user!.tenant_id,
+          fecha: isoDate(),
           estado,
-          esCambioObra,
+          obraId: obraId ?? null,
+          haFichado: true,
         });
         if (error) {
           setSaveError("Error al guardar el fichaje. Inténtalo de nuevo.");
@@ -174,15 +152,12 @@ export function FichajeModal() {
         await guardarFichajePendiente({
           userId: user!.id,
           obraId: obraId ?? "",
-          obraAsignadaId,
           tenantId: user!.tenant_id,
           estado,
-          esCambioObra,
         });
         setGuardadoOffline(true);
       }
 
-      // Marcar en localStorage para no volver a preguntar hoy
       marcarFichadoLocal(user!.id);
       setPaso("completado");
     } catch (e) {
@@ -191,6 +166,25 @@ export function FichajeModal() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function ficharSi() {
+    if (!user || !obraAsignada) return;
+    setIsSaving(true);
+    await fichar("trabajando", obraAsignada.id);
+  }
+
+  async function ficharCambioObra(obraId: string) {
+    if (!user) return;
+    setIsSaving(true);
+    await fichar("trabajando", obraId);
+  }
+
+  async function ficharAusencia(motivo: MotivoAusencia) {
+    if (!user) return;
+    setIsSaving(true);
+    const estado: FichajeEstado = motivo as FichajeEstado;
+    await fichar(estado, undefined);
   }
 
   function irACambioObra() {
@@ -207,7 +201,6 @@ export function FichajeModal() {
 
   return (
     <div className="fullscreen-modal z-50 animate-fade-in">
-      {/* Indicador de conexión */}
       <div className={cn(
         "absolute top-4 right-4 flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full",
         online ? "bg-success-light text-success-foreground" : "bg-warning-light text-warning-foreground",
@@ -218,7 +211,6 @@ export function FichajeModal() {
 
       <div className="w-full max-w-sm mx-auto">
 
-        {/* ── PASO 1: Pregunta principal ─────────────────────────────── */}
         {paso === "pregunta" && (
           <div className="flex flex-col items-center text-center animate-slide-up">
             <div className="w-20 h-20 bg-primary-light rounded-2xl flex items-center justify-center mb-6">
@@ -273,7 +265,6 @@ export function FichajeModal() {
           </div>
         )}
 
-        {/* ── PASO 2: Cambio de obra ─────────────────────────────────── */}
         {paso === "cambio_obra" && (
           <div className="flex flex-col items-center w-full animate-slide-up">
             <h1 className="text-xl font-bold text-content-primary mb-2">¿A qué obra vas?</h1>
@@ -305,7 +296,6 @@ export function FichajeModal() {
           </div>
         )}
 
-        {/* ── PASO 3: Motivo de ausencia ─────────────────────────────── */}
         {paso === "ausencia" && (
           <div className="flex flex-col items-center w-full animate-slide-up">
             <h1 className="text-xl font-bold text-content-primary mb-2">¿Cuál es el motivo?</h1>
@@ -338,7 +328,6 @@ export function FichajeModal() {
           </div>
         )}
 
-        {/* ── PASO 4: Confirmación ───────────────────────────────────── */}
         {paso === "completado" && (
           <div className="flex flex-col items-center text-center animate-scale-in">
             <div className="w-24 h-24 bg-success-light rounded-full flex items-center justify-center mb-6">

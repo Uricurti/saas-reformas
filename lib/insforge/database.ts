@@ -3,7 +3,7 @@ import { isoDate } from "@/lib/utils";
 import type {
   Obra, ObraFormData, Asignacion, Fichaje, FichajeEstado,
   Material, MaterialFormData, Archivo, TarifaEmpleado,
-  Notificacion, User, Documento, DocumentoCategoria
+  Notificacion, User, Documento, DocumentoCategoria, Jornada
 } from "@/types";
 
 // ══════════════════════════════════════════════════════════════════
@@ -477,4 +477,90 @@ export async function crearNotificacion(params: {
     tipo: params.tipo,
     leida: false,
   });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// JORNADAS (unifica planning + fichaje en una sola tabla)
+// ══════════════════════════════════════════════════════════════════
+
+export async function getJornadasByMes(
+  tenantId: string, fechaInicio: string, fechaFin: string
+) {
+  return insforge.database
+    .from("jornadas")
+    .select("*, user:users(*), obra:obras(*)")
+    .eq("tenant_id", tenantId)
+    .gte("fecha", fechaInicio)
+    .lte("fecha", fechaFin)
+    .order("fecha", { ascending: true });
+}
+
+export async function getJornadasByTenantMes(
+  tenantId: string, anio: number, mes: number
+) {
+  const inicio = `${anio}-${String(mes).padStart(2, "0")}-01`;
+  const fin = new Date(anio, mes, 0).toISOString().split("T")[0];
+  return insforge.database
+    .from("jornadas")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .gte("fecha", inicio)
+    .lte("fecha", fin)
+    .order("fecha", { ascending: true });
+}
+
+export async function getJornadaByFecha(
+  userId: string, fecha: string
+): Promise<Jornada | null> {
+  const { data, error } = await insforge.database
+    .from("jornadas")
+    .select("*, obra:obras(*)")
+    .eq("user_id", userId)
+    .eq("fecha", fecha)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as Jornada;
+}
+
+export async function getJornadaHoy(userId: string): Promise<Jornada | null> {
+  return getJornadaByFecha(userId, isoDate());
+}
+
+export async function upsertJornada(params: {
+  userId: string;
+  tenantId: string;
+  fecha: string;
+  estado: FichajeEstado;
+  obraId?: string | null;
+  esLibre?: boolean;
+  haFichado?: boolean;
+  horaInicio?: string;
+  nota?: string;
+}): Promise<{ data: Jornada | null; error: any }> {
+  const esLibre = params.esLibre ?? params.estado !== "trabajando";
+  const payload: Record<string, any> = {
+    user_id:   params.userId,
+    tenant_id: params.tenantId,
+    fecha:     params.fecha,
+    estado:    params.estado,
+    es_libre:  esLibre,
+    obra_id:   esLibre ? null : (params.obraId ?? null),
+    ha_fichado: params.haFichado ?? false,
+    updated_at: new Date().toISOString(),
+  };
+  if (params.haFichado) payload.fichado_at = new Date().toISOString();
+  if (params.horaInicio) payload.hora_inicio = params.horaInicio;
+  if (params.nota !== undefined) payload.nota = params.nota;
+
+  const result = await insforge.database
+    .from("jornadas")
+    .upsert(payload, { onConflict: "user_id,fecha" })
+    .select()
+    .single();
+
+  return result as { data: Jornada | null; error: any };
+}
+
+export async function deleteJornada(id: string) {
+  return insforge.database.from("jornadas").delete().eq("id", id);
 }
