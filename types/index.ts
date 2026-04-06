@@ -77,7 +77,7 @@ export type FichajeEstado = "trabajando" | "baja" | "permiso" | "vacaciones" | "
 export interface Fichaje {
   id: string;
   user_id: string;
-  obra_id: string;
+  obra_id: string | null;
   obra_asignada_id?: string; // la obra que tenía asignada originalmente (si hubo cambio)
   tenant_id: string;
   fecha: string; // YYYY-MM-DD
