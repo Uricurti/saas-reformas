@@ -81,7 +81,7 @@ export function CrearObraModal({ tenantId, userId, onClose, onCreated }: Props) 
               required
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Cliente (nombre)</label>
               <input className="input" placeholder="Nombre cliente" value={form.cliente_nombre} onChange={(e) => set("cliente_nombre", e.target.value)} />
@@ -91,7 +91,7 @@ export function CrearObraModal({ tenantId, userId, onClose, onCreated }: Props) 
               <input className="input" type="tel" placeholder="612 345 678" value={form.cliente_telefono} onChange={(e) => set("cliente_telefono", e.target.value)} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Fecha inicio *</label>
               <input className="input" type="date" value={form.fecha_inicio} onChange={(e) => set("fecha_inicio", e.target.value)} required />

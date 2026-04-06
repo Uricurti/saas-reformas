@@ -212,8 +212,9 @@
 
   /* Bottom nav */
   .bottom-nav {
-    @apply fixed bottom-0 left-0 right-0 flex items-center justify-around px-2 z-40 pb-safe-bottom;
-    height: 66px;
+    @apply fixed bottom-0 left-0 right-0 flex items-center justify-around px-1 z-40;
+    height: calc(66px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
     background: rgba(255,255,255,0.92);
     border-top: 1px solid #EBEBEF;
     backdrop-filter: blur(20px);

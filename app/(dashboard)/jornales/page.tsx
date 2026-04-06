@@ -248,16 +248,16 @@ function EmpleadoJornal({
         </div>
 
         {/* Total + chevron */}
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <div className="text-right">
-            <p className="font-bold text-content-primary">{formatCurrency(total_bruto)}</p>
+            <p className="font-bold text-content-primary text-sm sm:text-base">{formatCurrency(total_bruto)}</p>
             {tarifa_diaria > 0 && (
-              <p className="text-xs text-content-muted">{formatCurrency(tarifa_diaria)}/día</p>
+              <p className="text-[10px] sm:text-xs text-content-muted">{formatCurrency(tarifa_diaria)}/día</p>
             )}
           </div>
           {expanded
-            ? <ChevronUp className="w-4 h-4 text-content-muted" />
-            : <ChevronDown className="w-4 h-4 text-content-muted" />}
+            ? <ChevronUp className="w-4 h-4 text-content-muted flex-shrink-0" />
+            : <ChevronDown className="w-4 h-4 text-content-muted flex-shrink-0" />}
         </div>
       </button>
 
@@ -265,7 +265,7 @@ function EmpleadoJornal({
       {expanded && (
         <div className="border-t border-border">
           {/* Cabecera de columnas */}
-          <div className="grid grid-cols-[auto_1fr_auto] gap-2 px-4 py-2 bg-gray-50 border-b border-border">
+          <div className="grid grid-cols-[72px_1fr_auto] gap-2 px-4 py-2 bg-gray-50 border-b border-border">
             <span className="text-[10px] font-semibold text-content-muted uppercase">Día</span>
             <span className="text-[10px] font-semibold text-content-muted uppercase">Estado / Obra</span>
             <span className="text-[10px] font-semibold text-content-muted uppercase">Acción</span>
@@ -284,12 +284,12 @@ function EmpleadoJornal({
                 <div key={fecha}>
                   {/* Fila del día */}
                   <div className={cn(
-                    "grid grid-cols-[auto_1fr_auto] items-center gap-2 px-4 py-2.5 text-sm",
+                    "grid grid-cols-[72px_1fr_auto] items-center gap-2 px-4 py-2.5 text-sm",
                     isEditRow && "bg-primary-light/20",
                   )}>
                     {/* Fecha */}
                     <span className={cn(
-                      "text-xs font-medium w-20 capitalize",
+                      "text-xs font-medium capitalize leading-tight",
                       esFuturo ? "text-content-muted" : "text-content-secondary",
                     )}>
                       {fechaLabel}
@@ -323,7 +323,7 @@ function EmpleadoJornal({
                             <>
                               <button
                                 onClick={() => onSetEditando({ userId: user.id, fecha, fichajeId: fichaje.id })}
-                                className="p-1.5 rounded-lg text-content-muted hover:bg-primary-light hover:text-primary transition-colors"
+                                className="p-2 rounded-lg text-content-muted hover:bg-primary-light hover:text-primary transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
                                 title="Editar fichaje"
                               >
                                 <Pencil className="w-3.5 h-3.5" />
@@ -336,7 +336,7 @@ function EmpleadoJornal({
                           ) : (
                             <button
                               onClick={() => onSetEditando({ userId: user.id, fecha })}
-                              className="p-1.5 rounded-lg text-content-muted hover:bg-success-light hover:text-success transition-colors"
+                              className="p-2 rounded-lg text-content-muted hover:bg-success-light hover:text-success transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
                               title="Añadir fichaje"
                             >
                               <Plus className="w-3.5 h-3.5" />
@@ -347,7 +347,7 @@ function EmpleadoJornal({
                       {isEditRow && (
                         <button
                           onClick={() => onSetEditando(null)}
-                          className="p-1.5 rounded-lg text-content-muted hover:bg-gray-100 transition-colors"
+                          className="p-2 rounded-lg text-content-muted hover:bg-gray-100 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -373,7 +373,7 @@ function EmpleadoJornal({
           </div>
 
           {/* Resumen en el pie */}
-          <div className="px-4 py-3 bg-gray-50 border-t border-border flex items-center justify-between text-xs text-content-muted">
+          <div className="px-4 py-3 bg-gray-50 border-t border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs text-content-muted">
             <span>
               {fichajes.length} fichaje{fichajes.length !== 1 ? "s" : ""} registrado{fichajes.length !== 1 ? "s" : ""}
               {" "}de {diasLab.length} días laborables
@@ -409,11 +409,11 @@ function DeleteFichajeBtn({ fichajeId, onDone }: { fichajeId: string; onDone: ()
     return (
       <div className="flex items-center gap-1">
         <button onClick={eliminar} disabled={loading}
-          className="p-1.5 rounded-lg bg-danger-light text-danger hover:bg-danger hover:text-white transition-colors"
+          className="p-2 rounded-lg bg-danger-light text-danger hover:bg-danger hover:text-white transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
           title="Confirmar eliminación">
           {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
         </button>
-        <button onClick={() => setConfirming(false)} className="p-1.5 rounded-lg text-content-muted hover:bg-gray-100 transition-colors">
+        <button onClick={() => setConfirming(false)} className="p-2 rounded-lg text-content-muted hover:bg-gray-100 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -423,7 +423,7 @@ function DeleteFichajeBtn({ fichajeId, onDone }: { fichajeId: string; onDone: ()
   return (
     <button
       onClick={() => setConfirming(true)}
-      className="p-1.5 rounded-lg text-content-muted hover:bg-danger-light hover:text-danger transition-colors"
+      className="p-2 rounded-lg text-content-muted hover:bg-danger-light hover:text-danger transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
       title="Eliminar fichaje"
     >
       <Trash2 className="w-3.5 h-3.5" />

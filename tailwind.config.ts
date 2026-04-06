@@ -90,6 +90,7 @@ const config: Config = {
       },
       spacing: {
         "safe-bottom": "env(safe-area-inset-bottom)",
+        bottomnav: "66px",
       },
       animation: {
         "fade-in":  "fadeIn 0.2s ease-out",

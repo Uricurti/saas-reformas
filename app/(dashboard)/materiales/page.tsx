@@ -54,13 +54,13 @@ export default function MaterialesPage() {
         title="Materiales"
         subtitle={`${materiales.length} ítem${materiales.length !== 1 ? "s" : ""} pendiente${materiales.length !== 1 ? "s" : ""}`}
         action={
-          <div className="flex gap-2">
-            <button onClick={() => setShowPedirModal(true)} className="btn-secondary">
-              <Plus className="w-4 h-4" /> Pedir material
+          <div className="flex flex-wrap gap-2 justify-end">
+            <button onClick={() => setShowPedirModal(true)} className="btn-secondary text-sm">
+              <Plus className="w-4 h-4" /> Pedir
             </button>
             {materiales.length > 0 && (
-              <button onClick={() => setModoCompra(true)} className="btn-primary">
-                <ShoppingBag className="w-4 h-4" /> Modo compra
+              <button onClick={() => setModoCompra(true)} className="btn-primary text-sm">
+                <ShoppingBag className="w-4 h-4" /> Compra
               </button>
             )}
           </div>

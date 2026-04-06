@@ -156,7 +156,7 @@ export default function FotosPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
           {archivos.map((archivo) => (
             <button
               key={archivo.id}
@@ -183,9 +183,9 @@ export default function FotosPage() {
           <div className="relative max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setFotoAmpliada(null)}
-              className="absolute top-3 right-3 z-10 w-8 h-8 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/70"
+              className="absolute top-3 right-3 z-10 w-11 h-11 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/70 active:scale-95 transition-all"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
             <img
               src={fotoAmpliada.url_storage}

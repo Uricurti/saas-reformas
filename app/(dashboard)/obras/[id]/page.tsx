@@ -134,19 +134,19 @@ export default function ObraDetallePage() {
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
       {/* Back + título */}
-      <div className="flex items-center gap-3 mb-5">
-        <button onClick={() => router.back()} className="btn-ghost p-2 -ml-2">
+      <div className="flex items-center gap-2 mb-5">
+        <button onClick={() => router.back()} className="btn-ghost p-2 -ml-2 flex-shrink-0">
           <ArrowLeft className="w-5 h-5" />
         </button>
         {editando ? (
           <input
             value={formNombre}
             onChange={(e) => setFormNombre(e.target.value)}
-            className="input text-xl font-bold flex-1"
+            className="input text-lg font-bold flex-1 min-w-0"
             placeholder="Nombre de la obra"
           />
         ) : (
-          <h1 className="text-xl font-bold text-content-primary flex-1">{obra.nombre}</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-content-primary flex-1 min-w-0 truncate">{obra.nombre}</h1>
         )}
         <span className={cn("badge flex-shrink-0", estadoColor)}>{obra.estado}</span>
       </div>

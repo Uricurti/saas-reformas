@@ -154,7 +154,7 @@ export default function EquipoPage() {
                       </div>
 
                       {/* Tarifa — bloque derecho */}
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 flex-wrap justify-end">
                         {editandoTarifa === user.id ? (
                           /* Edición inline */
                           <div className="flex items-center gap-1.5 animate-fade-in">
@@ -171,7 +171,7 @@ export default function EquipoPage() {
                                   if (e.key === "Enter") guardarTarifa(user);
                                   if (e.key === "Escape") setEditandoTarifa(null);
                                 }}
-                                className="input pl-7 w-28 py-1.5 text-sm"
+                                className="input pl-7 w-20 sm:w-28 py-1.5 text-sm"
                                 placeholder="120"
                               />
                             </div>
@@ -225,7 +225,7 @@ export default function EquipoPage() {
                           <button
                             onClick={() => setFichajeEmpleado(user)}
                             title="Registrar fichaje manualmente"
-                            className="p-2 rounded-lg text-content-muted hover:bg-primary-light hover:text-primary transition-colors flex-shrink-0"
+                            className="p-2 rounded-lg text-content-muted hover:bg-primary-light hover:text-primary transition-colors flex-shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center"
                           >
                             <Clock className="w-4 h-4" />
                           </button>
@@ -237,7 +237,7 @@ export default function EquipoPage() {
                             onClick={() => handleToggleActivo(user)}
                             title={user.activo ? "Desactivar cuenta" : "Activar cuenta"}
                             className={cn(
-                              "p-2 rounded-lg transition-colors flex-shrink-0",
+                              "p-2 rounded-lg transition-colors flex-shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center",
                               user.activo
                                 ? "text-content-muted hover:bg-danger-light hover:text-danger"
                                 : "text-success hover:bg-success-light",

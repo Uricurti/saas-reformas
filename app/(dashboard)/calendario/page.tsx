@@ -456,12 +456,12 @@ function DayPanel({
                 <div className="px-3 pb-3 space-y-3 border-t border-primary/20 pt-3">
                   <div className="grid grid-cols-2 gap-2">
                     <button type="button" onClick={() => setModoLibre(false)}
-                      className={cn("flex items-center justify-center gap-2 py-2 rounded-xl border-2 text-sm font-medium transition-all",
+                      className={cn("flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 text-sm font-medium transition-all",
                         !modoLibre ? "border-primary bg-primary-light text-primary" : "border-border text-content-secondary hover:border-primary/40")}>
                       <Building2 className="w-4 h-4" /> Asignar obra
                     </button>
                     <button type="button" onClick={() => setModoLibre(true)}
-                      className={cn("flex items-center justify-center gap-2 py-2 rounded-xl border-2 text-sm font-medium transition-all",
+                      className={cn("flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 text-sm font-medium transition-all",
                         modoLibre ? "border-amber-400 bg-amber-50 text-amber-700" : "border-border text-content-secondary hover:border-amber-300")}>
                       🏖️ Libre
                     </button>
@@ -469,7 +469,7 @@ function DayPanel({
 
                   {!modoLibre && (
                     <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
                           <label className="label text-xs">Obra</label>
                           <select value={obraId} onChange={e => setObraId(e.target.value)} className="input py-1.5 text-sm">
@@ -504,23 +504,25 @@ function DayPanel({
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 pt-1">
-                    <div className="flex items-center gap-1 text-xs text-content-muted flex-1">
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <div className="hidden sm:flex items-center gap-1 text-xs text-content-muted flex-1">
                       <Bell className="w-3 h-3" /> Notificación automática al empleado
                     </div>
-                    <button onClick={() => setEditando(null)} className="btn-ghost py-1.5 px-3 text-sm">Cancelar</button>
-                    <button
-                      onClick={() => guardarReasignacion(user.id, asig)}
-                      disabled={(!modoLibre && !obraId) || saving}
-                      className={cn(
-                        "py-1.5 px-3 text-sm gap-1.5 rounded-xl font-medium flex items-center transition-all",
-                        modoLibre ? "bg-amber-500 text-white hover:bg-amber-600" : "btn-primary",
-                        ((!modoLibre && !obraId) || saving) && "opacity-60 cursor-not-allowed",
-                      )}
-                    >
-                      {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                      {modoLibre ? "Poner libre" : "Guardar"}
-                    </button>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                      <button onClick={() => setEditando(null)} className="btn-ghost py-2 px-3 text-sm flex-1 sm:flex-none">Cancelar</button>
+                      <button
+                        onClick={() => guardarReasignacion(user.id, asig)}
+                        disabled={(!modoLibre && !obraId) || saving}
+                        className={cn(
+                          "py-2 px-3 text-sm gap-1.5 rounded-xl font-medium flex items-center justify-center transition-all flex-1 sm:flex-none",
+                          modoLibre ? "bg-amber-500 text-white hover:bg-amber-600" : "btn-primary",
+                          ((!modoLibre && !obraId) || saving) && "opacity-60 cursor-not-allowed",
+                        )}
+                      >
+                        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                        {modoLibre ? "Poner libre" : "Guardar"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -534,7 +536,7 @@ function DayPanel({
         <div className="border border-dashed border-primary/30 rounded-xl p-4 bg-primary-light/20">
           <p className="text-sm font-semibold text-content-primary mb-1">¿Trabajas hoy excepcionalmente?</p>
           <p className="text-xs text-content-muted mb-3">Es fin de semana — si vas a una obra, regístralo aquí.</p>
-          <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
             <div>
               <label className="label text-xs">¿En qué obra?</label>
               <select value={trabajarObraId} onChange={e => setTrabajorObraId(e.target.value)} className="input py-1.5 text-sm">
