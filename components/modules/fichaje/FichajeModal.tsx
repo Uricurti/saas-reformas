@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { getJornadaHoy, upsertJornada, getAsignacionHoyByUser } from "@/lib/insforge/database";
+import { getJornadaHoy, upsertJornada, getAsignacionHoyByUser, getObraById } from "@/lib/insforge/database";
 import { guardarFichajePendiente, sincronizarFichajesPendientes, isOnline } from "@/lib/offline/fichaje-offline";
 import { isoDate } from "@/lib/utils";
 import type { Obra, FichajeEstado, Jornada } from "@/types";
@@ -83,8 +83,10 @@ export function FichajeModal() {
       if (jornada && !jornada.ha_fichado) {
         // Admin planned a jornada for today → show modal with pre-filled obra
         setJornadaHoy(jornada);
-        const obra = (jornada as any).obra as Obra | null;
-        if (obra) setObraAsignada(obra);
+        if (jornada.obra_id) {
+          const { data: obraData } = await getObraById(jornada.obra_id);
+          if (obraData) setObraAsignada(obraData as Obra);
+        }
         setVisible(true);
         setIsLoading(false);
         return;

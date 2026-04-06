@@ -488,7 +488,7 @@ export async function getJornadasByMes(
 ) {
   return insforge.database
     .from("jornadas")
-    .select("*, user:users(*), obra:obras(*)")
+    .select("*")
     .eq("tenant_id", tenantId)
     .gte("fecha", fechaInicio)
     .lte("fecha", fechaFin)
@@ -514,7 +514,7 @@ export async function getJornadaByFecha(
 ): Promise<Jornada | null> {
   const { data, error } = await insforge.database
     .from("jornadas")
-    .select("*, obra:obras(*)")
+    .select("*")
     .eq("user_id", userId)
     .eq("fecha", fecha)
     .maybeSingle();

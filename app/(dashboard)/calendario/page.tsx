@@ -7,7 +7,7 @@ import {
   getJornadasByMes, upsertJornada, getUsuariosByTenant, getObrasActivas,
   crearNotificacion,
 } from "@/lib/insforge/database";
-import type { JornadaConDetalles, User, Obra } from "@/types";
+import type { Jornada, JornadaConDetalles, User, Obra } from "@/types";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ChevronLeft, ChevronRight, Building2, Edit3, Plus, Check, X, Clock, Bell, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -71,15 +71,28 @@ export default function CalendarioPage() {
         getJornadasByMes(tenantId, fechaInicio, fechaFin),
       ]);
 
-      setUsuarios((usersRes.data as User[]) ?? []);
-      setObras((obrasRes.data as Obra[]) ?? []);
+      const usersData = (usersRes.data as User[]) ?? [];
+      const obrasData = (obrasRes.data as Obra[]) ?? [];
+      setUsuarios(usersData);
+      setObras(obrasData);
 
-      // Agrupar jornadas por fecha
+      // Mapas para el merge cliente-side (sin FK en BD)
+      const userMap: Record<string, User> = {};
+      const obraMap: Record<string, Obra> = {};
+      usersData.forEach(u => { userMap[u.id] = u; });
+      obrasData.forEach(o => { obraMap[o.id] = o; });
+
+      // Agrupar jornadas por fecha e inyectar user y obra
       const byFecha: Record<string, JornadaConDetalles[]> = {};
-      const jornadas = (jornadasRes.data as JornadaConDetalles[]) ?? [];
+      const jornadas = (jornadasRes.data as Jornada[]) ?? [];
       jornadas.forEach(j => {
+        const detalle: JornadaConDetalles = {
+          ...j,
+          user: userMap[j.user_id] ?? { id: j.user_id, nombre: "—" } as User,
+          obra: j.obra_id ? (obraMap[j.obra_id] ?? null) : null,
+        };
         if (!byFecha[j.fecha]) byFecha[j.fecha] = [];
-        byFecha[j.fecha].push(j);
+        byFecha[j.fecha].push(detalle);
       });
       setJornadasByFecha(byFecha);
     } catch (e) {
