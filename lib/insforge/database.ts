@@ -86,6 +86,29 @@ export async function getAsignacionesByUser(userId: string) {
     .order("fecha_inicio", { ascending: false });
 }
 
+/** Devuelve las obras únicas (activas) en las que el empleado tiene alguna asignación */
+export async function getObrasAsignadasByUser(userId: string): Promise<Obra[]> {
+  const { data, error } = await insforge.database
+    .from("asignaciones")
+    .select(`obra:obras(*)`)
+    .eq("user_id", userId)
+    .not("obra_id", "is", null);
+
+  if (error || !data) return [];
+
+  // Deduplicar por obra.id y filtrar solo obras activas
+  const seen = new Set<string>();
+  const obras: Obra[] = [];
+  for (const row of data as any[]) {
+    const obra = row.obra;
+    if (obra && obra.id && !seen.has(obra.id) && obra.estado === "activa") {
+      seen.add(obra.id);
+      obras.push(obra as Obra);
+    }
+  }
+  return obras;
+}
+
 export async function getAsignacionHoyByUser(userId: string): Promise<Obra | null> {
   const hoy = isoDate();
   const { data, error } = await insforge.database

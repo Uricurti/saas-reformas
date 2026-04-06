@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuthStore, useIsAdmin, useTenantId, useSessionVerified } from "@/lib/stores/auth-store";
-import { getObrasActivas } from "@/lib/insforge/database";
+import { getObrasActivas, getObrasAsignadasByUser } from "@/lib/insforge/database";
 import { getAsignacionHoyByUser } from "@/lib/insforge/database";
 import type { ObraConAsignados, Obra } from "@/types";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -18,6 +18,7 @@ export default function ObrasPage() {
   const tenantId = useTenantId();
 
   const [obras, setObras] = useState<ObraConAsignados[]>([]);
+  const [obrasEmpleado, setObrasEmpleado] = useState<Obra[]>([]);
   const [obraHoy, setObraHoy] = useState<Obra | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showCrearModal, setShowCrearModal] = useState(false);
@@ -30,15 +31,18 @@ export default function ObrasPage() {
 
   async function cargar() {
     setIsLoading(true);
-    const { data, error } = await getObrasActivas(tenantId!);
-    if (error) {
-      console.error("[obras] Error cargando obras:", error);
-    }
-    setObras((data as ObraConAsignados[]) ?? []);
-
-    if (!isAdmin && user) {
-      const obra = await getAsignacionHoyByUser(user.id);
-      setObraHoy(obra);
+    if (isAdmin) {
+      const { data, error } = await getObrasActivas(tenantId!);
+      if (error) console.error("[obras] Error cargando obras:", error);
+      setObras((data as ObraConAsignados[]) ?? []);
+    } else if (user) {
+      // Empleado: carga en paralelo su obra de hoy y sus obras asignadas
+      const [obraHoyRes, obrasAsignadas] = await Promise.all([
+        getAsignacionHoyByUser(user.id),
+        getObrasAsignadasByUser(user.id),
+      ]);
+      setObraHoy(obraHoyRes);
+      setObrasEmpleado(obrasAsignadas);
     }
     setIsLoading(false);
   }
@@ -59,7 +63,7 @@ export default function ObrasPage() {
         ) : undefined}
       />
 
-      {/* Vista empleado: obra de hoy + lista de todas las obras */}
+      {/* Vista empleado: obra de hoy + sus obras asignadas */}
       {!isAdmin && (
         <>
           {/* Asignación de hoy */}
@@ -77,17 +81,22 @@ export default function ObrasPage() {
             )}
           </div>
 
-          {/* Todas las obras activas */}
-          {obras.length > 0 && (
+          {/* Obras a las que está asignado */}
+          {obrasEmpleado.length > 0 ? (
             <div>
               <p className="text-xs font-semibold text-content-muted uppercase tracking-wide mb-3">
-                Obras activas del equipo
+                Mis obras
               </p>
               <div className="space-y-3">
-                {obras.map((obra) => (
+                {obrasEmpleado.map((obra) => (
                   <ObraCard key={obra.id} obra={obra as ObraConAsignados} onUpdate={cargar} />
                 ))}
               </div>
+            </div>
+          ) : (
+            <div className="card p-8 flex flex-col items-center text-center gap-3 text-content-muted">
+              <Building2 className="w-8 h-8" />
+              <p className="text-sm">Aún no tienes obras asignadas.</p>
             </div>
           )}
         </>
