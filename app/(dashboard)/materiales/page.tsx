@@ -101,8 +101,8 @@ export default function MaterialesPage() {
 
 function LoadingSkeleton() {
   return (
-    <div className="space-y-3 animate-pulse">
-      {[1, 2, 3].map((i) => <div key={i} className="card h-20" />)}
+    <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="w-8 h-8 border-4 border-primary-light border-t-primary rounded-full animate-spin" />
     </div>
   );
 }

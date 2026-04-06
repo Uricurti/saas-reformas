@@ -430,22 +430,8 @@ function AsignarModal({
 // ─────────────────────────────────────────────────────────────
 function LoadingSkeleton() {
   return (
-    <div className="p-4 md:p-6 max-w-3xl mx-auto animate-pulse">
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-9 h-9 bg-gray-200 rounded-xl" />
-        <div className="h-7 bg-gray-200 rounded w-48" />
-      </div>
-      <div className="card p-5 mb-4 space-y-3">
-        <div className="h-4 bg-gray-200 rounded w-24" />
-        <div className="h-4 bg-gray-100 rounded w-full" />
-        <div className="h-4 bg-gray-100 rounded w-3/4" />
-      </div>
-      <div className="card p-5 mb-4">
-        <div className="h-4 bg-gray-200 rounded w-32 mb-4" />
-        <div className="space-y-2">
-          {[1, 2].map((i) => <div key={i} className="h-14 bg-gray-100 rounded-xl" />)}
-        </div>
-      </div>
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="w-8 h-8 border-4 border-primary-light border-t-primary rounded-full animate-spin" />
     </div>
   );
 }

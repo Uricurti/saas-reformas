@@ -137,8 +137,8 @@ export default function FotosPage() {
       )}
 
       {isLoading ? (
-        <div className="grid grid-cols-3 md:grid-cols-4 gap-2 animate-pulse">
-          {[...Array(8)].map((_, i) => <div key={i} className="aspect-square bg-gray-200 rounded-xl" />)}
+        <div className="flex items-center justify-center min-h-[50vh]">
+          <div className="w-8 h-8 border-4 border-primary-light border-t-primary rounded-full animate-spin" />
         </div>
       ) : archivos.length === 0 ? (
         <div className="card p-10 flex flex-col items-center text-center gap-4">

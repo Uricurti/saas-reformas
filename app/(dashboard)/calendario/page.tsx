@@ -142,10 +142,8 @@ export default function CalendarioPage() {
 
       {/* Grid del mes */}
       {isLoading ? (
-        <div className="card animate-pulse overflow-hidden">
-          <div className="grid grid-cols-7">
-            {Array.from({ length: 35 }).map((_, i) => <div key={i} className="h-16 md:h-24 bg-gray-100 border border-gray-50" />)}
-          </div>
+        <div className="flex items-center justify-center min-h-[50vh]">
+          <div className="w-8 h-8 border-4 border-primary-light border-t-primary rounded-full animate-spin" />
         </div>
       ) : (
         <div className="card overflow-hidden mb-4">

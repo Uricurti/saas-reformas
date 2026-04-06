@@ -153,13 +153,8 @@ export default function ObrasPage() {
 
 function LoadingSkeleton() {
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto animate-pulse">
-      <div className="h-8 bg-gray-200 rounded w-32 mb-6" />
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="card p-5 h-24" />
-        ))}
-      </div>
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="w-8 h-8 border-4 border-primary-light border-t-primary rounded-full animate-spin" />
     </div>
   );
 }
