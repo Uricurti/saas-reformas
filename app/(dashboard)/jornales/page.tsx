@@ -34,16 +34,12 @@ const estadoInfo = (e: string) => ESTADOS.find(x => x.value === e) ?? ESTADOS[5]
 
 const initials = (n: string) => n.split(" ").map(x => x[0]).join("").slice(0, 2).toUpperCase();
 
-// Genera todos los días laborables del mes (lun-vie)
+// Genera todos los días del mes (incluyendo sábado y domingo)
 function diasLaborablesMes(anio: number, mes: number): string[] {
   const total = getDaysInMonth(new Date(anio, mes - 1, 1));
   const dias: string[] = [];
   for (let d = 1; d <= total; d++) {
-    const fecha = new Date(anio, mes - 1, d);
-    const dow   = getDay(fecha); // 0=dom, 6=sab
-    if (dow !== 0 && dow !== 6) {
-      dias.push(`${anio}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
-    }
+    dias.push(`${anio}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
   }
   return dias;
 }
@@ -279,12 +275,15 @@ function EmpleadoJornal({
               const info       = fichaje ? estadoInfo(fichaje.estado) : null;
               const obraNombre = obras.find(o => o.id === fichaje?.obra_id)?.nombre;
               const fechaLabel = format(new Date(fecha + "T12:00:00"), "EEE d MMM", { locale: es });
+              const dow        = getDay(new Date(fecha + "T12:00:00")); // 0=dom, 6=sab
+              const esFinde    = dow === 0 || dow === 6;
 
               return (
                 <div key={fecha}>
                   {/* Fila del día */}
                   <div className={cn(
                     "grid grid-cols-[72px_1fr_auto] items-center gap-2 px-4 py-2.5 text-sm",
+                    esFinde && !isEditRow && "bg-gray-50/80",
                     isEditRow && "bg-primary-light/20",
                   )}>
                     {/* Fecha */}
@@ -311,7 +310,7 @@ function EmpleadoJornal({
                       </div>
                     ) : (
                       <span className="text-xs text-content-muted italic">
-                        {esFuturo ? "—" : "Sin fichar"}
+                        {esFuturo || esFinde ? "—" : "Sin fichar"}
                       </span>
                     )}
 
