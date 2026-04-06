@@ -41,6 +41,7 @@ const esOverrideExplicito = (a: AsignacionConUsuario, fechaStr: string): boolean
 /**
  * Estado final visible de un empleado para un día concreto.
  * Regla: el fichaje (si existe) SIEMPRE tiene prioridad sobre la asignación.
+ * Los nombres de obra se buscan en el mapa local para no depender del join SQL.
  */
 function getEstadoDia(
   userId: string,
@@ -48,6 +49,7 @@ function getEstadoDia(
   asigs: AsignacionConUsuario[],
   fichajesDelDia: Record<string, any>,
   esFinde: boolean,
+  obrasMap: Record<string, Obra>,
 ): {
   tipo: "trabajando" | "libre" | "ausencia" | "sin_asignacion";
   obraNombre?: string;
@@ -62,14 +64,14 @@ function getEstadoDia(
   // ── Prioridad 1: hay fichaje para este día ──
   if (fichaje) {
     if (fichaje.estado === "trabajando") {
+      const obraId = fichaje.obra_id;
       return {
         tipo: "trabajando",
-        obraNombre: fichaje.obra?.nombre,
-        obraId: fichaje.obra_id,
+        obraNombre: obraId ? (obrasMap[obraId]?.nombre ?? "Obra") : undefined,
+        obraId,
         desdeFichaje: true,
       };
     }
-    // libre, baja, permiso, vacaciones, otro
     return {
       tipo: fichaje.estado === "libre" ? "libre" : "ausencia",
       estadoFichaje: fichaje.estado,
@@ -84,19 +86,19 @@ function getEstadoDia(
     return { tipo: "sin_asignacion", desdeFichaje: false };
   }
 
-  // En fin de semana, solo override explícito de ese día cuenta como "trabajando"
   if (esFinde && !esOverrideExplicito(asig, fechaStr) && !(asig as any).es_libre) {
-    return { tipo: "libre", desdeFichaje: false }; // finde sin override = libre por defecto
+    return { tipo: "libre", desdeFichaje: false };
   }
 
   if ((asig as any).es_libre) {
     return { tipo: "libre", nota: (asig as any).nota, desdeFichaje: false };
   }
 
+  const obraId = asig.obra_id ?? undefined;
   return {
     tipo: "trabajando",
-    obraNombre: (asig as any).obra?.nombre,
-    obraId: asig.obra_id ?? undefined,
+    obraNombre: obraId ? (obrasMap[obraId]?.nombre ?? (asig as any).obra?.nombre ?? "Obra") : undefined,
+    obraId,
     hora: (asig as any).hora_inicio,
     nota: (asig as any).nota,
     desdeFichaje: false,
@@ -129,6 +131,13 @@ export default function CalendarioPage() {
     usuarios.filter(u => u.rol === "empleado").forEach((u, i) => { map[u.id] = PALETTE[i % PALETTE.length]; });
     return map;
   }, [usuarios]);
+
+  // Mapa id→obra para buscar nombres sin depender del join SQL
+  const obrasMap = useMemo(() => {
+    const m: Record<string, Obra> = {};
+    obras.forEach(o => { m[o.id] = o; });
+    return m;
+  }, [obras]);
 
   const cargar = useCallback(async () => {
     if (!tenantId) return;
@@ -250,7 +259,7 @@ export default function CalendarioPage() {
 
               // Empleados que realmente trabajan ese día (fichaje o asignacion)
               const trabajando = delMes ? empleados.filter(u => {
-                const est = getEstadoDia(u.id, fechaStr, asigsDiaCell, fichajesDiaCell, finde);
+                const est = getEstadoDia(u.id, fechaStr, asigsDiaCell, fichajesDiaCell, finde, obrasMap);
                 return est.tipo === "trabajando";
               }) : [];
 
@@ -292,7 +301,7 @@ export default function CalendarioPage() {
                     <div className="hidden md:flex flex-col gap-0.5">
                       {trabajando.slice(0, 3).map(u => {
                         const c   = colorPorUser[u.id];
-                        const est = getEstadoDia(u.id, fechaStr, asigsDiaCell, fichajesDiaCell, finde);
+                        const est = getEstadoDia(u.id, fechaStr, asigsDiaCell, fichajesDiaCell, finde, obrasMap);
                         return (
                           <div key={u.id} className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate", c?.bg, c?.text)}>
                             <span className="truncate">{u.nombre.split(" ")[0]}</span>
@@ -317,6 +326,7 @@ export default function CalendarioPage() {
         fichajesDelDia={fichajesDia}
         usuarios={usuarios}
         obras={obras}
+        obrasMap={obrasMap}
         tenantId={tenantId!}
         isAdmin={isAdmin}
         currentUser={currentUser}
@@ -342,7 +352,7 @@ const ESTADO_LABEL: Record<string, { emoji: string; label: string; color: string
 // Panel lateral de detalle del día
 // ─────────────────────────────────────────────────────────────
 function DayPanel({
-  fecha, asigs, fichajesDelDia, usuarios, obras, tenantId,
+  fecha, asigs, fichajesDelDia, usuarios, obras, obrasMap, tenantId,
   isAdmin, currentUser, colorPorUser, onRefresh,
 }: {
   fecha: string;
@@ -350,6 +360,7 @@ function DayPanel({
   fichajesDelDia: Record<string, any>;
   usuarios: User[];
   obras: Obra[];
+  obrasMap: Record<string, Obra>;
   tenantId: string;
   isAdmin: boolean;
   currentUser: User | null;
@@ -378,7 +389,7 @@ function DayPanel({
 
   // Cuántos trabajan hoy según fichaje/asignación
   const numTrabajando = empleados.filter(u =>
-    getEstadoDia(u.id, fecha, asigs, fichajesDelDia, esFinde).tipo === "trabajando"
+    getEstadoDia(u.id, fecha, asigs, fichajesDelDia, esFinde, obrasMap).tipo === "trabajando"
   ).length;
 
   function iniciarEdicion(userId: string, asig?: AsignacionConUsuario) {
@@ -490,7 +501,7 @@ function DayPanel({
       {/* Lista de todos los empleados */}
       <div className="space-y-2 mb-4">
         {empleados.map(user => {
-          const est       = getEstadoDia(user.id, fecha, asigs, fichajesDelDia, esFinde);
+          const est       = getEstadoDia(user.id, fecha, asigs, fichajesDelDia, esFinde, obrasMap);
           const asig      = asigs.find(a => a.user_id === user.id);
           const c         = colorPorUser[user.id];
           const esEditando = editando === user.id;
