@@ -27,6 +27,7 @@ import { es } from "date-fns/locale";
 import { DireccionInput } from "@/components/ui/DireccionInput";
 import { DireccionLink } from "@/components/ui/DireccionLink";
 import { DocumentacionSection } from "@/components/modules/obras/DocumentacionSection";
+import { FacturacionSection } from "@/components/modules/obras/FacturacionSection";
 
 // ─────────────────────────────────────────────────────────────
 // Página principal
@@ -328,6 +329,13 @@ export default function ObraDetallePage() {
         documentos={documentos}
         onActualizar={cargar}
       />
+
+      {/* Facturación (solo admin) */}
+      {isAdmin && tenantId && (
+        <div className="mt-2 p-4 bg-white rounded-2xl border border-surface-border">
+          <FacturacionSection obraId={obra.id} tenantId={tenantId} />
+        </div>
+      )}
 
       {/* Archivar obra */}
       {isAdmin && obra.estado !== "archivada" && (

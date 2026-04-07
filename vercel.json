@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/facturacion/check-pagos",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}

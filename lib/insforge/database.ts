@@ -3,7 +3,8 @@ import { isoDate } from "@/lib/utils";
 import type {
   Obra, ObraFormData, Asignacion, Fichaje, FichajeEstado,
   Material, MaterialFormData, Archivo, TarifaEmpleado,
-  Notificacion, User, Documento, DocumentoCategoria, Jornada
+  Notificacion, User, Documento, DocumentoCategoria, Jornada,
+  Factura, Pago, FacturaConPagos, PagoConContexto, PagoEstado
 } from "@/types";
 
 // ══════════════════════════════════════════════════════════════════
@@ -597,4 +598,276 @@ async function ensureAsignacionObra(
 
 export async function deleteJornada(id: string) {
   return insforge.database.from("jornadas").delete().eq("id", id);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FACTURACIÓN
+// ══════════════════════════════════════════════════════════════════
+
+/** Devuelve todas las facturas de una obra, con sus pagos incluidos */
+export async function getFacturasByObra(obraId: string): Promise<FacturaConPagos[]> {
+  const { data: facturas, error } = await insforge.database
+    .from("facturas")
+    .select("*")
+    .eq("obra_id", obraId)
+    .order("created_at", { ascending: false });
+
+  if (error || !facturas || facturas.length === 0) return [];
+
+  const ids = (facturas as Factura[]).map((f) => f.id);
+  const { data: pagos } = await insforge.database
+    .from("pagos")
+    .select("*")
+    .in("factura_id", ids)
+    .order("orden", { ascending: true });
+
+  const pagosPorFactura: Record<string, Pago[]> = {};
+  for (const p of (pagos ?? []) as Pago[]) {
+    if (!pagosPorFactura[p.factura_id]) pagosPorFactura[p.factura_id] = [];
+    pagosPorFactura[p.factura_id].push(p);
+  }
+
+  return (facturas as Factura[]).map((f) => ({
+    ...f,
+    pagos: pagosPorFactura[f.id] ?? [],
+  }));
+}
+
+/** Próximo número de factura global para el tenant (FAC-001, FAC-002…) */
+export async function getNextNumeroFactura(tenantId: string): Promise<string> {
+  const { data } = await insforge.database
+    .from("facturas")
+    .select("numero_factura")
+    .eq("tenant_id", tenantId)
+    .not("numero_factura", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  let maxNum = 0;
+  for (const row of (data ?? []) as { numero_factura: string | null }[]) {
+    const match = row.numero_factura?.match(/(\d+)$/);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (n > maxNum) maxNum = n;
+    }
+  }
+  return `FAC-${String(maxNum + 1).padStart(3, "0")}`;
+}
+
+/** Crea una factura y auto-genera los 3 pagos */
+export async function createFactura(params: {
+  tenantId: string;
+  obraId: string;
+  concepto: string;
+  importeTotal: number;
+  numeroFactura: string;
+  fechaEmision?: string | null;
+  notas?: string | null;
+  pagos: {
+    concepto: string;
+    porcentaje: number;
+    fechaPrevista: string | null;
+  }[];
+}): Promise<{ factura: Factura | null; error: string | null }> {
+  const { data: factura, error } = await insforge.database
+    .from("facturas")
+    .insert({
+      tenant_id: params.tenantId,
+      obra_id: params.obraId,
+      concepto: params.concepto,
+      importe_total: params.importeTotal,
+      numero_factura: params.numeroFactura,
+      fecha_emision: params.fechaEmision ?? null,
+      notas: params.notas ?? null,
+    })
+    .select()
+    .single();
+
+  if (error || !factura) return { factura: null, error: (error as any)?.message ?? "Error al crear factura" };
+
+  const f = factura as Factura;
+  const pagoRows = params.pagos.map((p, i) => {
+    const importe_base = Math.round((params.importeTotal * p.porcentaje) / 100 * 100) / 100;
+    return {
+      tenant_id: params.tenantId,
+      factura_id: f.id,
+      obra_id: params.obraId,
+      orden: i + 1,
+      concepto: p.concepto,
+      porcentaje: p.porcentaje,
+      importe_base,
+      importe_extra: 0,
+      importe_total: importe_base,
+      fecha_prevista: p.fechaPrevista,
+      estado: "pendiente_emitir" as PagoEstado,
+    };
+  });
+
+  await insforge.database.from("pagos").insert(pagoRows);
+
+  return { factura: f, error: null };
+}
+
+/** Actualiza campos de una factura */
+export async function updateFactura(id: string, params: Partial<{
+  concepto: string;
+  importe_total: number;
+  numero_factura: string;
+  fecha_emision: string | null;
+  archivo_url: string | null;
+  notas: string | null;
+}>) {
+  return insforge.database
+    .from("facturas")
+    .update({ ...params, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+}
+
+/** Elimina una factura y sus pagos */
+export async function deleteFactura(id: string) {
+  await insforge.database.from("pagos").delete().eq("factura_id", id);
+  return insforge.database.from("facturas").delete().eq("id", id);
+}
+
+/** Actualiza un pago (estado, extras, fecha, nota) */
+export async function updatePago(id: string, params: Partial<{
+  concepto: string;
+  porcentaje: number;
+  importe_base: number;
+  importe_extra: number;
+  fecha_prevista: string | null;
+  fecha_cobro: string | null;
+  estado: PagoEstado;
+  nota: string | null;
+}>) {
+  // Recalcular importe_total si cambia alguno de los importes
+  const updates: Record<string, unknown> = { ...params };
+  if (params.importe_extra !== undefined || params.importe_base !== undefined) {
+    // necesitamos leer los valores actuales si solo llega uno
+    const { data: current } = await insforge.database
+      .from("pagos").select("importe_base, importe_extra").eq("id", id).single();
+    const base = params.importe_base ?? (current as any)?.importe_base ?? 0;
+    const extra = params.importe_extra ?? (current as any)?.importe_extra ?? 0;
+    updates.importe_total = Math.round((base + extra) * 100) / 100;
+  }
+
+  return insforge.database
+    .from("pagos")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+}
+
+/** Pagos pendientes/emitidos para panel de alertas y cron */
+export async function getPagosPendientesYEmitidos(tenantId: string): Promise<PagoConContexto[]> {
+  const { data: pagos, error } = await insforge.database
+    .from("pagos")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .in("estado", ["pendiente_emitir", "emitida"])
+    .not("fecha_prevista", "is", null)
+    .order("fecha_prevista", { ascending: true });
+
+  if (error || !pagos || pagos.length === 0) return [];
+
+  const facturaIds = Array.from(new Set((pagos as Pago[]).map((p) => p.factura_id)));
+  const obraIds    = Array.from(new Set((pagos as Pago[]).map((p) => p.obra_id)));
+
+  const [facturasRes, obrasRes] = await Promise.all([
+    insforge.database.from("facturas").select("id, concepto").in("id", facturaIds),
+    insforge.database.from("obras").select("id, nombre").in("id", obraIds),
+  ]);
+
+  const facturaMap: Record<string, string> = {};
+  for (const f of (facturasRes.data ?? []) as { id: string; concepto: string }[]) {
+    facturaMap[f.id] = f.concepto;
+  }
+  const obraMap: Record<string, string> = {};
+  for (const o of (obrasRes.data ?? []) as { id: string; nombre: string }[]) {
+    obraMap[o.id] = o.nombre;
+  }
+
+  return (pagos as Pago[]).map((p) => ({
+    ...p,
+    obra_nombre: obraMap[p.obra_id] ?? "—",
+    factura_concepto: facturaMap[p.factura_id] ?? "—",
+  }));
+}
+
+/** Datos del dashboard de facturación */
+export async function getFacturacionDashboard(tenantId: string): Promise<{
+  totalFacturado: number;
+  totalCobrado: number;
+  pendiente: number;
+  facturadoEsteMes: number;
+  facturadoMesAnterior: number;
+  porMes: { mes: string; facturado: number; cobrado: number; anioAnterior: number }[];
+}> {
+  const ahora   = new Date();
+  const anio    = ahora.getFullYear();
+  const mes     = ahora.getMonth() + 1;
+
+  // Calcular el rango: 12 meses del año actual + los mismos 12 del año anterior
+  const inicioAnioActual   = `${anio}-01-01`;
+  const finAnioActual      = `${anio}-12-31`;
+  const inicioAnioAnterior = `${anio - 1}-01-01`;
+  const finAnioAnterior    = `${anio - 1}-12-31`;
+
+  const [pagosActual, pagosAnterior] = await Promise.all([
+    insforge.database.from("pagos").select("*")
+      .eq("tenant_id", tenantId)
+      .gte("created_at", inicioAnioActual)
+      .lte("created_at", finAnioActual + "T23:59:59"),
+    insforge.database.from("pagos").select("*")
+      .eq("tenant_id", tenantId)
+      .gte("created_at", inicioAnioAnterior)
+      .lte("created_at", finAnioAnterior + "T23:59:59"),
+  ]);
+
+  const actual   = (pagosActual.data   ?? []) as Pago[];
+  const anterior = (pagosAnterior.data ?? []) as Pago[];
+
+  const totalFacturado = actual.reduce((s, p) => s + p.importe_total, 0);
+  const totalCobrado   = actual.filter((p) => p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
+  const pendiente      = totalFacturado - totalCobrado;
+
+  const mesStr = (m: number) => String(m).padStart(2, "0");
+
+  const primerDiaMes  = `${anio}-${mesStr(mes)}-01`;
+  const ultimoDiaMes  = new Date(anio, mes, 0).getDate();
+  const ultimoDiaMesStr = `${anio}-${mesStr(mes)}-${ultimoDiaMes}`;
+  const facturadoEsteMes = actual
+    .filter((p) => p.created_at >= primerDiaMes && p.created_at <= ultimoDiaMesStr + "T23:59:59")
+    .reduce((s, p) => s + p.importe_total, 0);
+
+  const mesPasado = mes === 1 ? 12 : mes - 1;
+  const anioMesPasado = mes === 1 ? anio - 1 : anio;
+  const primerDiaMesPasado = `${anioMesPasado}-${mesStr(mesPasado)}-01`;
+  const ultimoDiaMesPasado = new Date(anioMesPasado, mesPasado, 0).getDate();
+  const ultimoDiaMesPasadoStr = `${anioMesPasado}-${mesStr(mesPasado)}-${ultimoDiaMesPasado}`;
+  const sourceAnterior = mes === 1 ? anterior : actual;
+  const facturadoMesAnterior = sourceAnterior
+    .filter((p) => p.created_at >= primerDiaMesPasado && p.created_at <= ultimoDiaMesPasadoStr + "T23:59:59")
+    .reduce((s, p) => s + p.importe_total, 0);
+
+  // Construir array de 12 meses del año actual con comparativa
+  const porMes = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
+    const mStr = mesStr(m);
+    const ini = `${anio}-${mStr}-01`;
+    const fin = `${anio}-${mStr}-${new Date(anio, m, 0).getDate()}T23:59:59`;
+    const iniAnt = `${anio - 1}-${mStr}-01`;
+    const finAnt = `${anio - 1}-${mStr}-${new Date(anio - 1, m, 0).getDate()}T23:59:59`;
+
+    const facturado  = actual.filter((p) => p.created_at >= ini && p.created_at <= fin).reduce((s, p) => s + p.importe_total, 0);
+    const cobrado    = actual.filter((p) => p.estado === "cobrada" && p.fecha_cobro && p.fecha_cobro >= ini && p.fecha_cobro <= fin).reduce((s, p) => s + p.importe_total, 0);
+    const anioAnterior = anterior.filter((p) => p.created_at >= iniAnt && p.created_at <= finAnt).reduce((s, p) => s + p.importe_total, 0);
+
+    return { mes: mStr, facturado, cobrado, anioAnterior };
+  });
+
+  return { totalFacturado, totalCobrado, pendiente, facturadoEsteMes, facturadoMesAnterior, porMes };
 }

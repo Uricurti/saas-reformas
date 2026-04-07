@@ -214,13 +214,59 @@ export interface JornalMes {
   jornadas: Jornada[];
 }
 
+// ─── Facturación ──────────────────────────────────────────────────────────────
+export type PagoEstado = "pendiente_emitir" | "emitida" | "cobrada";
+
+export interface Factura {
+  id: string;
+  tenant_id: string;
+  obra_id: string;
+  concepto: string;
+  importe_total: number;
+  numero_factura: string | null;
+  fecha_emision: string | null;
+  archivo_url: string | null;
+  notas: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Pago {
+  id: string;
+  tenant_id: string;
+  factura_id: string;
+  obra_id: string;
+  orden: number;
+  concepto: string;
+  porcentaje: number;
+  importe_base: number;
+  importe_extra: number;
+  importe_total: number;
+  fecha_prevista: string | null;
+  fecha_cobro: string | null;
+  estado: PagoEstado;
+  nota: string | null;
+  created_at: string;
+}
+
+export interface FacturaConPagos extends Factura {
+  pagos: Pago[];
+}
+
+export interface PagoConContexto extends Pago {
+  obra_nombre: string;
+  factura_concepto: string;
+}
+
 // ─── Notificación ─────────────────────────────────────────────────────────
 export type NotificacionTipo =
   | "asignacion_nueva"
   | "asignacion_cambio"
   | "material_pedido"
   | "fichaje_pendiente"
-  | "foto_subida";
+  | "foto_subida"
+  | "pago_proximo"
+  | "pago_vencido";
 
 export interface Notificacion {
   id: string;
