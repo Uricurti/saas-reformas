@@ -50,10 +50,10 @@ function KpiCard({ label, value, sub, subUp, icon: Icon, iconBg, iconColor, acce
 }) {
   return (
     <div style={{
-      background: "#fff", borderRadius: 16, padding: "18px 20px",
+      background: "#fff", borderRadius: 14, padding: "14px 16px",
       boxShadow: "0 1px 3px rgba(96,126,170,0.08), 0 1px 2px rgba(96,126,170,0.04)",
       borderTop: `3px solid ${accent ?? "transparent"}`,
-      display: "flex", flexDirection: "column", gap: 10,
+      display: "flex", flexDirection: "column", gap: 8,
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontSize: 12, color: "#4A5568", fontWeight: 500, letterSpacing: "0.02em" }}>{label}</span>
@@ -62,7 +62,7 @@ function KpiCard({ label, value, sub, subUp, icon: Icon, iconBg, iconColor, acce
         </div>
       </div>
       <div>
-        <div style={{ fontSize: 26, fontWeight: 800, color: "#1A1A2E", letterSpacing: "-0.5px", lineHeight: 1.1 }}>{value}</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: "#1A1A2E", letterSpacing: "-0.5px", lineHeight: 1.1 }}>{value}</div>
         {sub && (
           <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5 }}>
             {subUp === true  && <TrendingUp   style={{ width: 12, height: 12, color: "#10b981" }} />}
@@ -94,23 +94,29 @@ function AlertaPago({ pago, onCobrar }: { pago: PagoConContexto; onCobrar: () =>
   }
 
   return (
-    <div style={{ background: bg, border: `1.5px solid ${color}25`, borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-      <Icon style={{ width: 18, height: 18, color, flexShrink: 0 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#1A1A2E", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {pago.obra_nombre}
+    <div style={{ background: bg, border: `1.5px solid ${color}25`, borderRadius: 12, padding: "12px 14px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Icon style={{ width: 16, height: 16, color, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1A1A2E", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {pago.obra_nombre}
+          </div>
+          <div style={{ fontSize: 11, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {pago.factura_concepto} · {pago.concepto}
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: "#6b7280" }}>{pago.factura_concepto} · {pago.concepto}</div>
+        <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 4 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color }}>{fmt(pago.importe_total)} €</div>
+          {label && <div style={{ fontSize: 10, color }}>{label}</div>}
+        </div>
       </div>
-      <div style={{ textAlign: "right", flexShrink: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color }}>{fmt(pago.importe_total)} €</div>
-        <div style={{ fontSize: 11, color }}>{label}</div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+        <button onClick={handleCobrar} disabled={saving}
+          style={{ background: color, color: "#fff", border: "none", borderRadius: 8, padding: "6px 16px", fontWeight: 600, fontSize: 12, cursor: saving ? "default" : "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+          {saving ? <Loader2 style={{ width: 12, height: 12 }} /> : <CheckCircle2 style={{ width: 12, height: 12 }} />}
+          Cobrar
+        </button>
       </div>
-      <button onClick={handleCobrar} disabled={saving}
-        style={{ background: color, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontWeight: 600, fontSize: 12, cursor: saving ? "default" : "pointer", flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
-        {saving ? <Loader2 style={{ width: 12, height: 12 }} /> : <CheckCircle2 style={{ width: 12, height: 12 }} />}
-        Cobrar
-      </button>
     </div>
   );
 }
@@ -133,10 +139,11 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 // ─── Sección card wrapper ─────────────────────────────────────────────────────
-function Section({ title, sub, children, action }: { title: string; sub?: string; children: React.ReactNode; action?: React.ReactNode }) {
+function Section({ title, sub, children, action, compact }: { title: string; sub?: string; children: React.ReactNode; action?: React.ReactNode; compact?: boolean }) {
+  const p = compact ? "14px 14px" : "20px";
   return (
-    <div style={{ background: "#fff", borderRadius: 16, padding: "20px", boxShadow: "0 1px 3px rgba(96,126,170,0.07)" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+    <div style={{ background: "#fff", borderRadius: 16, padding: p, boxShadow: "0 1px 3px rgba(96,126,170,0.07)" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: compact ? 12 : 16 }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#1A1A2E" }}>{title}</div>
           {sub && <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 2 }}>{sub}</div>}
@@ -158,6 +165,14 @@ export default function FinanzasPage() {
   const [loading,   setLoading]  = useState(true);
   const [dash,      setDash]     = useState<DashboardFinanzas | null>(null);
   const [alertas,   setAlertas]  = useState<PagoConContexto[]>([]);
+  const [isMobile,  setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   const cargar = useCallback(async () => {
     if (!tenantId) return;
@@ -226,7 +241,7 @@ export default function FinanzasPage() {
     <div style={{ minHeight: "100vh", background: BG, paddingBottom: 100 }}>
 
       {/* ── Header ─────────────────────────────────────────────── */}
-      <div style={{ background: "#fff", borderBottom: "1px solid #E8E8EC", padding: "18px 24px 16px" }}>
+      <div style={{ background: "#fff", borderBottom: "1px solid #E8E8EC", padding: isMobile ? "14px 16px 12px" : "18px 24px 16px" }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 12, background: PL, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -244,7 +259,7 @@ export default function FinanzasPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "20px 16px" }}>
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: isMobile ? "14px 12px" : "20px 16px" }}>
 
         {/* ── Alertas ─────────────────────────────────────────── */}
         {alertas.length > 0 && (
@@ -261,7 +276,7 @@ export default function FinanzasPage() {
         )}
 
         {/* ── KPIs principales ───────────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 10 : 12, marginBottom: isMobile ? 14 : 20 }}>
           <KpiCard label="Total facturado" value={fmtEuro(d.totalFacturado)}
             sub={`año ${anio}`} subUp={null} accent={P}
             icon={Euro} iconBg={PL} iconColor={P} />
@@ -279,7 +294,7 @@ export default function FinanzasPage() {
         </div>
 
         {/* ── KPIs costes y margen ───────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 10 : 12, marginBottom: isMobile ? 14 : 20 }}>
           <KpiCard label="Coste empleados" value={fmtEuro(d.costeEmpleados)}
             sub="Jornales año actual" subUp={null} accent={P}
             icon={Users} iconBg={PL} iconColor={P} />
@@ -302,8 +317,8 @@ export default function FinanzasPage() {
         </div>
 
         {/* ── Gráfico evolución + Top obras ──────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: d.porObra.length > 0 ? "1fr 320px" : "1fr", gap: 16, marginBottom: 16 }}>
-          <Section title="Evolución mensual" sub={`Facturado, cobrado y costes · ${anio} vs ${anio - 1}`}>
+        <div style={{ display: "grid", gridTemplateColumns: (isMobile || d.porObra.length === 0) ? "1fr" : "1fr 300px", gap: 16, marginBottom: 16 }}>
+          <Section title="Evolución mensual" sub={`Facturado, cobrado y costes · ${anio} vs ${anio - 1}`} compact={isMobile}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
               {[
                 { color: P,        label: `Facturado ${anio}` },
@@ -318,7 +333,7 @@ export default function FinanzasPage() {
                 </div>
               ))}
             </div>
-            <div style={{ height: 220 }}>
+            <div style={{ height: isMobile ? 180 : 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                   <defs>
@@ -333,9 +348,9 @@ export default function FinanzasPage() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                   <XAxis dataKey="mes" tickFormatter={v => MESES[parseInt(v,10)-1] ?? v}
-                    tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+                    tick={{ fontSize: isMobile ? 9 : 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
                   <YAxis tickFormatter={v => `${fmt(v)}`} tick={{ fontSize: 9, fill: "#94A3B8" }}
-                    axisLine={false} tickLine={false} width={55} />
+                    axisLine={false} tickLine={false} width={isMobile ? 40 : 55} />
                   <Tooltip content={<CustomTooltip />} />
                   <Area type="monotone" dataKey="Año anterior" stroke={P + "55"} strokeWidth={1.5}
                     strokeDasharray="4 4" fill="none" dot={false} />
@@ -354,7 +369,7 @@ export default function FinanzasPage() {
 
           {/* Top obras */}
           {d.porObra.length > 0 && (
-            <Section title="Top obras" sub="Facturado · Cobrado · Margen">
+            <Section title="Top obras" sub="Facturado · Cobrado · Margen" compact={isMobile}>
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 {d.porObra.slice(0, 7).map((o, i) => {
                   const pct    = o.facturado > 0 ? Math.round((o.cobrado / o.facturado) * 100) : 0;
@@ -385,16 +400,16 @@ export default function FinanzasPage() {
         </div>
 
         {/* ── Costes por mes (barras) + Donuts ────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, marginBottom: 16, alignItems: "start" }}>
-          <Section title="Facturado vs Costes" sub="Comparativa mensual ingresos y gastos">
-            <div style={{ height: 200 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr auto", gap: 16, marginBottom: 16, alignItems: "start" }}>
+          <Section title="Facturado vs Costes" sub="Comparativa mensual ingresos y gastos" compact={isMobile}>
+            <div style={{ height: isMobile ? 160 : 200 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }} barGap={2} barCategoryGap="30%">
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                   <XAxis dataKey="mes" tickFormatter={v => MESES[parseInt(v,10)-1] ?? v}
-                    tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+                    tick={{ fontSize: isMobile ? 9 : 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
                   <YAxis tickFormatter={v => `${fmt(v)}`} tick={{ fontSize: 9, fill: "#94A3B8" }}
-                    axisLine={false} tickLine={false} width={55} />
+                    axisLine={false} tickLine={false} width={isMobile ? 40 : 55} />
                   <Tooltip content={<CustomTooltip />} />
                   <Bar dataKey="Facturado" fill={P}        radius={[4,4,0,0]} maxBarSize={28} />
                   <Bar dataKey="Coste emp." fill="#F59E0B" radius={[4,4,0,0]} maxBarSize={28} />
@@ -405,7 +420,10 @@ export default function FinanzasPage() {
           </Section>
 
           {/* Donuts */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 260 }}>
+          <div style={isMobile
+            ? { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }
+            : { display: "flex", flexDirection: "column", gap: 16, minWidth: 260 }
+          }>
             {donutData.length > 0 && (
               <div style={{ background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 1px 3px rgba(96,126,170,0.07)" }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: "#1A1A2E", marginBottom: 2 }}>Estado cobros</div>
@@ -471,13 +489,16 @@ export default function FinanzasPage() {
         </div>
 
         {/* ── Tabla mensual detallada ─────────────────────────── */}
-        <Section title="Detalle mensual" sub={`Todos los meses de ${anio} con comparativa ${anio - 1}`}>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <Section title="Detalle mensual" sub={`Todos los meses de ${anio} con comparativa ${anio - 1}`} compact={isMobile}>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? 12 : 13 }}>
               <thead>
                 <tr style={{ borderBottom: `2px solid ${PL}` }}>
-                  {["Mes","Facturado","Cobrado","Coste emp.","Coste mat.","Margen","Año ant.","Var."].map(h => (
-                    <th key={h} style={{ padding: "7px 10px", textAlign: h === "Mes" ? "left" : "right", fontSize: 11, fontWeight: 600, color: "#94A3B8", whiteSpace: "nowrap" }}>{h}</th>
+                  {(isMobile
+                    ? ["Mes","Facturado","Cobrado","Margen"]
+                    : ["Mes","Facturado","Cobrado","Coste emp.","Coste mat.","Margen","Año ant.","Var."]
+                  ).map(h => (
+                    <th key={h} style={{ padding: isMobile ? "6px 8px" : "7px 10px", textAlign: h === "Mes" ? "left" : "right", fontSize: isMobile ? 10 : 11, fontWeight: 600, color: "#94A3B8", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -486,25 +507,29 @@ export default function FinanzasPage() {
                   const mesActual = i + 1 === new Date().getMonth() + 1;
                   const variacion = m.anioAnterior > 0 ? ((m.facturado - m.anioAnterior) / m.anioAnterior) * 100 : null;
                   const margenOk  = m.margen >= 0;
+                  const pd = isMobile ? "6px 8px" : "8px 10px";
                   return (
                     <tr key={i} style={{ borderBottom: "1px solid #f9fafb", background: mesActual ? PL + "70" : "transparent" }}>
-                      <td style={{ padding: "8px 10px", fontWeight: mesActual ? 700 : 500, color: mesActual ? P : "#374151" }}>
+                      <td style={{ padding: pd, fontWeight: mesActual ? 700 : 500, color: mesActual ? P : "#374151", whiteSpace: "nowrap" }}>
                         {MESES[i]}
-                        {mesActual && <span style={{ fontSize: 10, background: PL, color: P, borderRadius: 4, padding: "0 5px", marginLeft: 4, fontWeight: 700 }}>Actual</span>}
+                        {mesActual && !isMobile && <span style={{ fontSize: 10, background: PL, color: P, borderRadius: 4, padding: "0 5px", marginLeft: 4, fontWeight: 700 }}>Actual</span>}
+                        {mesActual && isMobile && <span style={{ display: "inline-block", width: 6, height: 6, background: P, borderRadius: "50%", marginLeft: 4, verticalAlign: "middle" }} />}
                       </td>
-                      <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 600, color: m.facturado > 0 ? "#1A1A2E" : "#d1d5db" }}>{m.facturado > 0 ? fmtEuro(m.facturado) : "—"}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "right", color: m.cobrado > 0 ? "#10b981" : "#d1d5db", fontWeight: 600 }}>{m.cobrado > 0 ? fmtEuro(m.cobrado) : "—"}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "right", color: m.costeEmpleados > 0 ? "#F59E0B" : "#d1d5db" }}>{m.costeEmpleados > 0 ? fmtEuro(m.costeEmpleados) : "—"}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "right", color: m.costeMateriales > 0 ? ACC : "#d1d5db" }}>{m.costeMateriales > 0 ? fmtEuro(m.costeMateriales) : "—"}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, color: margenOk ? "#10b981" : "#EF4444" }}>
+                      <td style={{ padding: pd, textAlign: "right", fontWeight: 600, color: m.facturado > 0 ? "#1A1A2E" : "#d1d5db" }}>{m.facturado > 0 ? fmtEuro(m.facturado) : "—"}</td>
+                      <td style={{ padding: pd, textAlign: "right", color: m.cobrado > 0 ? "#10b981" : "#d1d5db", fontWeight: 600 }}>{m.cobrado > 0 ? fmtEuro(m.cobrado) : "—"}</td>
+                      {!isMobile && <td style={{ padding: pd, textAlign: "right", color: m.costeEmpleados > 0 ? "#F59E0B" : "#d1d5db" }}>{m.costeEmpleados > 0 ? fmtEuro(m.costeEmpleados) : "—"}</td>}
+                      {!isMobile && <td style={{ padding: pd, textAlign: "right", color: m.costeMateriales > 0 ? ACC : "#d1d5db" }}>{m.costeMateriales > 0 ? fmtEuro(m.costeMateriales) : "—"}</td>}
+                      <td style={{ padding: pd, textAlign: "right", fontWeight: 700, color: margenOk ? "#10b981" : "#EF4444" }}>
                         {m.margen !== 0 ? fmtEuro(m.margen) : "—"}
                       </td>
-                      <td style={{ padding: "8px 10px", textAlign: "right", color: "#94A3B8" }}>{m.anioAnterior > 0 ? fmtEuro(m.anioAnterior) : "—"}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "right" }}>
-                        {variacion !== null
-                          ? <span style={{ fontSize: 12, fontWeight: 600, color: variacion >= 0 ? "#10b981" : "#EF4444" }}>{variacion >= 0 ? "↑" : "↓"}{Math.abs(variacion).toFixed(0)}%</span>
-                          : <span style={{ color: "#d1d5db" }}>—</span>}
-                      </td>
+                      {!isMobile && <td style={{ padding: pd, textAlign: "right", color: "#94A3B8" }}>{m.anioAnterior > 0 ? fmtEuro(m.anioAnterior) : "—"}</td>}
+                      {!isMobile && (
+                        <td style={{ padding: pd, textAlign: "right" }}>
+                          {variacion !== null
+                            ? <span style={{ fontSize: 12, fontWeight: 600, color: variacion >= 0 ? "#10b981" : "#EF4444" }}>{variacion >= 0 ? "↑" : "↓"}{Math.abs(variacion).toFixed(0)}%</span>
+                            : <span style={{ color: "#d1d5db" }}>—</span>}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
