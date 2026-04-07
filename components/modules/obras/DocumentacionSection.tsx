@@ -22,6 +22,9 @@ const CATEGORIAS: { value: DocumentoCategoria; label: string; emoji: string }[] 
   { value: "otro",        label: "Otro",         emoji: "📎" },
 ];
 
+// Categorías que solo puede ver y subir el admin (datos económicos sensibles)
+const CATEGORIAS_PRIVADAS: DocumentoCategoria[] = ["presupuesto", "contrato"];
+
 function categoriaLabel(c: DocumentoCategoria) {
   return CATEGORIAS.find((x) => x.value === c)?.label ?? c;
 }
@@ -354,9 +357,18 @@ export function DocumentacionSection({
   const [visorDoc, setVisorDoc]       = useState<Documento | null>(null);
   const [eliminando, setEliminando]   = useState<string | null>(null);
 
-  const docsFiltrados = filtro === "todos"
+  // Los empleados nunca ven documentos de categorías privadas
+  const categoriasVisibles = isAdmin
+    ? CATEGORIAS
+    : CATEGORIAS.filter((c) => !CATEGORIAS_PRIVADAS.includes(c.value));
+
+  const documentosVisibles = isAdmin
     ? documentos
-    : documentos.filter((d) => d.categoria === filtro);
+    : documentos.filter((d) => !CATEGORIAS_PRIVADAS.includes(d.categoria));
+
+  const docsFiltrados = filtro === "todos"
+    ? documentosVisibles
+    : documentosVisibles.filter((d) => d.categoria === filtro);
 
   async function procesarArchivos(files: FileList | File[]) {
     const lista = Array.from(files);
@@ -433,7 +445,7 @@ export function DocumentacionSection({
         <div className="mb-4 space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-content-muted">Subir como:</span>
-            {CATEGORIAS.map((cat) => (
+            {categoriasVisibles.map((cat) => (
               <button
                 key={cat.value}
                 onClick={() => setCategoriaSeleccionada(cat.value)}
@@ -511,10 +523,10 @@ export function DocumentacionSection({
                   : "bg-gray-100 text-content-secondary hover:bg-gray-200"
               )}
             >
-              Todos ({documentos.length})
+              Todos ({documentosVisibles.length})
             </button>
-            {CATEGORIAS.filter((cat) => documentos.some((d) => d.categoria === cat.value)).map((cat) => {
-              const count = documentos.filter((d) => d.categoria === cat.value).length;
+            {categoriasVisibles.filter((cat) => documentosVisibles.some((d) => d.categoria === cat.value)).map((cat) => {
+              const count = documentosVisibles.filter((d) => d.categoria === cat.value).length;
               return (
                 <button
                   key={cat.value}
