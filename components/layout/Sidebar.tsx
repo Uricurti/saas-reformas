@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2, Calendar, ShoppingCart,
-  Camera, Calculator, Users, LogOut, Bell
+  Camera, Calculator, Users, LogOut, Bell, TrendingUp
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore, useIsAdmin } from "@/lib/stores/auth-store";
@@ -19,12 +19,13 @@ const navItemsEmpleado = [
 ];
 
 const navItemsAdmin = [
-  { href: "/obras",      label: "Obras",      icon: Building2 },
-  { href: "/calendario", label: "Calendario", icon: Calendar },
-  { href: "/materiales", label: "Materiales", icon: ShoppingCart },
-  { href: "/fotos",      label: "Fotos",      icon: Camera },
-  { href: "/jornales",   label: "Jornales",   icon: Calculator },
-  { href: "/equipo",     label: "Equipo",     icon: Users },
+  { href: "/obras",      label: "Obras",      icon: Building2,   group: "operativa" },
+  { href: "/calendario", label: "Calendario", icon: Calendar,    group: "operativa" },
+  { href: "/materiales", label: "Materiales", icon: ShoppingCart,group: "operativa" },
+  { href: "/fotos",      label: "Fotos",      icon: Camera,      group: "operativa" },
+  { href: "/jornales",   label: "Jornales",   icon: Calculator,  group: "operativa" },
+  { href: "/equipo",     label: "Equipo",     icon: Users,       group: "operativa" },
+  { href: "/facturacion",label: "Finanzas",   icon: TrendingUp,  group: "finanzas"  },
 ];
 
 export function Sidebar() {
@@ -62,30 +63,70 @@ export function Sidebar() {
       </div>
 
       {/* Navegación */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-        {navItems.map((item, idx) => {
-          const isActive = pathname.startsWith(item.href);
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {/* Sección operativa */}
+        <div className="space-y-0.5">
+          {navItems.filter((i: any) => i.group !== "finanzas").map((item: any, idx: number) => {
+            const isActive = pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(isActive ? "nav-item-active" : "nav-item")}
+                style={{
+                  animationDelay: `${idx * 40}ms`,
+                  animation: "slideInLeft 0.3s cubic-bezier(0.16,1,0.3,1) both",
+                }}
+              >
+                <item.icon className="w-4 h-4 flex-shrink-0" />
+                <span>{item.label}</span>
+                {isActive && (
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full" style={{ background: "#607eaa" }} />
+                )}
+              </Link>
+            );
+          })}
+        </div>
+
+        <div className="divider" />
+
+        {/* Sección Finanzas — solo admin */}
+        {isAdmin && (() => {
+          const finItem = navItems.find((i: any) => i.group === "finanzas");
+          if (!finItem) return null;
+          const isActive = pathname.startsWith(finItem.href);
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(isActive ? "nav-item-active" : "nav-item")}
-              style={{
-                animationDelay: `${idx * 40}ms`,
-                animation: "slideInLeft 0.3s cubic-bezier(0.16,1,0.3,1) both",
-              }}
-            >
-              <item.icon className="w-4 h-4 flex-shrink-0" />
-              <span>{item.label}</span>
-              {isActive && (
-                <span
-                  className="ml-auto w-1.5 h-1.5 rounded-full"
-                  style={{ background: "#607eaa" }}
-                />
-              )}
-            </Link>
+            <div className="space-y-0.5 mb-1">
+              <p className="px-3 text-[10px] font-700 uppercase tracking-widest mb-1" style={{ color: "#94A3B8" }}>
+                Finanzas
+              </p>
+              <Link
+                href={finItem.href}
+                className={cn(isActive ? "nav-item-active" : "nav-item")}
+                style={{
+                  background: isActive
+                    ? "linear-gradient(135deg, #607eaa18 0%, #26bbec10 100%)"
+                    : undefined,
+                  border: isActive ? "1px solid #607eaa22" : "1px solid transparent",
+                }}
+              >
+                <div
+                  className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: isActive ? "#607eaa" : "#EEF2F8" }}
+                >
+                  <TrendingUp
+                    className="w-3.5 h-3.5"
+                    style={{ color: isActive ? "#fff" : "#607eaa" }}
+                  />
+                </div>
+                <span style={{ fontWeight: isActive ? 700 : 500 }}>{finItem.label}</span>
+                {isActive && (
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full" style={{ background: "#607eaa" }} />
+                )}
+              </Link>
+            </div>
           );
-        })}
+        })()}
 
         <div className="divider" />
 

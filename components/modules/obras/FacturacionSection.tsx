@@ -8,14 +8,16 @@ import {
   updateFactura,
   updatePago,
   deleteFactura,
+  getObraById,
 } from "@/lib/insforge/database";
-import type { FacturaConPagos, Pago, PagoEstado } from "@/types";
+import type { FacturaConPagos, Pago, PagoEstado, Obra } from "@/types";
 import {
   ChevronDown, ChevronUp, Plus, Trash2, Check, FileText,
-  Euro, Clock, AlertCircle, Loader2, X, Pencil
+  Euro, Clock, AlertCircle, Loader2, X, Eye
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { InvoicePreview } from "@/components/modules/facturacion/InvoicePreview";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 function fmt(n: number) {
@@ -33,9 +35,13 @@ const ESTADO_LABEL: Record<PagoEstado, string> = {
 };
 const ESTADO_COLOR: Record<PagoEstado, string> = {
   pendiente_emitir: "#f59e0b",
-  emitida: "#3b82f6",
+  emitida: "#607eaa",
   cobrada: "#10b981",
 };
+// Brand colors
+const PRIMARY   = "#607eaa";
+const PRIMARY_L = "#EEF2F8";
+const PRIMARY_D = "#1c3879";
 
 const PAGOS_DEFAULT = [
   { concepto: "Reserva", porcentaje: 40, fechaPrevista: null as string | null },
@@ -233,18 +239,21 @@ function FilaPago({
 
 // ─── Card de factura ──────────────────────────────────────────────────────────
 function FacturaCard({
-  factura, onUpdate, onDelete,
+  factura, obra, tenantId, onUpdate, onDelete,
 }: {
   factura: FacturaConPagos;
+  obra: Obra | null;
+  tenantId: string;
   onUpdate: () => void;
   onDelete: (id: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [expanded, setExpanded]     = useState(false);
+  const [deleting, setDeleting]     = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
-  const cobrado = factura.pagos.filter((p) => p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
-  const total = factura.pagos.reduce((s, p) => s + p.importe_total, 0);
-  const progreso = total > 0 ? Math.round((cobrado / total) * 100) : 0;
+  const cobrado    = factura.pagos.filter((p) => p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
+  const total      = factura.pagos.reduce((s, p) => s + p.importe_total, 0);
+  const progreso   = total > 0 ? Math.round((cobrado / total) * 100) : 0;
   const allCobrado = factura.pagos.every((p) => p.estado === "cobrada");
 
   async function handleDelete() {
@@ -255,38 +264,47 @@ function FacturaCard({
   }
 
   return (
-    <div style={{ border: "1.5px solid #f3f4f6", borderRadius: 14, overflow: "hidden", marginBottom: 12 }}>
+    <>
+    <div style={{ border: `1.5px solid ${expanded ? PRIMARY + "30" : "#f3f4f6"}`, borderRadius: 14, overflow: "hidden", marginBottom: 12, transition: "border-color 0.2s" }}>
       {/* Cabecera */}
       <div
         onClick={() => setExpanded(!expanded)}
-        style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: "pointer", background: expanded ? "#fafafa" : "#fff" }}
+        style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: "pointer", background: expanded ? PRIMARY_L : "#fff" }}
       >
-        <div style={{ width: 38, height: 38, borderRadius: 10, background: allCobrado ? "#dcfce7" : "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <FileText style={{ width: 18, height: 18, color: allCobrado ? "#16a34a" : "#2563eb" }} />
+        <div style={{ width: 38, height: 38, borderRadius: 10, background: allCobrado ? "#dcfce7" : PRIMARY_L, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <FileText style={{ width: 18, height: 18, color: allCobrado ? "#16a34a" : PRIMARY }} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{factura.concepto}</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#1A1A2E" }}>{factura.concepto}</span>
             {factura.numero_factura && (
-              <span style={{ fontSize: 11, color: "#9ca3af", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 6, padding: "1px 6px" }}>{factura.numero_factura}</span>
+              <span style={{ fontSize: 11, color: PRIMARY, background: PRIMARY_L, border: `1px solid ${PRIMARY}30`, borderRadius: 6, padding: "1px 6px", fontWeight: 600 }}>{factura.numero_factura}</span>
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
-            {/* Barra progreso */}
-            <div style={{ flex: 1, height: 4, background: "#f3f4f6", borderRadius: 9 }}>
-              <div style={{ height: "100%", width: `${progreso}%`, background: allCobrado ? "#10b981" : "#2563eb", borderRadius: 9, transition: "width 0.4s" }} />
+            <div style={{ flex: 1, height: 4, background: "#e8e8ec", borderRadius: 9 }}>
+              <div style={{ height: "100%", width: `${progreso}%`, background: allCobrado ? "#10b981" : PRIMARY, borderRadius: 9, transition: "width 0.4s" }} />
             </div>
             <span style={{ fontSize: 12, color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(cobrado)} / {fmt(total)} €</span>
           </div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#111827" }}>{fmt(total)} €</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "#1A1A2E" }}>{fmt(total)} €</div>
           {factura.fecha_emision && (
             <div style={{ fontSize: 11, color: "#9ca3af" }}>{fmtDate(factura.fecha_emision)}</div>
           )}
         </div>
+        {/* Botón preview */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowPreview(true); }}
+          title="Ver factura"
+          style={{ background: PRIMARY_L, border: `1px solid ${PRIMARY}30`, borderRadius: 8, padding: "5px 8px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, color: PRIMARY, fontSize: 11, fontWeight: 600, flexShrink: 0 }}
+        >
+          <Eye style={{ width: 13, height: 13 }} />
+          <span className="hidden sm:inline">Ver</span>
+        </button>
         <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} disabled={deleting}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4, marginLeft: 4 }}>
+          style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}>
           <Trash2 style={{ width: 14, height: 14 }} />
         </button>
         {expanded ? <ChevronUp style={{ width: 16, height: 16, color: "#9ca3af", flexShrink: 0 }} /> : <ChevronDown style={{ width: 16, height: 16, color: "#9ca3af", flexShrink: 0 }} />}
@@ -317,6 +335,17 @@ function FacturaCard({
         </div>
       )}
     </div>
+
+    {/* Preview modal */}
+    {showPreview && (
+      <InvoicePreview
+        factura={factura}
+        obra={obra}
+        tenantId={tenantId}
+        onClose={() => setShowPreview(false)}
+      />
+    )}
+    </>
   );
 }
 
@@ -441,7 +470,7 @@ function NuevaFacturaForm({
 
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={handleCreate} disabled={saving}
-          style={{ flex: 1, background: saving ? "#93c5fd" : "#2563eb", color: "#fff", border: "none", borderRadius: 10, padding: "11px 0", fontWeight: 700, fontSize: 14, cursor: saving ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          style={{ flex: 1, background: saving ? "#94a3b8" : PRIMARY, color: "#fff", border: "none", borderRadius: 10, padding: "11px 0", fontWeight: 700, fontSize: 14, cursor: saving ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           {saving && <Loader2 style={{ width: 16, height: 16 }} />}
           Crear factura
         </button>
@@ -460,19 +489,24 @@ export function FacturacionSection({
   obraId: string; tenantId: string;
 }) {
   const [facturas, setFacturas] = useState<FacturaConPagos[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [obra, setObra]         = useState<Obra | null>(null);
+  const [loading, setLoading]   = useState(true);
   const [showForm, setShowForm] = useState(false);
 
   async function load() {
     setLoading(true);
-    const data = await getFacturasByObra(obraId);
+    const [data, obraRes] = await Promise.all([
+      getFacturasByObra(obraId),
+      getObraById(obraId),
+    ]);
     setFacturas(data);
+    setObra((obraRes.data as Obra | null) ?? null);
     setLoading(false);
   }
 
   useEffect(() => { load(); }, [obraId]);
 
-  const allPagos = facturas.flatMap((f) => f.pagos);
+  const allPagos       = facturas.flatMap((f) => f.pagos);
   const totalFacturado = allPagos.reduce((s, p) => s + p.importe_total, 0);
   const totalCobrado   = allPagos.filter((p) => p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
   const pendiente      = totalFacturado - totalCobrado;
@@ -480,14 +514,14 @@ export function FacturacionSection({
   return (
     <div style={{ marginTop: 24 }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#111827" }}>Facturación</h3>
-          <p style={{ margin: "2px 0 0", fontSize: 13, color: "#9ca3af" }}>Gestión de facturas y cobros de esta obra</p>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#1A1A2E" }}>Facturación</h3>
+          <p style={{ margin: "2px 0 0", fontSize: 13, color: "#94A3B8" }}>Facturas y cobros de esta obra</p>
         </div>
         {!showForm && (
           <button onClick={() => setShowForm(true)}
-            style={{ display: "flex", alignItems: "center", gap: 6, background: "#2563eb", color: "#fff", border: "none", borderRadius: 10, padding: "9px 16px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+            style={{ display: "flex", alignItems: "center", gap: 6, background: PRIMARY, color: "#fff", border: "none", borderRadius: 10, padding: "9px 16px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
             <Plus style={{ width: 16, height: 16 }} />
             Nueva factura
           </button>
@@ -497,24 +531,24 @@ export function FacturacionSection({
       {/* KPI chips */}
       {totalFacturado > 0 && (
         <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#eff6ff", borderRadius: 10, padding: "8px 14px" }}>
-            <Euro style={{ width: 14, height: 14, color: "#2563eb" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: PRIMARY_L, borderRadius: 10, padding: "8px 14px" }}>
+            <Euro style={{ width: 14, height: 14, color: PRIMARY }} />
             <div>
-              <div style={{ fontSize: 11, color: "#93c5fd", fontWeight: 600 }}>FACTURADO</div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#1d4ed8" }}>{fmt(totalFacturado)} €</div>
+              <div style={{ fontSize: 11, color: PRIMARY, fontWeight: 600, opacity: 0.7 }}>FACTURADO</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: PRIMARY_D }}>{fmt(totalFacturado)} €</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f0fdf4", borderRadius: 10, padding: "8px 14px" }}>
             <Check style={{ width: 14, height: 14, color: "#16a34a" }} />
             <div>
-              <div style={{ fontSize: 11, color: "#86efac", fontWeight: 600 }}>COBRADO</div>
+              <div style={{ fontSize: 11, color: "#16a34a", fontWeight: 600, opacity: 0.7 }}>COBRADO</div>
               <div style={{ fontSize: 15, fontWeight: 800, color: "#15803d" }}>{fmt(totalCobrado)} €</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fffbeb", borderRadius: 10, padding: "8px 14px" }}>
             <Clock style={{ width: 14, height: 14, color: "#d97706" }} />
             <div>
-              <div style={{ fontSize: 11, color: "#fcd34d", fontWeight: 600 }}>PENDIENTE</div>
+              <div style={{ fontSize: 11, color: "#d97706", fontWeight: 600, opacity: 0.7 }}>PENDIENTE</div>
               <div style={{ fontSize: 15, fontWeight: 800, color: "#b45309" }}>{fmt(pendiente)} €</div>
             </div>
           </div>
@@ -530,17 +564,17 @@ export function FacturacionSection({
 
       {/* Lista facturas */}
       {loading ? (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 40, color: "#9ca3af" }}>
-          <Loader2 style={{ width: 24, height: 24, animation: "spin 1s linear infinite" }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 40 }}>
+          <Loader2 style={{ width: 24, height: 24, color: PRIMARY, animation: "spin 1s linear infinite" }} />
         </div>
       ) : facturas.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "32px 16px", color: "#9ca3af" }}>
+        <div style={{ textAlign: "center", padding: "32px 16px", color: "#94A3B8" }}>
           <FileText style={{ width: 32, height: 32, margin: "0 auto 8px", opacity: 0.4 }} />
           <p style={{ margin: 0, fontSize: 14 }}>Sin facturas. Crea la primera pulsando "+ Nueva factura".</p>
         </div>
       ) : (
         facturas.map((f) => (
-          <FacturaCard key={f.id} factura={f} onUpdate={load}
+          <FacturaCard key={f.id} factura={f} obra={obra} tenantId={tenantId} onUpdate={load}
             onDelete={(id) => setFacturas((prev) => prev.filter((x) => x.id !== id))} />
         ))
       )}

@@ -871,3 +871,203 @@ export async function getFacturacionDashboard(tenantId: string): Promise<{
 
   return { totalFacturado, totalCobrado, pendiente, facturadoEsteMes, facturadoMesAnterior, porMes };
 }
+
+// ══════════════════════════════════════════════════════════════════
+// DASHBOARD FINANZAS COMPLETO (facturación + costes + margen)
+// ══════════════════════════════════════════════════════════════════
+
+export interface DashboardFinanzas {
+  // Facturación
+  totalFacturado: number;
+  totalCobrado: number;
+  pendienteCobro: number;
+  facturadoEsteMes: number;
+  facturadoMesAnterior: number;
+  // Costes
+  costeEmpleados: number;   // jornales del año actual
+  costeMateriales: number;  // materiales con precio del año actual
+  // Margen
+  margenBruto: number;      // facturado - costeEmpleados - costeMateriales
+  margenPct: number;        // margenBruto / totalFacturado * 100
+  // Series mensuales (12 meses año actual)
+  porMes: {
+    mes: string; // "01"–"12"
+    facturado: number;
+    cobrado: number;
+    costeEmpleados: number;
+    costeMateriales: number;
+    margen: number;
+    anioAnterior: number;
+  }[];
+  // Por obra (top activas)
+  porObra: {
+    obra_id: string;
+    obra_nombre: string;
+    facturado: number;
+    cobrado: number;
+    costeEmpleados: number;
+    costeMateriales: number;
+    margen: number;
+  }[];
+}
+
+export async function getFinanzasDashboard(tenantId: string): Promise<DashboardFinanzas> {
+  const ahora = new Date();
+  const anio  = ahora.getFullYear();
+  const mes   = ahora.getMonth() + 1;
+  const mesStr = (m: number) => String(m).padStart(2, "0");
+
+  const inicioAnio    = `${anio}-01-01`;
+  const finAnio       = `${anio}-12-31T23:59:59`;
+  const inicioAnioAnt = `${anio - 1}-01-01`;
+  const finAnioAnt    = `${anio - 1}-12-31T23:59:59`;
+
+  // ── 1. Pagos del año actual y anterior ──────────────────────────
+  const [pagosRes, pagosAntRes, jornadasRes, materialesRes, obrasRes] = await Promise.all([
+    insforge.database.from("pagos").select("*")
+      .eq("tenant_id", tenantId)
+      .gte("created_at", inicioAnio).lte("created_at", finAnio),
+    insforge.database.from("pagos").select("*")
+      .eq("tenant_id", tenantId)
+      .gte("created_at", inicioAnioAnt).lte("created_at", finAnioAnt),
+    // Jornadas trabajadas del año actual
+    insforge.database.from("jornadas").select("user_id, obra_id, fecha, estado, ha_fichado")
+      .eq("tenant_id", tenantId)
+      .eq("ha_fichado", true)
+      .eq("estado", "trabajando")
+      .gte("fecha", inicioAnio).lte("fecha", `${anio}-12-31`),
+    // Materiales del año actual con precio
+    insforge.database.from("materiales").select("obra_id, precio_unitario, precio_total, cantidad, created_at")
+      .eq("tenant_id", tenantId)
+      .gte("created_at", inicioAnio).lte("created_at", finAnio)
+      .not("precio_unitario", "is", null),
+    insforge.database.from("obras").select("id, nombre").eq("tenant_id", tenantId),
+  ]);
+
+  const pagos     = (pagosRes.data     ?? []) as Pago[];
+  const pagosAnt  = (pagosAntRes.data  ?? []) as Pago[];
+  const jornadas  = (jornadasRes.data  ?? []) as any[];
+  const materiales = (materialesRes.data ?? []) as any[];
+  const obras     = (obrasRes.data     ?? []) as { id: string; nombre: string }[];
+  const obraMap   = Object.fromEntries(obras.map((o) => [o.id, o.nombre]));
+
+  // ── 2. Tarifas empleados ─────────────────────────────────────────
+  const userIds = Array.from(new Set(jornadas.map((j: any) => j.user_id)));
+  let tarifaMap: Record<string, number> = {};
+  if (userIds.length > 0) {
+    const { data: tarifas } = await insforge.database
+      .from("tarifas_empleado").select("user_id, tarifa_diaria")
+      .in("user_id", userIds);
+    for (const t of (tarifas ?? []) as any[]) {
+      tarifaMap[t.user_id] = parseFloat(t.tarifa_diaria) || 0;
+    }
+  }
+
+  // ── 3. Calcular coste por jornadda ────────────────────────────────
+  function costeJornada(j: any) { return tarifaMap[j.user_id] ?? 0; }
+  function costeMaterial(m: any) {
+    if (m.precio_total) return parseFloat(m.precio_total) || 0;
+    return (parseFloat(m.precio_unitario) || 0) * (parseFloat(m.cantidad) || 0);
+  }
+
+  // ── 4. KPIs globales ─────────────────────────────────────────────
+  const totalFacturado    = pagos.reduce((s, p) => s + p.importe_total, 0);
+  const totalCobrado      = pagos.filter((p) => p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
+  const pendienteCobro    = totalFacturado - totalCobrado;
+  const costeEmpleados    = jornadas.reduce((s: number, j: any) => s + costeJornada(j), 0);
+  const costeMateriales   = materiales.reduce((s: number, m: any) => s + costeMaterial(m), 0);
+  const margenBruto       = totalFacturado - costeEmpleados - costeMateriales;
+  const margenPct         = totalFacturado > 0 ? (margenBruto / totalFacturado) * 100 : 0;
+
+  // Mes actual vs mes anterior
+  const primerDiaMes = `${anio}-${mesStr(mes)}-01`;
+  const ultimoDiaMes = `${anio}-${mesStr(mes)}-${new Date(anio, mes, 0).getDate()}T23:59:59`;
+  const facturadoEsteMes = pagos
+    .filter((p) => p.created_at >= primerDiaMes && p.created_at <= ultimoDiaMes)
+    .reduce((s, p) => s + p.importe_total, 0);
+  const mesPasado = mes === 1 ? 12 : mes - 1;
+  const anioMesP  = mes === 1 ? anio - 1 : anio;
+  const primerMP  = `${anioMesP}-${mesStr(mesPasado)}-01`;
+  const ultimoMP  = `${anioMesP}-${mesStr(mesPasado)}-${new Date(anioMesP, mesPasado, 0).getDate()}T23:59:59`;
+  const srcAnt    = mes === 1 ? pagosAnt : pagos;
+  const facturadoMesAnterior = srcAnt
+    .filter((p) => p.created_at >= primerMP && p.created_at <= ultimoMP)
+    .reduce((s, p) => s + p.importe_total, 0);
+
+  // ── 5. Series mensuales ──────────────────────────────────────────
+  const porMes = Array.from({ length: 12 }, (_, i) => {
+    const m    = i + 1;
+    const mS   = mesStr(m);
+    const ini  = `${anio}-${mS}-01`;
+    const fin  = `${anio}-${mS}-${new Date(anio, m, 0).getDate()}T23:59:59`;
+    const iniA = `${anio - 1}-${mS}-01`;
+    const finA = `${anio - 1}-${mS}-${new Date(anio - 1, m, 0).getDate()}T23:59:59`;
+
+    const facturado = pagos.filter((p) => p.created_at >= ini && p.created_at <= fin)
+      .reduce((s, p) => s + p.importe_total, 0);
+    const cobrado = pagos.filter((p) => p.estado === "cobrada" && p.fecha_cobro && p.fecha_cobro >= ini.slice(0,7) && p.fecha_cobro <= fin.slice(0,7))
+      .reduce((s, p) => s + p.importe_total, 0);
+    const cemp = jornadas.filter((j: any) => j.fecha >= ini && j.fecha <= fin.slice(0, 10))
+      .reduce((s: number, j: any) => s + costeJornada(j), 0);
+    const cmat = materiales.filter((m2: any) => m2.created_at >= ini && m2.created_at <= fin)
+      .reduce((s: number, m2: any) => s + costeMaterial(m2), 0);
+    const anioAnterior = pagosAnt.filter((p) => p.created_at >= iniA && p.created_at <= finA)
+      .reduce((s, p) => s + p.importe_total, 0);
+
+    return { mes: mS, facturado, cobrado, costeEmpleados: cemp, costeMateriales: cmat, margen: facturado - cemp - cmat, anioAnterior };
+  });
+
+  // ── 6. Por obra ──────────────────────────────────────────────────
+  const obraIds = Array.from(new Set([
+    ...pagos.map((p) => p.obra_id),
+    ...jornadas.map((j: any) => j.obra_id).filter(Boolean),
+    ...materiales.map((m: any) => m.obra_id).filter(Boolean),
+  ]));
+
+  const porObra = obraIds.map((oid) => {
+    const oFact = pagos.filter((p) => p.obra_id === oid).reduce((s, p) => s + p.importe_total, 0);
+    const oCob  = pagos.filter((p) => p.obra_id === oid && p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
+    const oCEmp = jornadas.filter((j: any) => j.obra_id === oid).reduce((s: number, j: any) => s + costeJornada(j), 0);
+    const oCMat = materiales.filter((m: any) => m.obra_id === oid).reduce((s: number, m: any) => s + costeMaterial(m), 0);
+    return {
+      obra_id: oid,
+      obra_nombre: obraMap[oid] ?? "Obra desconocida",
+      facturado: oFact, cobrado: oCob,
+      costeEmpleados: oCEmp, costeMateriales: oCMat,
+      margen: oFact - oCEmp - oCMat,
+    };
+  }).filter((o) => o.facturado > 0 || o.costeEmpleados > 0)
+    .sort((a, b) => b.facturado - a.facturado);
+
+  return {
+    totalFacturado, totalCobrado, pendienteCobro,
+    facturadoEsteMes, facturadoMesAnterior,
+    costeEmpleados, costeMateriales,
+    margenBruto, margenPct,
+    porMes, porObra,
+  };
+}
+
+// ── Tenant config (datos empresa para facturas) ───────────────────
+export interface TenantConfig {
+  id: string;
+  tenant_id: string;
+  empresa_nombre: string | null;
+  empresa_cif: string | null;
+  empresa_direccion: string | null;
+  empresa_telefono: string | null;
+  empresa_email: string | null;
+  updated_at: string;
+}
+
+export async function getTenantConfig(tenantId: string): Promise<TenantConfig | null> {
+  const { data } = await insforge.database
+    .from("tenant_config").select("*").eq("tenant_id", tenantId).maybeSingle();
+  return (data as TenantConfig | null) ?? null;
+}
+
+export async function upsertTenantConfig(tenantId: string, params: Partial<Omit<TenantConfig, "id" | "tenant_id" | "updated_at">>) {
+  return insforge.database.from("tenant_config")
+    .upsert({ tenant_id: tenantId, ...params, updated_at: new Date().toISOString() }, { onConflict: "tenant_id" })
+    .select().single();
+}
