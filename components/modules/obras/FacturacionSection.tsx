@@ -13,7 +13,7 @@ import {
 import type { FacturaConPagos, Pago, PagoEstado, Obra } from "@/types";
 import {
   ChevronDown, ChevronUp, Plus, Trash2, Check, FileText,
-  Euro, Clock, AlertCircle, Loader2, X, Eye
+  Euro, Clock, AlertCircle, Loader2, X, Eye, Pencil
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -247,9 +247,12 @@ function FacturaCard({
   onUpdate: () => void;
   onDelete: (id: string) => void;
 }) {
-  const [expanded, setExpanded]     = useState(false);
-  const [deleting, setDeleting]     = useState(false);
+  const [expanded, setExpanded]       = useState(false);
+  const [deleting, setDeleting]       = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [editNumero, setEditNumero]   = useState(false);
+  const [numeroEdit, setNumeroEdit]   = useState(factura.numero_factura ?? "" as string);
+  const [savingNum, setSavingNum]     = useState(false);
 
   const cobrado    = factura.pagos.filter((p) => p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
   const total      = factura.pagos.reduce((s, p) => s + p.importe_total, 0);
@@ -261,6 +264,14 @@ function FacturaCard({
     setDeleting(true);
     await deleteFactura(factura.id);
     onDelete(factura.id);
+  }
+
+  async function saveNumero() {
+    setSavingNum(true);
+    await updateFactura(factura.id, { numero_factura: numeroEdit.trim() || undefined });
+    setSavingNum(false);
+    setEditNumero(false);
+    onUpdate();
   }
 
   return (
@@ -277,8 +288,30 @@ function FacturaCard({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: "#1A1A2E" }}>{factura.concepto}</span>
-            {factura.numero_factura && (
-              <span style={{ fontSize: 11, color: PRIMARY, background: PRIMARY_L, border: `1px solid ${PRIMARY}30`, borderRadius: 6, padding: "1px 6px", fontWeight: 600 }}>{factura.numero_factura}</span>
+            {editNumero ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                <input
+                  autoFocus
+                  value={numeroEdit}
+                  onChange={(e) => setNumeroEdit(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveNumero(); if (e.key === "Escape") setEditNumero(false); }}
+                  placeholder="FAC-001"
+                  style={{ border: `1.5px solid ${PRIMARY}`, borderRadius: 6, padding: "1px 7px", fontSize: 12, width: 90, fontWeight: 600, color: PRIMARY, outline: "none" }}
+                />
+                <button onClick={saveNumero} disabled={savingNum} style={{ background: PRIMARY, color: "#fff", border: "none", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+                  {savingNum ? "..." : "Ok"}
+                </button>
+                <button onClick={() => setEditNumero(false)} style={{ background: "#f3f4f6", border: "none", borderRadius: 6, padding: "2px 6px", cursor: "pointer" }}><X style={{ width: 10, height: 10 }} /></button>
+              </div>
+            ) : (
+              <span
+                onClick={(e) => { e.stopPropagation(); setEditNumero(true); }}
+                title="Editar número de factura"
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: PRIMARY, background: PRIMARY_L, border: `1px solid ${PRIMARY}30`, borderRadius: 6, padding: "1px 6px", fontWeight: 600, cursor: "pointer" }}
+              >
+                {factura.numero_factura ?? <span style={{ color: "#9ca3af", fontStyle: "italic" }}>Sin número</span>}
+                <Pencil style={{ width: 9, height: 9, opacity: 0.6 }} />
+              </span>
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>

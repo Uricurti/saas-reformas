@@ -7,7 +7,7 @@ import { getArchivosByObra, createArchivoRecord } from "@/lib/insforge/database"
 import { subirFoto, validarTamanoArchivo, detectarTipoArchivo } from "@/lib/insforge/storage";
 import type { Obra, Archivo } from "@/types";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Camera, Upload, X, ZoomIn, Loader2, Building2 } from "lucide-react";
+import { Camera, Upload, X, ZoomIn, Loader2, Images } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/utils/format";
 
@@ -24,6 +24,7 @@ export default function FotosPage() {
   const [fotoAmpliada, setFotoAmpliada] = useState<Archivo | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (tenantId) cargarObras();
@@ -95,22 +96,43 @@ export default function FotosPage() {
         title="Fotos de obra"
         subtitle="Archivo visual por proyecto"
         action={
-          <button
-            onClick={() => inputRef.current?.click()}
-            disabled={isUploading || !obraSeleccionada}
-            className="btn-primary"
-          >
-            {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-            {isUploading ? uploadProgress : "Añadir fotos"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => cameraRef.current?.click()}
+              disabled={isUploading || !obraSeleccionada}
+              className="btn-secondary"
+              title="Hacer foto con la cámara"
+            >
+              {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+              <span className="hidden sm:inline">{isUploading ? uploadProgress : "Cámara"}</span>
+            </button>
+            <button
+              onClick={() => inputRef.current?.click()}
+              disabled={isUploading || !obraSeleccionada}
+              className="btn-primary"
+              title="Elegir de la galería"
+            >
+              <Images className="w-4 h-4" />
+              <span className="hidden sm:inline">Galería</span>
+            </button>
+          </div>
         }
       />
 
+      {/* Galería / dispositivo — sin capture para mostrar el selector de archivos */}
       <input
         ref={inputRef}
         type="file"
         accept="image/*,video/*"
         multiple
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      {/* Cámara directa — con capture para abrir la cámara del dispositivo */}
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*,video/*"
         capture="environment"
         onChange={handleFileChange}
         className="hidden"
@@ -151,9 +173,14 @@ export default function FotosPage() {
               {obraActual ? `Sube la primera foto de ${obraActual.nombre}` : "Selecciona una obra"}
             </p>
           </div>
-          <button onClick={() => inputRef.current?.click()} className="btn-primary mt-2">
-            <Upload className="w-4 h-4" /> Subir primera foto
-          </button>
+          <div className="flex items-center gap-2 mt-2">
+            <button onClick={() => cameraRef.current?.click()} className="btn-secondary">
+              <Camera className="w-4 h-4" /> Cámara
+            </button>
+            <button onClick={() => inputRef.current?.click()} className="btn-primary">
+              <Images className="w-4 h-4" /> Galería
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
