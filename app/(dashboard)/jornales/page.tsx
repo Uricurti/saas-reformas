@@ -12,7 +12,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import {
   ChevronLeft, ChevronRight, Calculator, Lock,
   ChevronDown, ChevronUp, Plus, Pencil, Trash2,
-  Check, X, Loader2,
+  Check, X, Loader2, Clock,
 } from "lucide-react";
 import { formatCurrency, formatMonthYear } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
@@ -306,10 +306,17 @@ function EmpleadoJornal({
                         <>
                           {jornada ? (
                             <>
+                              {/* Toggle fichado rápido */}
+                              <ToggleFichadoBtn
+                                jornada={jornada}
+                                tenantId={tenantId}
+                                onDone={onRefresh}
+                              />
+                              {/* Editar obra/estado */}
                               <button
                                 onClick={() => onSetEditando({ userId: user.id, fecha, jornadaId: jornada.id })}
                                 className="p-2 rounded-lg text-content-muted hover:bg-primary-light hover:text-primary transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
-                                title="Editar"
+                                title="Editar obra / estado"
                               >
                                 <Pencil className="w-3.5 h-3.5" />
                               </button>
@@ -319,7 +326,7 @@ function EmpleadoJornal({
                             <button
                               onClick={() => onSetEditando({ userId: user.id, fecha })}
                               className="p-2 rounded-lg text-content-muted hover:bg-success-light hover:text-success transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
-                              title="Añadir"
+                              title="Añadir jornada"
                             >
                               <Plus className="w-3.5 h-3.5" />
                             </button>
@@ -368,6 +375,57 @@ function EmpleadoJornal({
         </div>
       )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Botón de fichado rápido: toggle ha_fichado con un solo clic
+function ToggleFichadoBtn({
+  jornada, tenantId, onDone,
+}: {
+  jornada: Jornada;
+  tenantId: string;
+  onDone: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  async function toggle() {
+    setLoading(true);
+    await upsertJornada({
+      userId:    jornada.user_id,
+      tenantId,
+      fecha:     jornada.fecha,
+      estado:    jornada.estado as FichajeEstado,
+      obraId:    jornada.obra_id,
+      esLibre:   jornada.es_libre,
+      haFichado: !jornada.ha_fichado,
+    });
+    setLoading(false);
+    onDone();
+  }
+
+  if (jornada.ha_fichado) {
+    return (
+      <button
+        onClick={toggle}
+        disabled={loading}
+        title="Desmarcar fichado"
+        className="p-2 rounded-lg bg-success-light text-success hover:bg-danger-light hover:text-danger transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+      >
+        {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={loading}
+      title="Marcar como fichado"
+      className="p-2 rounded-lg text-content-muted hover:bg-success-light hover:text-success transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+    >
+      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clock className="w-3.5 h-3.5" />}
+    </button>
   );
 }
 
@@ -421,12 +479,13 @@ function JornadaInlineForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const [estado, setEstado] = useState<FichajeEstado>(
+  const [estado, setEstado]     = useState<FichajeEstado>(
     (jornadaExistente?.estado as FichajeEstado) ?? "trabajando"
   );
-  const [obraId, setObraId] = useState(jornadaExistente?.obra_id ?? "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError]   = useState<string | null>(null);
+  const [obraId, setObraId]     = useState(jornadaExistente?.obra_id ?? "");
+  const [haFichado, setHaFichado] = useState(jornadaExistente?.ha_fichado ?? false);
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState<string | null>(null);
 
   const necesitaObra = estado === "trabajando";
 
@@ -441,7 +500,7 @@ function JornadaInlineForm({
         fecha,
         estado,
         obraId: obraId || null,
-        haFichado: true,  // admin creates/edits = marked as filed
+        haFichado,
       });
       if (err) { setError("Error al guardar"); setSaving(false); return; }
       onDone();
@@ -450,6 +509,7 @@ function JornadaInlineForm({
 
   return (
     <div className="px-4 pb-3 pt-1 bg-primary-light/10 border-b border-primary/20 space-y-3">
+      {/* Estado */}
       <div>
         <p className="text-xs font-semibold text-content-muted mb-1.5">Estado</p>
         <div className="flex flex-wrap gap-1.5">
@@ -469,6 +529,7 @@ function JornadaInlineForm({
         </div>
       </div>
 
+      {/* Obra */}
       {necesitaObra && (
         <div>
           <p className="text-xs font-semibold text-content-muted mb-1.5">Obra</p>
@@ -482,6 +543,26 @@ function JornadaInlineForm({
           </select>
         </div>
       )}
+
+      {/* Toggle fichado */}
+      <button
+        type="button"
+        onClick={() => setHaFichado(v => !v)}
+        className={cn(
+          "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all",
+          haFichado
+            ? "border-success bg-success-light text-success"
+            : "border-border text-content-secondary hover:border-primary/40",
+        )}
+      >
+        <div className={cn(
+          "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all",
+          haFichado ? "bg-success border-success" : "border-content-muted",
+        )}>
+          {haFichado && <Check className="w-3 h-3 text-white" />}
+        </div>
+        {haFichado ? "✅ Marcado como fichado" : "⬜ No fichado (solo planificado)"}
+      </button>
 
       {error && <p className="text-xs text-danger">{error}</p>}
 
