@@ -162,6 +162,7 @@ export interface Archivo {
   descripcion?: string;
   tamano_bytes: number;
   created_at: string;
+  autor?: { nombre: string } | null;
 }
 
 export interface ArchivoConDetalles extends Archivo {
