@@ -29,7 +29,7 @@
 
   /* Tamaños */
   --sidebar-width:    260px;
-  --bottomnav-height: 80px;
+  --bottomnav-height: 74px;
 }
 
 /* ─── Base ───────────────────────────────────────────────────── */
@@ -210,31 +210,59 @@
     accent-color: #607eaa;
   }
 
-  /* Bottom nav — floating island premium */
+  /* Bottom nav — Revolut-style floating card */
   .bottom-nav {
-    @apply fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around;
-    /* Esquinas redondeadas arriba → efecto "floating card" */
-    border-radius: 24px 24px 0 0;
-    /* Padding: 10px top + safe area del dispositivo + 8px extra */
-    padding: 10px 8px calc(env(safe-area-inset-bottom) + 10px);
-    /* Fondo semi-opaco con blur (glass) */
-    background: rgba(255, 255, 255, 0.97);
-    /* Sombra que sube — reemplaza el borde superior */
+    /* Flota con márgenes en TODOS los lados — no toca los bordes del teléfono */
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(env(safe-area-inset-bottom) + 10px);
+    z-index: 40;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+
+    /* Tarjeta completamente redondeada */
+    border-radius: 22px;
+    padding: 10px 6px 10px;
+
+    /* Fondo blanco puro — más limpio que glass para este estilo */
+    background: #ffffff;
+
+    /* Sombra envolvente suave — clave del efecto premium */
     box-shadow:
-      0 -8px 32px rgba(96, 126, 170, 0.14),
-      0 -2px 8px  rgba(0, 0, 0, 0.06);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
+      0 4px 24px rgba(96, 126, 170, 0.18),
+      0 1px 6px  rgba(0, 0, 0, 0.08),
+      0 0 0 1px  rgba(96, 126, 170, 0.06);
   }
+
   .bottom-nav-item {
-    @apply flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl transition-all duration-200;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 8px 10px;
+    border-radius: 14px;
+    transition: all 0.18s ease;
     color: #94A3B8;
     min-width: 52px;
     position: relative;
+    -webkit-tap-highlight-color: transparent;
   }
+
   .bottom-nav-item-active {
-    @apply bottom-nav-item;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 8px 10px;
+    border-radius: 14px;
+    transition: all 0.18s ease;
     color: #607eaa;
+    min-width: 52px;
+    position: relative;
+    -webkit-tap-highlight-color: transparent;
     background: #EEF2F8;
   }
 }
