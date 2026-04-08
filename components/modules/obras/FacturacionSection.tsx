@@ -108,12 +108,13 @@ function ModalExtra({
 
 // ─── Fila de pago ─────────────────────────────────────────────────────────────
 function FilaPago({
-  pago, tenantId, onUpdate, onEmitirPago,
+  pago, tenantId, onUpdate, onEmitirPago, onVerFactura,
 }: {
   pago: Pago;
   tenantId: string;
   onUpdate: () => void;
   onEmitirPago?: (pago: Pago) => void;
+  onVerFactura?: (pago: Pago) => void;
 }) {
   const [saving, setSaving] = useState(false);
   const [showExtra, setShowExtra] = useState(false);
@@ -221,6 +222,17 @@ function FilaPago({
         {/* Acciones */}
         <td style={{ padding: "10px 8px", textAlign: "right" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+            {/* Ver factura — solo cuando ya tiene número emitido */}
+            {pago.numero_factura_emitida && (
+              <button
+                onClick={() => onVerFactura?.(pago)}
+                title={`Ver factura ${pago.numero_factura_emitida}`}
+                style={{ background: PRIMARY_L, color: PRIMARY, border: `1px solid ${PRIMARY}30`, borderRadius: 7, padding: "4px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+              >
+                <Eye style={{ width: 12, height: 12 }} />
+                <span style={{ fontSize: 10 }}>{pago.numero_factura_emitida}</span>
+              </button>
+            )}
             {canAdvance && (
               <button
                 onClick={avanzarEstado} disabled={saving}
@@ -259,17 +271,15 @@ function FacturaCard({
   onUpdate: () => void;
   onDelete: (id: string) => void;
 }) {
-  const [expanded, setExpanded]         = useState(false);
-  const [deleting, setDeleting]         = useState(false);
-  // previewPago: null = cerrado, "all" = todos los hitos, Pago = hito específico
-  const [previewPago, setPreviewPago]   = useState<Pago | "all" | null>(null);
-  const [editNumero, setEditNumero]     = useState(false);
-  const [numeroEdit, setNumeroEdit]     = useState(factura.numero_factura ?? "" as string);
-  const [savingNum, setSavingNum]       = useState(false);
+  const [expanded, setExpanded]       = useState(false);
+  const [deleting, setDeleting]       = useState(false);
+  const [previewPago, setPreviewPago] = useState<Pago | null>(null);
+  const [editNumero, setEditNumero]   = useState(false);
+  const [numeroEdit, setNumeroEdit]   = useState(factura.numero_factura ?? "" as string);
+  const [savingNum, setSavingNum]     = useState(false);
 
-  function onEmitirPago(pago: Pago) {
-    setPreviewPago(pago);
-  }
+  function onEmitirPago(pago: Pago) { setPreviewPago(pago); }
+  function onVerFactura(pago: Pago) { setPreviewPago(pago); }
 
   const cobrado    = factura.pagos.filter((p) => p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
   const total      = factura.pagos.reduce((s, p) => s + p.importe_total, 0);
@@ -344,15 +354,6 @@ function FacturaCard({
             <div style={{ fontSize: 11, color: "#9ca3af" }}>{fmtDate(factura.fecha_emision)}</div>
           )}
         </div>
-        {/* Botón preview */}
-        <button
-          onClick={(e) => { e.stopPropagation(); setPreviewPago("all"); }}
-          title="Ver factura completa"
-          style={{ background: PRIMARY_L, border: `1px solid ${PRIMARY}30`, borderRadius: 8, padding: "5px 8px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, color: PRIMARY, fontSize: 11, fontWeight: 600, flexShrink: 0 }}
-        >
-          <Eye style={{ width: 13, height: 13 }} />
-          <span className="hidden sm:inline">Ver</span>
-        </button>
         <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} disabled={deleting}
           style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}>
           <Trash2 style={{ width: 14, height: 14 }} />
@@ -378,7 +379,7 @@ function FacturaCard({
             </thead>
             <tbody>
               {factura.pagos.map((p) => (
-                <FilaPago key={p.id} pago={p} tenantId={tenantId} onUpdate={onUpdate} onEmitirPago={onEmitirPago} />
+                <FilaPago key={p.id} pago={p} tenantId={tenantId} onUpdate={onUpdate} onEmitirPago={onEmitirPago} onVerFactura={onVerFactura} />
               ))}
             </tbody>
           </table>
@@ -386,13 +387,13 @@ function FacturaCard({
       )}
     </div>
 
-    {/* Preview modal — hito específico o factura completa */}
+    {/* Preview modal — hito específico */}
     {previewPago !== null && (
       <InvoicePreview
         factura={factura}
         obra={obra}
         tenantId={tenantId}
-        pago={previewPago === "all" ? undefined : previewPago}
+        pago={previewPago}
         onClose={() => setPreviewPago(null)}
       />
     )}
