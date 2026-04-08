@@ -1,15 +1,18 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2, Calendar, ShoppingCart,
-  Calculator, Users, LogOut, Bell, TrendingUp
+  Calculator, Users, LogOut, Bell, TrendingUp, Settings
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore, useIsAdmin } from "@/lib/stores/auth-store";
 import { useNotificacionesStore } from "@/lib/stores/notificaciones-store";
 import { initials } from "@/lib/utils/format";
+import { getTenantConfig, type TenantConfig } from "@/lib/insforge/database";
+import { EmpresaConfigModal } from "@/components/ui/EmpresaConfigModal";
 
 const navItemsEmpleado = [
   { href: "/obras",      label: "Mis obras",  icon: Building2 },
@@ -27,11 +30,21 @@ const navItemsAdmin = [
 ];
 
 export function Sidebar() {
-  const pathname = usePathname();
-  const isAdmin  = useIsAdmin();
-  const user     = useAuthStore((s) => s.user);
-  const logout   = useAuthStore((s) => s.logout);
-  const noLeidas = useNotificacionesStore((s) => s.noLeidas);
+  const pathname  = usePathname();
+  const isAdmin   = useIsAdmin();
+  const user      = useAuthStore((s) => s.user);
+  const logout    = useAuthStore((s) => s.logout);
+  const noLeidas  = useNotificacionesStore((s) => s.noLeidas);
+
+  const [showEmpresa, setShowEmpresa] = useState(false);
+  const [empresaConfig, setEmpresaConfig] = useState<TenantConfig | null>(null);
+
+  // Cargamos la config de empresa al montar (solo admins)
+  useEffect(() => {
+    if (isAdmin && user?.tenant_id) {
+      getTenantConfig(user.tenant_id).then(setEmpresaConfig);
+    }
+  }, [isAdmin, user?.tenant_id]);
 
   const navItems = isAdmin ? navItemsAdmin : navItemsEmpleado;
 
@@ -166,6 +179,19 @@ export function Sidebar() {
             <p className="text-sm font-semibold truncate" style={{ color: "#1A1A2E" }}>{user?.nombre}</p>
             <p className="text-xs capitalize" style={{ color: "#9CA3AF" }}>{user?.rol}</p>
           </div>
+          {/* Datos de empresa — solo admin */}
+          {isAdmin && (
+            <button
+              onClick={() => setShowEmpresa(true)}
+              className="p-1.5 rounded-lg transition-all hover:scale-110"
+              style={{ color: "#94A3B8" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "#607eaa", (e.currentTarget.style.background = "#EEF2F8"))}
+              onMouseLeave={e => (e.currentTarget.style.color = "#94A3B8", (e.currentTarget.style.background = "transparent"))}
+              title="Datos de empresa"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={logout}
             className="p-1.5 rounded-lg transition-all hover:bg-red-50 hover:scale-110"
@@ -178,6 +204,16 @@ export function Sidebar() {
           </button>
         </div>
       </div>
+
+      {/* Modal datos de empresa */}
+      {showEmpresa && user?.tenant_id && (
+        <EmpresaConfigModal
+          tenantId={user.tenant_id}
+          config={empresaConfig}
+          onClose={() => setShowEmpresa(false)}
+          onSaved={(c) => setEmpresaConfig(c)}
+        />
+      )}
     </div>
   );
 }

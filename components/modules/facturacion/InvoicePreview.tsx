@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { getTenantConfig, upsertTenantConfig, type TenantConfig } from "@/lib/insforge/database";
+import { getTenantConfig, type TenantConfig } from "@/lib/insforge/database";
+import { EmpresaConfigModal } from "@/components/ui/EmpresaConfigModal";
 import type { FacturaConPagos, Obra, Pago } from "@/types";
-import { X, Download, Settings, Check, Loader2, Building2 } from "lucide-react";
+import { X, Download, Settings, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -21,80 +22,6 @@ const ESTADO_LABEL: Record<string, string> = {
   emitida: "Emitida",
   cobrada: "Cobrada",
 };
-
-// ─── Modal configuración empresa ─────────────────────────────────────────────
-function ConfigEmpresaModal({
-  tenantId, config, onClose, onSaved,
-}: {
-  tenantId: string;
-  config: TenantConfig | null;
-  onClose: () => void;
-  onSaved: (c: TenantConfig) => void;
-}) {
-  const [nombre, setNombre] = useState(config?.empresa_nombre ?? "");
-  const [cif,    setCif]    = useState(config?.empresa_cif ?? "");
-  const [dir,    setDir]    = useState(config?.empresa_direccion ?? "");
-  const [tel,    setTel]    = useState(config?.empresa_telefono ?? "");
-  const [email,  setEmail]  = useState(config?.empresa_email ?? "");
-  const [saving, setSaving] = useState(false);
-
-  async function handleSave() {
-    setSaving(true);
-    const { data } = await upsertTenantConfig(tenantId, {
-      empresa_nombre: nombre || null,
-      empresa_cif: cif || null,
-      empresa_direccion: dir || null,
-      empresa_telefono: tel || null,
-      empresa_email: email || null,
-    });
-    setSaving(false);
-    if (data) onSaved(data as TenantConfig);
-    onClose();
-  }
-
-  const fields = [
-    { label: "Nombre empresa *", value: nombre, set: setNombre, placeholder: "Reformas García S.L." },
-    { label: "CIF / NIF",        value: cif,    set: setCif,    placeholder: "B12345678" },
-    { label: "Dirección",        value: dir,    set: setDir,    placeholder: "C/ Mayor 10, 08001 Barcelona" },
-    { label: "Teléfono",         value: tel,    set: setTel,    placeholder: "+34 600 000 000" },
-    { label: "Email",            value: email,  set: setEmail,  placeholder: "info@reformasgarcia.com" },
-  ];
-
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }} onClick={onClose} />
-      <div style={{ position: "relative", background: "#fff", borderRadius: 20, padding: 28, width: "100%", maxWidth: 440, boxShadow: "0 25px 80px rgba(0,0,0,0.2)" }}>
-        <button onClick={onClose} style={{ position: "absolute", top: 14, right: 14, border: "none", background: "#f3f4f6", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <X style={{ width: 14, height: 14 }} />
-        </button>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: "#EEF2F8", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Building2 style={{ width: 18, height: 18, color: "#607eaa" }} />
-          </div>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Datos de empresa</h3>
-            <p style={{ margin: 0, fontSize: 12, color: "#9ca3af" }}>Aparecerán en todas las facturas</p>
-          </div>
-        </div>
-        {fields.map((f) => (
-          <div key={f.label} style={{ marginBottom: 12 }}>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>{f.label}</label>
-            <input value={f.value} onChange={(e) => f.set(e.target.value)} placeholder={f.placeholder}
-              style={{ width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", fontSize: 14, boxSizing: "border-box", outline: "none" }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "#607eaa")}
-              onBlur={(e)  => (e.currentTarget.style.borderColor = "#e5e7eb")}
-            />
-          </div>
-        ))}
-        <button onClick={handleSave} disabled={saving || !nombre}
-          style={{ width: "100%", marginTop: 8, background: saving || !nombre ? "#94a3b8" : "#607eaa", color: "#fff", border: "none", borderRadius: 10, padding: "12px 0", fontWeight: 700, fontSize: 15, cursor: saving || !nombre ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-          {saving ? <Loader2 style={{ width: 16, height: 16 }} /> : <Check style={{ width: 16, height: 16 }} />}
-          Guardar datos
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // ─── Documento A4 ─────────────────────────────────────────────────────────────
 // Ancho fijo 794px = A4 a 96dpi — html2pdf lo mapea perfectamente a 210mm
@@ -213,9 +140,23 @@ function InvoiceDocument({
           </div>
           {obra?.cliente_nombre ? (
             <>
-              <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 2 }}>{obra.cliente_nombre}</div>
-              {obra.cliente_telefono && <div style={{ fontSize: 12, color: TEXT_SOFT }}>{obra.cliente_telefono}</div>}
-              {obra.direccion && <div style={{ fontSize: 12, color: TEXT_SOFT }}>{obra.direccion}</div>}
+              <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 4 }}>{obra.cliente_nombre}</div>
+              {(obra as any).cliente_dni_nie_cif && (
+                <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
+                  <strong style={{ color: TEXT_MID }}>DNI/NIE/CIF:</strong> {(obra as any).cliente_dni_nie_cif}
+                </div>
+              )}
+              {obra.cliente_telefono && (
+                <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>{obra.cliente_telefono}</div>
+              )}
+              {obra.direccion && (
+                <div style={{ fontSize: 12, color: TEXT_SOFT }}>
+                  {obra.direccion}
+                  {((obra as any).codigo_postal || (obra as any).poblacion) && (
+                    <span> · {[(obra as any).codigo_postal, (obra as any).poblacion].filter(Boolean).join(" ")}</span>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <div style={{ fontSize: 13, color: TEXT_FAINT, fontStyle: "italic" }}>Sin datos de cliente</div>
@@ -366,6 +307,31 @@ function InvoiceDocument({
           )}
         </div>
       </div>
+
+      {/* ══ TRANSFERENCIA BANCARIA ════════════════════════════════ */}
+      {isModoHito && (config as any)?.numero_cuenta && (
+        <div style={{
+          background: "#f0f9ff",
+          border: "1.5px solid #bae6fd",
+          borderRadius: 10,
+          padding: "14px 18px",
+          marginBottom: 24,
+          breakInside: "avoid",
+        }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: "#0284c7", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>
+            Instrucciones de pago
+          </div>
+          <div style={{ fontSize: 12.5, color: TEXT_MID, lineHeight: 1.6 }}>
+            Para abonar esta factura, realice una transferencia bancaria indicando el número de factura <strong style={{ color: TEXT_DARK }}>{numeroFactura}</strong> en el concepto.
+          </div>
+          <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.06em" }}>IBAN:</span>
+            <span style={{ fontSize: 13.5, fontWeight: 800, color: TEXT_DARK, letterSpacing: "0.04em", fontFamily: "monospace" }}>
+              {(config as any).numero_cuenta}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ══ FOOTER ════════════════════════════════════════════════ */}
       <div style={{ borderTop: "1.5px solid #EEF2F8", paddingTop: 20, display: "flex", justifyContent: "space-between", alignItems: "flex-end", breakInside: "avoid" }}>
@@ -551,7 +517,7 @@ export function InvoicePreview({
 
       {/* Modal config empresa */}
       {showConfig && (
-        <ConfigEmpresaModal
+        <EmpresaConfigModal
           tenantId={tenantId}
           config={config}
           onClose={() => setShowConfig(false)}

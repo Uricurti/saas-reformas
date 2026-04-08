@@ -48,12 +48,15 @@ export default function ObraDetallePage() {
   const [editando, setEditando] = useState(false);
 
   // Form de edición
-  const [formNombre, setFormNombre] = useState("");
-  const [formDireccion, setFormDireccion] = useState("");
-  const [formCliente, setFormCliente] = useState("");
-  const [formTelefono, setFormTelefono] = useState("");
-  const [formNotas, setFormNotas] = useState("");
-  const [guardando, setGuardando] = useState(false);
+  const [formNombre,        setFormNombre]        = useState("");
+  const [formDireccion,     setFormDireccion]     = useState("");
+  const [formCodigoPostal,  setFormCodigoPostal]  = useState("");
+  const [formPoblacion,     setFormPoblacion]     = useState("");
+  const [formCliente,       setFormCliente]       = useState("");
+  const [formTelefono,      setFormTelefono]      = useState("");
+  const [formDni,           setFormDni]           = useState("");
+  const [formNotas,         setFormNotas]         = useState("");
+  const [guardando,         setGuardando]         = useState(false);
 
   // Modal asignar
   const [showAsignarModal, setShowAsignarModal] = useState(false);
@@ -80,8 +83,11 @@ export default function ObraDetallePage() {
     setObra(obraData);
     setFormNombre(obraData.nombre);
     setFormDireccion(obraData.direccion);
+    setFormCodigoPostal((obraData as any).codigo_postal ?? "");
+    setFormPoblacion((obraData as any).poblacion ?? "");
     setFormCliente(obraData.cliente_nombre ?? "");
     setFormTelefono(obraData.cliente_telefono ?? "");
+    setFormDni((obraData as any).cliente_dni_nie_cif ?? "");
     setFormNotas(obraData.notas_internas ?? "");
 
     setMateriales((matsRes.data as Material[]) ?? []);
@@ -100,11 +106,14 @@ export default function ObraDetallePage() {
     if (!obra) return;
     setGuardando(true);
     await updateObra(obra.id, {
-      nombre: formNombre,
-      direccion: formDireccion,
-      cliente_nombre: formCliente || undefined,
-      cliente_telefono: formTelefono || undefined,
-      notas_internas: formNotas || undefined,
+      nombre:              formNombre,
+      direccion:           formDireccion,
+      codigo_postal:       formCodigoPostal || undefined,
+      poblacion:           formPoblacion || undefined,
+      cliente_nombre:      formCliente || undefined,
+      cliente_telefono:    formTelefono || undefined,
+      cliente_dni_nie_cif: formDni || undefined,
+      notas_internas:      formNotas || undefined,
     });
     setEditando(false);
     setGuardando(false);
@@ -175,40 +184,57 @@ export default function ObraDetallePage() {
         </div>
 
         <div className="space-y-3">
+          {/* Dirección + CP + Población */}
           <div className="flex items-start gap-3">
             <MapPin className="w-4 h-4 text-content-muted mt-0.5 flex-shrink-0" />
             {editando ? (
-              <DireccionInput
-                value={formDireccion}
-                onChange={setFormDireccion}
-                className="flex-1"
-                placeholder="Dirección de la obra"
-              />
+              <div className="flex-1 space-y-2">
+                <DireccionInput value={formDireccion} onChange={setFormDireccion} placeholder="Dirección de la obra" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={formCodigoPostal} onChange={(e) => setFormCodigoPostal(e.target.value)} className="input text-sm" placeholder="Código postal" maxLength={10} />
+                  <input value={formPoblacion} onChange={(e) => setFormPoblacion(e.target.value)} className="input text-sm" placeholder="Población" />
+                </div>
+              </div>
             ) : (
-              <DireccionLink
-                direccion={obra.direccion}
-                showExternalIcon
-                className="text-sm text-content-primary"
-              />
+              <div>
+                <DireccionLink direccion={obra.direccion} showExternalIcon className="text-sm text-content-primary" />
+                {((obra as any).codigo_postal || (obra as any).poblacion) && (
+                  <span className="text-xs text-content-muted"> · {[(obra as any).codigo_postal, (obra as any).poblacion].filter(Boolean).join(" ")}</span>
+                )}
+              </div>
             )}
           </div>
 
+          {/* Cliente nombre */}
           {(obra.cliente_nombre || editando) && (
             <div className="flex items-start gap-3">
               <Users className="w-4 h-4 text-content-muted mt-0.5 flex-shrink-0" />
               {editando ? (
-                <input value={formCliente} onChange={(e) => setFormCliente(e.target.value)} className="input flex-1" placeholder="Nombre del cliente (opcional)" />
+                <input value={formCliente} onChange={(e) => setFormCliente(e.target.value)} className="input flex-1" placeholder="Nombre y apellidos del cliente" />
               ) : (
                 <span className="text-sm text-content-primary">{obra.cliente_nombre}</span>
               )}
             </div>
           )}
 
+          {/* DNI/NIE/CIF */}
+          {((obra as any).cliente_dni_nie_cif || editando) && (
+            <div className="flex items-start gap-3">
+              <span className="w-4 h-4 flex-shrink-0 mt-0.5 flex items-center justify-center text-[10px] font-bold rounded" style={{ color: "#9CA3AF" }}>ID</span>
+              {editando ? (
+                <input value={formDni} onChange={(e) => setFormDni(e.target.value.toUpperCase())} className="input flex-1" placeholder="DNI / NIE / CIF del cliente" />
+              ) : (
+                <span className="text-sm text-content-primary">{(obra as any).cliente_dni_nie_cif}</span>
+              )}
+            </div>
+          )}
+
+          {/* Teléfono */}
           {(obra.cliente_telefono || editando) && (
             <div className="flex items-start gap-3">
               <Phone className="w-4 h-4 text-content-muted mt-0.5 flex-shrink-0" />
               {editando ? (
-                <input value={formTelefono} onChange={(e) => setFormTelefono(e.target.value)} className="input flex-1" placeholder="Teléfono del cliente (opcional)" />
+                <input value={formTelefono} onChange={(e) => setFormTelefono(e.target.value)} className="input flex-1" placeholder="Teléfono del cliente" type="tel" />
               ) : (
                 <span className="text-sm text-content-primary">{obra.cliente_telefono}</span>
               )}

@@ -3,7 +3,7 @@
 import { useState, FormEvent } from "react";
 import { createObra } from "@/lib/insforge/database";
 import type { ObraFormData } from "@/types";
-import { X, Loader2, Building2 } from "lucide-react";
+import { X, Loader2, Building2, User, MapPin, CreditCard, Phone } from "lucide-react";
 import { DireccionInput } from "@/components/ui/DireccionInput";
 
 interface Props {
@@ -19,8 +19,11 @@ export function CrearObraModal({ tenantId, userId, onClose, onCreated }: Props) 
   const [form, setForm] = useState<ObraFormData>({
     nombre: "",
     direccion: "",
+    codigo_postal: "",
+    poblacion: "",
     cliente_nombre: "",
     cliente_telefono: "",
+    cliente_dni_nie_cif: "",
     fecha_inicio: new Date().toISOString().split("T")[0],
     fecha_fin_estimada: "",
     notas_internas: "",
@@ -33,17 +36,25 @@ export function CrearObraModal({ tenantId, userId, onClose, onCreated }: Props) 
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!form.nombre.trim() || !form.direccion.trim()) {
-      setError("El nombre y la dirección son obligatorios.");
-      return;
-    }
+    // Validación de campos obligatorios
+    if (!form.nombre.trim()) { setError("El nombre de la obra es obligatorio."); return; }
+    if (!form.direccion.trim()) { setError("La dirección de la obra es obligatoria."); return; }
+    if (!form.codigo_postal?.trim()) { setError("El código postal es obligatorio."); return; }
+    if (!form.poblacion?.trim()) { setError("La población es obligatoria."); return; }
+    if (!form.cliente_nombre?.trim()) { setError("El nombre y apellidos del cliente son obligatorios."); return; }
+    if (!form.cliente_telefono?.trim()) { setError("El teléfono del cliente es obligatorio."); return; }
+    if (!form.cliente_dni_nie_cif?.trim()) { setError("El DNI/NIE/CIF del cliente es obligatorio."); return; }
+
     setIsLoading(true);
     const { error } = await createObra(tenantId, userId, {
       ...form,
-      cliente_nombre: form.cliente_nombre || undefined,
-      cliente_telefono: form.cliente_telefono || undefined,
-      fecha_fin_estimada: form.fecha_fin_estimada || undefined,
-      notas_internas: form.notas_internas || undefined,
+      cliente_nombre:      form.cliente_nombre || undefined,
+      cliente_telefono:    form.cliente_telefono || undefined,
+      cliente_dni_nie_cif: form.cliente_dni_nie_cif || undefined,
+      codigo_postal:       form.codigo_postal || undefined,
+      poblacion:           form.poblacion || undefined,
+      fecha_fin_estimada:  form.fecha_fin_estimada || undefined,
+      notas_internas:      form.notas_internas || undefined,
     });
     setIsLoading(false);
     if (error) {
@@ -53,25 +64,50 @@ export function CrearObraModal({ tenantId, userId, onClose, onCreated }: Props) 
     }
   }
 
+  // Sección de cabecera de sección
+  function SectionHeader({ icon: Icon, label }: { icon: any; label: string }) {
+    return (
+      <div className="flex items-center gap-2 pt-2 pb-1" style={{ borderBottom: "1.5px solid #EEF2F8" }}>
+        <div className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0" style={{ background: "#EEF2F8" }}>
+          <Icon className="w-3.5 h-3.5" style={{ color: "#607eaa" }} />
+        </div>
+        <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "#607eaa" }}>{label}</span>
+      </div>
+    );
+  }
+
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-panel max-h-[90vh] flex flex-col">
+      <div className="modal-panel max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="icon-container w-9 h-9">
               <Building2 className="w-4 h-4" />
             </div>
-            <h2 className="text-lg font-semibold text-content-primary">Nueva obra</h2>
+            <div>
+              <h2 className="text-lg font-semibold text-content-primary">Nueva obra</h2>
+              <p className="text-xs" style={{ color: "#9CA3AF" }}>Todos los campos marcados con * son obligatorios</p>
+            </div>
           </div>
           <button onClick={onClose} className="btn-ghost p-2"><X className="w-4 h-4" /></button>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-5 space-y-4">
+
+          {/* ── Datos de la obra ── */}
+          <SectionHeader icon={Building2} label="Datos de la obra" />
+
           <div>
             <label className="label">Nombre / alias *</label>
-            <input className="input" placeholder="Reforma Balmes 42" value={form.nombre} onChange={(e) => set("nombre", e.target.value)} required />
+            <input
+              className="input"
+              placeholder="Reforma Baño Principal"
+              value={form.nombre}
+              onChange={(e) => set("nombre", e.target.value)}
+              required
+            />
           </div>
           <div>
             <label className="label">Dirección completa *</label>
@@ -81,16 +117,65 @@ export function CrearObraModal({ tenantId, userId, onClose, onCreated }: Props) 
               required
             />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Cliente (nombre)</label>
-              <input className="input" placeholder="Nombre cliente" value={form.cliente_nombre} onChange={(e) => set("cliente_nombre", e.target.value)} />
+              <label className="label">Código postal *</label>
+              <input
+                className="input"
+                placeholder="08001"
+                maxLength={10}
+                value={form.codigo_postal}
+                onChange={(e) => set("codigo_postal", e.target.value)}
+              />
             </div>
             <div>
-              <label className="label">Teléfono cliente</label>
-              <input className="input" type="tel" placeholder="612 345 678" value={form.cliente_telefono} onChange={(e) => set("cliente_telefono", e.target.value)} />
+              <label className="label">Población *</label>
+              <input
+                className="input"
+                placeholder="Barcelona"
+                value={form.poblacion}
+                onChange={(e) => set("poblacion", e.target.value)}
+              />
             </div>
           </div>
+
+          {/* ── Datos del cliente ── */}
+          <SectionHeader icon={User} label="Datos del cliente" />
+
+          <div>
+            <label className="label">Nombre y apellidos *</label>
+            <input
+              className="input"
+              placeholder="Juan García López"
+              value={form.cliente_nombre}
+              onChange={(e) => set("cliente_nombre", e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="label">DNI / NIE / CIF *</label>
+              <input
+                className="input"
+                placeholder="12345678A"
+                value={form.cliente_dni_nie_cif}
+                onChange={(e) => set("cliente_dni_nie_cif", e.target.value.toUpperCase())}
+              />
+            </div>
+            <div>
+              <label className="label">Teléfono *</label>
+              <input
+                className="input"
+                type="tel"
+                placeholder="612 345 678"
+                value={form.cliente_telefono}
+                onChange={(e) => set("cliente_telefono", e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* ── Fechas ── */}
+          <SectionHeader icon={MapPin} label="Planificación" />
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Fecha inicio *</label>
@@ -103,10 +188,20 @@ export function CrearObraModal({ tenantId, userId, onClose, onCreated }: Props) 
           </div>
           <div>
             <label className="label">Notas internas (solo admin)</label>
-            <textarea className="input resize-none" rows={3} placeholder="Instrucciones, accesos, observaciones..." value={form.notas_internas} onChange={(e) => set("notas_internas", e.target.value)} />
+            <textarea
+              className="input resize-none"
+              rows={3}
+              placeholder="Instrucciones, accesos, observaciones..."
+              value={form.notas_internas}
+              onChange={(e) => set("notas_internas", e.target.value)}
+            />
           </div>
 
-          {error && <div className="bg-danger-light text-danger-foreground text-sm rounded-lg px-4 py-3">{error}</div>}
+          {error && (
+            <div className="bg-danger-light text-danger-foreground text-sm rounded-lg px-4 py-3 flex items-center gap-2">
+              <span>⚠️</span> {error}
+            </div>
+          )}
         </form>
 
         {/* Footer */}

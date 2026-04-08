@@ -1082,6 +1082,7 @@ export interface TenantConfig {
   empresa_direccion: string | null;
   empresa_telefono: string | null;
   empresa_email: string | null;
+  numero_cuenta: string | null;
   updated_at: string;
 }
 

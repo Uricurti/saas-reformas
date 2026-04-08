@@ -36,8 +36,11 @@ export interface Obra {
   tenant_id: string;
   nombre: string;
   direccion: string;
+  codigo_postal?: string;
+  poblacion?: string;
   cliente_nombre?: string;
   cliente_telefono?: string;
+  cliente_dni_nie_cif?: string;
   fecha_inicio: string;
   fecha_fin_estimada?: string;
   estado: ObraEstado;
@@ -291,8 +294,11 @@ export interface LoginFormData {
 export interface ObraFormData {
   nombre: string;
   direccion: string;
+  codigo_postal?: string;
+  poblacion?: string;
   cliente_nombre?: string;
   cliente_telefono?: string;
+  cliente_dni_nie_cif?: string;
   fecha_inicio: string;
   fecha_fin_estimada?: string;
   notas_internas?: string;
