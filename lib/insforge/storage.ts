@@ -57,19 +57,39 @@ export async function getStorageBlobUrl(
   }
 }
 
-// ─── URL pública de un archivo en Storage ────────────────────────────────────
-// InsForge (Supabase-compatible) construye URLs públicas con este patrón.
-// Si el bucket es privado, usar getStorageBlobUrl en su lugar.
-export function getPublicStorageUrl(pathOrUrl: string): string {
-  // Si ya es una URL completa, devolverla tal cual
-  if (pathOrUrl.startsWith("http")) return pathOrUrl;
+// ─── URL autenticada para un archivo en Storage ──────────────────────────────
+// 3 capas de fallback para máxima compatibilidad con InsForge:
+//   1. Signed URL (bucket privado) → URL real que expira en 2h
+//   2. Public URL (bucket público) → URL permanente
+//   3. Blob URL (descarga autenticada) → siempre funciona, más lento
+export async function getMediaUrl(pathOrUrl: string): Promise<string | null> {
+  if (!pathOrUrl) return null;
+  if (pathOrUrl.startsWith("blob:")) return pathOrUrl;
+
   const path = extractStoragePath(pathOrUrl);
-  // Intentar mediante SDK (Supabase-compatible: getPublicUrl)
+
+  // 1. Signed URL — funciona con buckets privados
+  try {
+    const bucket = insforge.storage.from(BUCKET) as any;
+    const { data, error } = await bucket.createSignedUrl(path, 7200); // 2h
+    if (!error && data?.signedUrl) return data.signedUrl;
+  } catch { /* SDK puede no soportarlo */ }
+
+  // 2. Public URL — funciona con buckets públicos
   try {
     const result = (insforge.storage.from(BUCKET) as any).getPublicUrl(path);
     if (result?.data?.publicUrl) return result.data.publicUrl;
-  } catch { /* SDK puede no tener getPublicUrl */ }
-  // Fallback: construir la URL manualmente usando la base de InsForge
+  } catch { /* no soportado */ }
+
+  // 3. Blob URL — descarga autenticada, siempre funciona
+  const ext = path.split(".").pop()?.split("?")[0] ?? "";
+  return getStorageBlobUrl(pathOrUrl, `file.${ext}`);
+}
+
+/** @deprecated Usa getMediaUrl (async) en su lugar */
+export function getPublicStorageUrl(pathOrUrl: string): string {
+  if (pathOrUrl.startsWith("http")) return pathOrUrl;
+  const path = extractStoragePath(pathOrUrl);
   const base = (process.env.NEXT_PUBLIC_INSFORGE_URL ?? "").replace(/\/$/, "");
   return `${base}/storage/v1/object/public/${BUCKET}/${path}`;
 }
