@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Calendar, ShoppingCart, Camera, Bell, Calculator, Users, LogOut, X, TrendingUp } from "lucide-react";
+import { Building2, Calendar, ShoppingCart, Bell, Calculator, Users, LogOut, X, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsAdmin, useAuthStore } from "@/lib/stores/auth-store";
 import { useNotificacionesStore } from "@/lib/stores/notificaciones-store";
@@ -14,7 +14,6 @@ const navEmpleado = [
   { href: "/obras",          label: "Obras",      icon: Building2 },
   { href: "/calendario",     label: "Calendario", icon: Calendar },
   { href: "/materiales",     label: "Material",   icon: ShoppingCart },
-  { href: "/fotos",          label: "Fotos",      icon: Camera },
   { href: "/notificaciones", label: "Avisos",     icon: Bell },
 ];
 

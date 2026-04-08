@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2, Calendar, ShoppingCart,
-  Camera, Calculator, Users, LogOut, Bell, TrendingUp
+  Calculator, Users, LogOut, Bell, TrendingUp
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore, useIsAdmin } from "@/lib/stores/auth-store";
@@ -15,14 +15,12 @@ const navItemsEmpleado = [
   { href: "/obras",      label: "Mis obras",  icon: Building2 },
   { href: "/calendario", label: "Calendario", icon: Calendar },
   { href: "/materiales", label: "Materiales", icon: ShoppingCart },
-  { href: "/fotos",      label: "Fotos",      icon: Camera },
 ];
 
 const navItemsAdmin = [
   { href: "/obras",      label: "Obras",      icon: Building2,   group: "operativa" },
   { href: "/calendario", label: "Calendario", icon: Calendar,    group: "operativa" },
   { href: "/materiales", label: "Materiales", icon: ShoppingCart,group: "operativa" },
-  { href: "/fotos",      label: "Fotos",      icon: Camera,      group: "operativa" },
   { href: "/jornales",   label: "Jornales",   icon: Calculator,  group: "operativa" },
   { href: "/equipo",     label: "Equipo",     icon: Users,       group: "operativa" },
   { href: "/facturacion",label: "Finanzas",   icon: TrendingUp,  group: "finanzas"  },

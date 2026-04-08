@@ -57,6 +57,23 @@ export async function getStorageBlobUrl(
   }
 }
 
+// ─── URL pública de un archivo en Storage ────────────────────────────────────
+// InsForge (Supabase-compatible) construye URLs públicas con este patrón.
+// Si el bucket es privado, usar getStorageBlobUrl en su lugar.
+export function getPublicStorageUrl(pathOrUrl: string): string {
+  // Si ya es una URL completa, devolverla tal cual
+  if (pathOrUrl.startsWith("http")) return pathOrUrl;
+  const path = extractStoragePath(pathOrUrl);
+  // Intentar mediante SDK (Supabase-compatible: getPublicUrl)
+  try {
+    const result = (insforge.storage.from(BUCKET) as any).getPublicUrl(path);
+    if (result?.data?.publicUrl) return result.data.publicUrl;
+  } catch { /* SDK puede no tener getPublicUrl */ }
+  // Fallback: construir la URL manualmente usando la base de InsForge
+  const base = (process.env.NEXT_PUBLIC_INSFORGE_URL ?? "").replace(/\/$/, "");
+  return `${base}/storage/v1/object/public/${BUCKET}/${path}`;
+}
+
 // ─── Comprimir foto antes de subir ──────────────────────────────────────────
 async function comprimirFoto(file: File): Promise<File> {
   const options = {
