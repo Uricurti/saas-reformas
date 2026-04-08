@@ -3,13 +3,13 @@ import "./globals.css";
 import { AuthProvider } from "@/components/layout/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "Reformas App",
+  title: "ReforLife",
   description: "Centro de mando para empresas de reformas",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Reformas App",
+    title: "ReforLife",
   },
 };
 
@@ -18,7 +18,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#4F63D2",
+  themeColor: "#607eaa",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

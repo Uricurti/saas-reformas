@@ -1,29 +1,41 @@
 {
-  "name": "Reformas App",
-  "short_name": "Reformas",
+  "name": "ReforLife",
+  "short_name": "ReforLife",
   "description": "Centro de mando para empresas de reformas",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F7F8FB",
-  "theme_color": "#4F63D2",
+  "background_color": "#ffffff",
+  "theme_color": "#607eaa",
   "orientation": "portrait",
   "icons": [
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
     {
-      "name": "Mis obras",
+      "name": "Obras",
       "url": "/obras",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     },
