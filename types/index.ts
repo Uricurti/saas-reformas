@@ -248,6 +248,7 @@ export interface Pago {
   fecha_cobro: string | null;
   estado: PagoEstado;
   nota: string | null;
+  numero_factura_emitida?: string | null;
   created_at: string;
 }
 

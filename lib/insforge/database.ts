@@ -743,6 +743,7 @@ export async function updatePago(id: string, params: Partial<{
   fecha_cobro: string | null;
   estado: PagoEstado;
   nota: string | null;
+  numero_factura_emitida: string | null;
 }>) {
   // Recalcular importe_total si cambia alguno de los importes
   const updates: Record<string, unknown> = { ...params };
@@ -779,24 +780,31 @@ export async function getPagosPendientesYEmitidos(tenantId: string): Promise<Pag
   const obraIds    = Array.from(new Set((pagos as Pago[]).map((p) => p.obra_id)));
 
   const [facturasRes, obrasRes] = await Promise.all([
-    insforge.database.from("facturas").select("id, concepto").in("id", facturaIds),
+    insforge.database.from("facturas").select("id, concepto, porcentaje_iva").in("id", facturaIds),
     insforge.database.from("obras").select("id, nombre").in("id", obraIds),
   ]);
 
   const facturaMap: Record<string, string> = {};
-  for (const f of (facturasRes.data ?? []) as { id: string; concepto: string }[]) {
+  const facturaIvaMap: Record<string, number> = {};
+  for (const f of (facturasRes.data ?? []) as { id: string; concepto: string; porcentaje_iva: number }[]) {
     facturaMap[f.id] = f.concepto;
+    facturaIvaMap[f.id] = f.porcentaje_iva ?? 21;
   }
   const obraMap: Record<string, string> = {};
   for (const o of (obrasRes.data ?? []) as { id: string; nombre: string }[]) {
     obraMap[o.id] = o.nombre;
   }
 
-  return (pagos as Pago[]).map((p) => ({
-    ...p,
-    obra_nombre: obraMap[p.obra_id] ?? "—",
-    factura_concepto: facturaMap[p.factura_id] ?? "—",
-  }));
+  return (pagos as Pago[]).map((p) => {
+    const iva = facturaIvaMap[p.factura_id] ?? 21;
+    return {
+      ...p,
+      // importe_total con IVA para que las alertas muestren lo que el cliente debe pagar
+      importe_total: Math.round(p.importe_total * (1 + iva / 100) * 100) / 100,
+      obra_nombre: obraMap[p.obra_id] ?? "—",
+      factura_concepto: facturaMap[p.factura_id] ?? "—",
+    };
+  });
 }
 
 /** Datos del dashboard de facturación */
@@ -925,7 +933,7 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
   const finAnioAnt    = `${anio - 1}-12-31T23:59:59`;
 
   // ── 1. Pagos del año actual y anterior ──────────────────────────
-  const [pagosRes, pagosAntRes, jornadasRes, materialesRes, obrasRes] = await Promise.all([
+  const [pagosRes, pagosAntRes, jornadasRes, materialesRes, obrasRes, facturasRes] = await Promise.all([
     insforge.database.from("pagos").select("*")
       .eq("tenant_id", tenantId)
       .gte("created_at", inicioAnio).lte("created_at", finAnio),
@@ -944,14 +952,26 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
       .gte("created_at", inicioAnio).lte("created_at", finAnio)
       .not("precio_unitario", "is", null),
     insforge.database.from("obras").select("id, nombre").eq("tenant_id", tenantId),
+    // IVA por factura para calcular totales con IVA incluido
+    insforge.database.from("facturas").select("id, porcentaje_iva").eq("tenant_id", tenantId),
   ]);
 
-  const pagos     = (pagosRes.data     ?? []) as Pago[];
-  const pagosAnt  = (pagosAntRes.data  ?? []) as Pago[];
-  const jornadas  = (jornadasRes.data  ?? []) as any[];
+  const pagos      = (pagosRes.data     ?? []) as Pago[];
+  const pagosAnt   = (pagosAntRes.data  ?? []) as Pago[];
+  const jornadas   = (jornadasRes.data  ?? []) as any[];
   const materiales = (materialesRes.data ?? []) as any[];
-  const obras     = (obrasRes.data     ?? []) as { id: string; nombre: string }[];
-  const obraMap   = Object.fromEntries(obras.map((o) => [o.id, o.nombre]));
+  const obras      = (obrasRes.data     ?? []) as { id: string; nombre: string }[];
+  const obraMap    = Object.fromEntries(obras.map((o) => [o.id, o.nombre]));
+  // Mapa factura_id → porcentaje_iva (para calcular totales con IVA)
+  const facturaIvaMap: Record<string, number> = {};
+  for (const f of ((facturasRes as any).data ?? []) as { id: string; porcentaje_iva: number }[]) {
+    facturaIvaMap[f.id] = f.porcentaje_iva ?? 21;
+  }
+  // Helper: importe del pago multiplicado por (1 + iva/100)
+  function conIva(p: Pago) {
+    const iva = facturaIvaMap[p.factura_id] ?? 21;
+    return p.importe_total * (1 + iva / 100);
+  }
 
   // ── 2. Tarifas empleados ─────────────────────────────────────────
   const userIds = Array.from(new Set(jornadas.map((j: any) => j.user_id)));
@@ -972,29 +992,30 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
     return (parseFloat(m.precio_unitario) || 0) * (parseFloat(m.cantidad) || 0);
   }
 
-  // ── 4. KPIs globales ─────────────────────────────────────────────
-  const totalFacturado    = pagos.reduce((s, p) => s + p.importe_total, 0);
-  const totalCobrado      = pagos.filter((p) => p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
+  // ── 4. KPIs globales (con IVA incluido) ──────────────────────────
+  const totalFacturado    = pagos.reduce((s, p) => s + conIva(p), 0);
+  const totalCobrado      = pagos.filter((p) => p.estado === "cobrada").reduce((s, p) => s + conIva(p), 0);
   const pendienteCobro    = totalFacturado - totalCobrado;
   const costeEmpleados    = jornadas.reduce((s: number, j: any) => s + costeJornada(j), 0);
   const costeMateriales   = materiales.reduce((s: number, m: any) => s + costeMaterial(m), 0);
   const margenBruto       = totalFacturado - costeEmpleados - costeMateriales;
   const margenPct         = totalFacturado > 0 ? (margenBruto / totalFacturado) * 100 : 0;
 
-  // Mes actual vs mes anterior
+  // Mes actual vs mes anterior (con IVA)
   const primerDiaMes = `${anio}-${mesStr(mes)}-01`;
   const ultimoDiaMes = `${anio}-${mesStr(mes)}-${new Date(anio, mes, 0).getDate()}T23:59:59`;
   const facturadoEsteMes = pagos
     .filter((p) => p.created_at >= primerDiaMes && p.created_at <= ultimoDiaMes)
-    .reduce((s, p) => s + p.importe_total, 0);
+    .reduce((s, p) => s + conIva(p), 0);
   const mesPasado = mes === 1 ? 12 : mes - 1;
   const anioMesP  = mes === 1 ? anio - 1 : anio;
   const primerMP  = `${anioMesP}-${mesStr(mesPasado)}-01`;
   const ultimoMP  = `${anioMesP}-${mesStr(mesPasado)}-${new Date(anioMesP, mesPasado, 0).getDate()}T23:59:59`;
   const srcAnt    = mes === 1 ? pagosAnt : pagos;
+  // Para pagos del año anterior no tenemos el IVA exacto; usamos 21% por defecto
   const facturadoMesAnterior = srcAnt
     .filter((p) => p.created_at >= primerMP && p.created_at <= ultimoMP)
-    .reduce((s, p) => s + p.importe_total, 0);
+    .reduce((s, p) => s + (mes === 1 ? p.importe_total * 1.21 : conIva(p)), 0);
 
   // ── 5. Series mensuales ──────────────────────────────────────────
   const porMes = Array.from({ length: 12 }, (_, i) => {
@@ -1005,21 +1026,23 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
     const iniA = `${anio - 1}-${mS}-01`;
     const finA = `${anio - 1}-${mS}-${new Date(anio - 1, m, 0).getDate()}T23:59:59`;
 
+    // Series con IVA incluido
     const facturado = pagos.filter((p) => p.created_at >= ini && p.created_at <= fin)
-      .reduce((s, p) => s + p.importe_total, 0);
+      .reduce((s, p) => s + conIva(p), 0);
     const cobrado = pagos.filter((p) => p.estado === "cobrada" && p.fecha_cobro && p.fecha_cobro >= ini.slice(0,7) && p.fecha_cobro <= fin.slice(0,7))
-      .reduce((s, p) => s + p.importe_total, 0);
+      .reduce((s, p) => s + conIva(p), 0);
     const cemp = jornadas.filter((j: any) => j.fecha >= ini && j.fecha <= fin.slice(0, 10))
       .reduce((s: number, j: any) => s + costeJornada(j), 0);
     const cmat = materiales.filter((m2: any) => m2.created_at >= ini && m2.created_at <= fin)
       .reduce((s: number, m2: any) => s + costeMaterial(m2), 0);
+    // Año anterior: sin mapa IVA → usamos 21% por defecto
     const anioAnterior = pagosAnt.filter((p) => p.created_at >= iniA && p.created_at <= finA)
-      .reduce((s, p) => s + p.importe_total, 0);
+      .reduce((s, p) => s + p.importe_total * 1.21, 0);
 
     return { mes: mS, facturado, cobrado, costeEmpleados: cemp, costeMateriales: cmat, margen: facturado - cemp - cmat, anioAnterior };
   });
 
-  // ── 6. Por obra ──────────────────────────────────────────────────
+  // ── 6. Por obra (con IVA) ────────────────────────────────────────
   const obraIds = Array.from(new Set([
     ...pagos.map((p) => p.obra_id),
     ...jornadas.map((j: any) => j.obra_id).filter(Boolean),
@@ -1027,8 +1050,8 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
   ]));
 
   const porObra = obraIds.map((oid) => {
-    const oFact = pagos.filter((p) => p.obra_id === oid).reduce((s, p) => s + p.importe_total, 0);
-    const oCob  = pagos.filter((p) => p.obra_id === oid && p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
+    const oFact = pagos.filter((p) => p.obra_id === oid).reduce((s, p) => s + conIva(p), 0);
+    const oCob  = pagos.filter((p) => p.obra_id === oid && p.estado === "cobrada").reduce((s, p) => s + conIva(p), 0);
     const oCEmp = jornadas.filter((j: any) => j.obra_id === oid).reduce((s: number, j: any) => s + costeJornada(j), 0);
     const oCMat = materiales.filter((m: any) => m.obra_id === oid).reduce((s: number, m: any) => s + costeMaterial(m), 0);
     return {

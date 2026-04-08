@@ -108,9 +108,10 @@ function ModalExtra({
 
 // ─── Fila de pago ─────────────────────────────────────────────────────────────
 function FilaPago({
-  pago, onUpdate, onEmitirPago,
+  pago, tenantId, onUpdate, onEmitirPago,
 }: {
   pago: Pago;
+  tenantId: string;
   onUpdate: () => void;
   onEmitirPago?: (pago: Pago) => void;
 }) {
@@ -122,14 +123,20 @@ function FilaPago({
   async function avanzarEstado() {
     setSaving(true);
     const next: PagoEstado = pago.estado === "pendiente_emitir" ? "emitida" : "cobrada";
-    const extra: Partial<{ fecha_cobro: string; estado: PagoEstado }> = { estado: next };
-    if (next === "cobrada") extra.fecha_cobro = new Date().toISOString().split("T")[0];
-    await updatePago(pago.id, extra);
+    const updates: Record<string, unknown> = { estado: next };
+    if (next === "cobrada") updates.fecha_cobro = new Date().toISOString().split("T")[0];
+    // Al emitir → auto-asignar número de factura independiente
+    let numEmitida = pago.numero_factura_emitida ?? null;
+    if (next === "emitida" && !numEmitida) {
+      numEmitida = await getNextNumeroFactura(tenantId);
+      updates.numero_factura_emitida = numEmitida;
+    }
+    await updatePago(pago.id, updates as any);
     setSaving(false);
     onUpdate();
-    // Si pasamos a "emitida", abrimos el preview de ese hito
+    // Abrir preview automáticamente al emitir
     if (next === "emitida" && onEmitirPago) {
-      onEmitirPago({ ...pago, estado: "emitida" });
+      onEmitirPago({ ...pago, estado: "emitida", numero_factura_emitida: numEmitida });
     }
   }
 
@@ -371,7 +378,7 @@ function FacturaCard({
             </thead>
             <tbody>
               {factura.pagos.map((p) => (
-                <FilaPago key={p.id} pago={p} onUpdate={onUpdate} onEmitirPago={onEmitirPago} />
+                <FilaPago key={p.id} pago={p} tenantId={tenantId} onUpdate={onUpdate} onEmitirPago={onEmitirPago} />
               ))}
             </tbody>
           </table>
@@ -575,10 +582,16 @@ export function FacturacionSection({
 
   useEffect(() => { load(); }, [obraId]);
 
-  const allPagos       = facturas.flatMap((f) => f.pagos);
-  const totalFacturado = allPagos.reduce((s, p) => s + p.importe_total, 0);
-  const totalCobrado   = allPagos.filter((p) => p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
-  const pendiente      = totalFacturado - totalCobrado;
+  // Totales con IVA incluido (importe real que paga el cliente)
+  function conIva(importe: number, f: FacturaConPagos) {
+    const iva = (f as any).porcentaje_iva ?? 21;
+    return importe * (1 + iva / 100);
+  }
+  const totalFacturado = facturas.reduce((s, f) =>
+    s + f.pagos.reduce((ps, p) => ps + conIva(p.importe_total, f), 0), 0);
+  const totalCobrado = facturas.reduce((s, f) =>
+    s + f.pagos.filter((p) => p.estado === "cobrada").reduce((ps, p) => ps + conIva(p.importe_total, f), 0), 0);
+  const pendiente = totalFacturado - totalCobrado;
 
   return (
     <div style={{ marginTop: 24 }}>

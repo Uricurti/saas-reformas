@@ -108,8 +108,9 @@ function InvoiceDocument({
   // Modo hito-específico: mostramos solo ese pago con IVA
   const isModoHito = !!pago;
   const porcentajeIva = (factura as any).porcentaje_iva ?? 21;
+  // Número: usa el asignado al emitir (FAC-002), o fallback al formato /orden
   const numeroFactura = isModoHito
-    ? `${factura.numero_factura ?? "FAC-???"}/${pago!.orden}`
+    ? (pago!.numero_factura_emitida ?? `${factura.numero_factura ?? "FAC-???"}/${pago!.orden}`)
     : (factura.numero_factura ?? "—");
 
   // Cálculos según modo
@@ -280,32 +281,34 @@ function InvoiceDocument({
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 36 }}>
         <div style={{ width: 320 }}>
           {isModoHito ? (
-            // Desglose con IVA
+            // Desglose con IVA — modo hito
             <>
               {pago!.importe_extra > 0 && (
                 <>
-                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#6b7280", fontSize: 14 }}>
-                    <span>Importe base</span><span>{fmtE(pago!.importe_base)}</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#6b7280", fontSize: 13 }}>
+                    <span>Hito ({pago!.porcentaje}%)</span><span>{fmtE(pago!.importe_base)}</span>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#f59e0b", fontWeight: 600, fontSize: 14 }}>
-                    <span>Extras adicionales</span><span>+{fmtE(pago!.importe_extra)}</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#f59e0b", fontWeight: 600, fontSize: 13 }}>
+                    <span>Trabajos adicionales</span><span>+{fmtE(pago!.importe_extra)}</span>
                   </div>
                   <div style={{ height: 1, background: "#e5e7eb", margin: "4px 0 8px" }} />
                 </>
               )}
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#6b7280", fontSize: 14 }}>
-                <span>Base imponible</span><span>{fmtE(baseHito)}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", color: "#4A5568", fontSize: 14 }}>
+                <span>Base imponible</span>
+                <span style={{ fontWeight: 600 }}>{fmtE(baseHito)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#6b7280", fontSize: 14 }}>
-                <span>IVA ({porcentajeIva}%)</span><span>{fmtE(ivaHito)}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", color: "#4A5568", fontSize: 14 }}>
+                <span>IVA ({porcentajeIva}%)</span>
+                <span style={{ fontWeight: 600 }}>{fmtE(ivaHito)}</span>
               </div>
-              <div style={{ height: 1, background: "#e5e7eb", margin: "6px 0" }} />
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 20px", background: "#1A1A2E", borderRadius: 10, color: "#fff", fontWeight: 800, fontSize: 20, marginTop: 4 }}>
-                <span>TOTAL</span><span>{fmtE(totalHito)}</span>
+              <div style={{ height: 2, background: "#1A1A2E", margin: "8px 0" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "14px 20px", background: "#1A1A2E", borderRadius: 10, color: "#fff", fontWeight: 900, fontSize: 20, marginTop: 4 }}>
+                <span>TOTAL A PAGAR</span><span>{fmtE(totalHito)}</span>
               </div>
               {pago!.fecha_prevista && (
-                <div style={{ textAlign: "right", fontSize: 12, color: "#94a3b8", marginTop: 8 }}>
-                  Fecha prevista de cobro: {fmtDate(pago!.fecha_prevista)}
+                <div style={{ textAlign: "right", fontSize: 12, color: "#94a3b8", marginTop: 10 }}>
+                  Fecha prevista de cobro: <strong style={{ color: "#4A5568" }}>{fmtDate(pago!.fecha_prevista)}</strong>
                 </div>
               )}
             </>
