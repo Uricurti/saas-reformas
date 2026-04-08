@@ -106,6 +106,78 @@ function ModalExtra({
   );
 }
 
+// ─── Modal Emitir (con edición de número de factura) ─────────────────────────
+function ModalEmitir({
+  pago, numeroSugerido, onClose, onConfirm,
+}: {
+  pago: Pago;
+  numeroSugerido: string;
+  onClose: () => void;
+  onConfirm: (numeroFactura: string) => Promise<void>;
+}) {
+  const [numero, setNumero] = useState(numeroSugerido);
+  const [saving, setSaving] = useState(false);
+
+  async function handleConfirm() {
+    if (!numero.trim()) return;
+    setSaving(true);
+    await onConfirm(numero.trim());
+    setSaving(false);
+    // onClose lo llama el padre tras confirmar
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }} onClick={onClose} />
+      <div style={{ position: "relative", background: "#fff", borderRadius: 18, padding: 28, width: "100%", maxWidth: 380, boxShadow: "0 24px 64px rgba(0,0,0,0.22)" }}>
+        <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, border: "none", background: "#f3f4f6", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <X style={{ width: 14, height: 14 }} />
+        </button>
+
+        {/* Icono + título */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <div style={{ width: 42, height: 42, borderRadius: 12, background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <FileText style={{ width: 20, height: 20, color: "#16a34a" }} />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#111827" }}>Emitir factura</h3>
+            <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>Hito: {pago.concepto} · {pago.porcentaje}%</p>
+          </div>
+        </div>
+
+        {/* Campo número */}
+        <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+          Número de factura
+        </label>
+        <input
+          autoFocus
+          value={numero}
+          onChange={(e) => setNumero(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleConfirm(); if (e.key === "Escape") onClose(); }}
+          placeholder="FAC-001"
+          style={{ width: "100%", border: `1.5px solid ${PRIMARY}`, borderRadius: 9, padding: "10px 14px", fontSize: 16, fontWeight: 700, color: PRIMARY, letterSpacing: "0.04em", marginBottom: 8, boxSizing: "border-box", outline: "none" }}
+        />
+        <p style={{ margin: "0 0 20px", fontSize: 12, color: "#9ca3af" }}>
+          Puedes cambiarlo si necesitas un número específico. Se guardará en la factura definitiva.
+        </p>
+
+        {/* Botones */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose}
+            style={{ flex: 1, background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 10, padding: "11px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+            Cancelar
+          </button>
+          <button onClick={handleConfirm} disabled={saving || !numero.trim()}
+            style={{ flex: 2, background: saving || !numero.trim() ? "#9ca3af" : "#16a34a", color: "#fff", border: "none", borderRadius: 10, padding: "11px 0", fontWeight: 700, fontSize: 14, cursor: saving || !numero.trim() ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            {saving ? <Loader2 style={{ width: 15, height: 15, animation: "spin 1s linear infinite" }} /> : <Check style={{ width: 15, height: 15 }} />}
+            Confirmar y emitir
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Fila de pago ─────────────────────────────────────────────────────────────
 function FilaPago({
   pago, tenantId, isMobile, onUpdate, onEmitirPago, onVerFactura,
@@ -117,28 +189,39 @@ function FilaPago({
   onEmitirPago?: (pago: Pago) => void;
   onVerFactura?: (pago: Pago) => void;
 }) {
-  const [saving, setSaving] = useState(false);
-  const [showExtra, setShowExtra] = useState(false);
-  const [editFecha, setEditFecha] = useState(false);
-  const [fecha, setFecha] = useState(pago.fecha_prevista ?? "");
+  const [saving, setSaving]           = useState(false);
+  const [showExtra, setShowExtra]     = useState(false);
+  const [editFecha, setEditFecha]     = useState(false);
+  const [fecha, setFecha]             = useState(pago.fecha_prevista ?? "");
+  const [showEmitir, setShowEmitir]   = useState(false);
+  const [numSugerido, setNumSugerido] = useState("");
 
-  async function avanzarEstado() {
-    setSaving(true);
-    const next: PagoEstado = pago.estado === "pendiente_emitir" ? "emitida" : "cobrada";
-    const updates: Record<string, unknown> = { estado: next };
-    if (next === "cobrada") updates.fecha_cobro = new Date().toISOString().split("T")[0];
-    // Al emitir → auto-asignar número de factura independiente
-    let numEmitida = pago.numero_factura_emitida ?? null;
-    if (next === "emitida" && !numEmitida) {
-      numEmitida = await getNextNumeroFactura(tenantId);
-      updates.numero_factura_emitida = numEmitida;
+  async function iniciarEmision() {
+    if (pago.estado !== "pendiente_emitir") {
+      // Cobrar: directo, sin modal
+      setSaving(true);
+      await updatePago(pago.id, { estado: "cobrada", fecha_cobro: new Date().toISOString().split("T")[0] });
+      setSaving(false);
+      onUpdate();
+      return;
     }
-    await updatePago(pago.id, updates as any);
+    // Emitir: primero obtenemos el número sugerido y abrimos el modal
+    setSaving(true);
+    const num = await getNextNumeroFactura(tenantId);
+    setNumSugerido(num);
     setSaving(false);
+    setShowEmitir(true);
+  }
+
+  async function confirmarEmision(numeroFactura: string) {
+    await updatePago(pago.id, {
+      estado: "emitida",
+      numero_factura_emitida: numeroFactura,
+    } as any);
+    setShowEmitir(false);
     onUpdate();
-    // Abrir preview automáticamente al emitir
-    if (next === "emitida" && onEmitirPago) {
-      onEmitirPago({ ...pago, estado: "emitida", numero_factura_emitida: numEmitida });
+    if (onEmitirPago) {
+      onEmitirPago({ ...pago, estado: "emitida", numero_factura_emitida: numeroFactura });
     }
   }
 
@@ -172,8 +255,8 @@ function FilaPago({
         </button>
       )}
       {canAdvance && (
-        <button onClick={avanzarEstado} disabled={saving}
-          style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 7, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+        <button onClick={iniciarEmision} disabled={saving}
+          style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 7, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: saving ? "default" : "pointer", display: "flex", alignItems: "center", gap: 4 }}>
           {saving ? <Loader2 style={{ width: 12, height: 12 }} /> : <Check style={{ width: 12, height: 12 }} />}
           {pago.estado === "pendiente_emitir" ? "Emitir" : "Cobrar"}
         </button>
@@ -255,6 +338,10 @@ function FilaPago({
           )}
         </div>
         {showExtra && <ModalExtra pago={pago} onClose={() => setShowExtra(false)} onSave={handleExtra} />}
+        {showEmitir && (
+          <ModalEmitir pago={pago} numeroSugerido={numSugerido}
+            onClose={() => setShowEmitir(false)} onConfirm={confirmarEmision} />
+        )}
       </>
     );
   }
@@ -309,6 +396,10 @@ function FilaPago({
         </td>
       </tr>
       {showExtra && <ModalExtra pago={pago} onClose={() => setShowExtra(false)} onSave={handleExtra} />}
+      {showEmitir && (
+        <ModalEmitir pago={pago} numeroSugerido={numSugerido}
+          onClose={() => setShowEmitir(false)} onConfirm={confirmarEmision} />
+      )}
     </>
   );
 }
