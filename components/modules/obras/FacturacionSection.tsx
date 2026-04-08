@@ -108,10 +108,11 @@ function ModalExtra({
 
 // ─── Fila de pago ─────────────────────────────────────────────────────────────
 function FilaPago({
-  pago, tenantId, onUpdate, onEmitirPago, onVerFactura,
+  pago, tenantId, isMobile, onUpdate, onEmitirPago, onVerFactura,
 }: {
   pago: Pago;
   tenantId: string;
+  isMobile: boolean;
   onUpdate: () => void;
   onEmitirPago?: (pago: Pago) => void;
   onVerFactura?: (pago: Pago) => void;
@@ -157,9 +158,108 @@ function FilaPago({
     onUpdate();
   }
 
-  const color = ESTADO_COLOR[pago.estado];
+  const color      = ESTADO_COLOR[pago.estado];
   const canAdvance = pago.estado !== "cobrada";
 
+  // ── Botones de acción (compartidos entre móvil y desktop) ──────────────────
+  const accionesNode = (
+    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+      {pago.numero_factura_emitida && (
+        <button onClick={() => onVerFactura?.(pago)} title={`Ver factura ${pago.numero_factura_emitida}`}
+          style={{ background: PRIMARY_L, color: PRIMARY, border: `1px solid ${PRIMARY}30`, borderRadius: 7, padding: "5px 9px", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+          <Eye style={{ width: 12, height: 12 }} />
+          <span>{pago.numero_factura_emitida}</span>
+        </button>
+      )}
+      {canAdvance && (
+        <button onClick={avanzarEstado} disabled={saving}
+          style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 7, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+          {saving ? <Loader2 style={{ width: 12, height: 12 }} /> : <Check style={{ width: 12, height: 12 }} />}
+          {pago.estado === "pendiente_emitir" ? "Emitir" : "Cobrar"}
+        </button>
+      )}
+      {pago.estado !== "cobrada" && pago.orden > 1 && (
+        <button onClick={() => setShowExtra(true)}
+          style={{ background: "#fffbeb", color: "#b45309", border: "1px solid #fde68a", borderRadius: 7, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+          + Extra
+        </button>
+      )}
+    </div>
+  );
+
+  // ── Modo móvil: tarjeta ────────────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <>
+        <div style={{ border: `1.5px solid ${color}22`, borderRadius: 12, padding: "12px 14px", marginBottom: 8, background: "#fff" }}>
+          {/* Fila superior: nº + concepto + badge estado */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ width: 24, height: 24, borderRadius: "50%", background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#6b7280", flexShrink: 0 }}>
+                {pago.orden}
+              </span>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{pago.concepto}</div>
+                <div style={{ fontSize: 11, color: "#6b7280" }}>{pago.porcentaje}% del presupuesto</div>
+              </div>
+            </div>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, background: color + "18", color, flexShrink: 0 }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: color }} />
+              {ESTADO_LABEL[pago.estado]}
+            </span>
+          </div>
+
+          {/* Importes */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 10, padding: "8px 10px", background: "#f9fafb", borderRadius: 8 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Base</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{fmt(pago.importe_base)} €</div>
+            </div>
+            {pago.importe_extra > 0 && (
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Extra</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#f59e0b" }}>+{fmt(pago.importe_extra)} €</div>
+              </div>
+            )}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Total</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#111827" }}>{fmt(pago.importe_total)} €</div>
+            </div>
+          </div>
+
+          {/* Fecha prevista */}
+          {(pago.fecha_prevista || pago.estado !== "cobrada") && (
+            <div style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 11, color: "#9ca3af" }}>Fecha prevista:</span>
+              {editFecha ? (
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
+                    style={{ border: "1px solid #e5e7eb", borderRadius: 6, padding: "3px 6px", fontSize: 12 }} />
+                  <button onClick={saveFecha} style={{ background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>Ok</button>
+                  <button onClick={() => setEditFecha(false)} style={{ background: "#f3f4f6", border: "none", borderRadius: 6, padding: "3px 6px", cursor: "pointer" }}><X style={{ width: 10, height: 10 }} /></button>
+                </div>
+              ) : (
+                <span onClick={() => pago.estado !== "cobrada" && setEditFecha(true)}
+                  style={{ fontSize: 12, color: "#374151", fontWeight: 500, cursor: pago.estado !== "cobrada" ? "pointer" : "default", textDecoration: pago.estado !== "cobrada" ? "underline dotted" : "none" }}>
+                  {fmtDate(pago.fecha_prevista)}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Acciones */}
+          {accionesNode}
+
+          {pago.nota && (
+            <div style={{ marginTop: 8, fontSize: 11, color: "#9ca3af", borderTop: "1px solid #f3f4f6", paddingTop: 6 }}>{pago.nota}</div>
+          )}
+        </div>
+        {showExtra && <ModalExtra pago={pago} onClose={() => setShowExtra(false)} onSave={handleExtra} />}
+      </>
+    );
+  }
+
+  // ── Modo desktop: fila de tabla ────────────────────────────────────────────
   return (
     <>
       <tr style={{ borderBottom: "1px solid #f3f4f6" }}>
@@ -175,26 +275,14 @@ function FilaPago({
             </div>
           </div>
         </td>
-
-        {/* % */}
         <td style={{ padding: "10px 8px", fontSize: 13, color: "#6b7280", textAlign: "center" }}>{pago.porcentaje}%</td>
-
-        {/* Importe base */}
         <td style={{ padding: "10px 8px", fontSize: 13, textAlign: "right", color: "#374151" }}>{fmt(pago.importe_base)} €</td>
-
-        {/* Extra */}
         <td style={{ padding: "10px 8px", fontSize: 13, textAlign: "right" }}>
-          {pago.importe_extra > 0 ? (
-            <span style={{ color: "#f59e0b", fontWeight: 600 }}>+{fmt(pago.importe_extra)} €</span>
-          ) : (
-            <span style={{ color: "#d1d5db" }}>—</span>
-          )}
+          {pago.importe_extra > 0
+            ? <span style={{ color: "#f59e0b", fontWeight: 600 }}>+{fmt(pago.importe_extra)} €</span>
+            : <span style={{ color: "#d1d5db" }}>—</span>}
         </td>
-
-        {/* Total */}
         <td style={{ padding: "10px 8px", fontSize: 14, fontWeight: 700, textAlign: "right", color: "#111827" }}>{fmt(pago.importe_total)} €</td>
-
-        {/* Fecha prevista */}
         <td style={{ padding: "10px 8px", fontSize: 12, color: "#6b7280" }}>
           {editFecha ? (
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
@@ -210,53 +298,17 @@ function FilaPago({
             </span>
           )}
         </td>
-
-        {/* Estado */}
         <td style={{ padding: "10px 8px" }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 20, background: color + "18", color }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0 }} />
             {ESTADO_LABEL[pago.estado]}
           </span>
         </td>
-
-        {/* Acciones */}
         <td style={{ padding: "10px 8px", textAlign: "right" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-            {/* Ver factura — solo cuando ya tiene número emitido */}
-            {pago.numero_factura_emitida && (
-              <button
-                onClick={() => onVerFactura?.(pago)}
-                title={`Ver factura ${pago.numero_factura_emitida}`}
-                style={{ background: PRIMARY_L, color: PRIMARY, border: `1px solid ${PRIMARY}30`, borderRadius: 7, padding: "4px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
-              >
-                <Eye style={{ width: 12, height: 12 }} />
-                <span style={{ fontSize: 10 }}>{pago.numero_factura_emitida}</span>
-              </button>
-            )}
-            {canAdvance && (
-              <button
-                onClick={avanzarEstado} disabled={saving}
-                style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 7, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
-              >
-                {saving ? <Loader2 style={{ width: 12, height: 12 }} /> : <Check style={{ width: 12, height: 12 }} />}
-                {pago.estado === "pendiente_emitir" ? "Emitir" : "Cobrar"}
-              </button>
-            )}
-            {pago.estado !== "cobrada" && pago.orden > 1 && (
-              <button
-                onClick={() => setShowExtra(true)}
-                style={{ background: "#fffbeb", color: "#b45309", border: "1px solid #fde68a", borderRadius: 7, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-              >
-                + Extra
-              </button>
-            )}
-          </div>
+          {accionesNode}
         </td>
       </tr>
-
-      {showExtra && (
-        <ModalExtra pago={pago} onClose={() => setShowExtra(false)} onSave={handleExtra} />
-      )}
+      {showExtra && <ModalExtra pago={pago} onClose={() => setShowExtra(false)} onSave={handleExtra} />}
     </>
   );
 }
@@ -277,6 +329,14 @@ function FacturaCard({
   const [editNumero, setEditNumero]   = useState(false);
   const [numeroEdit, setNumeroEdit]   = useState(factura.numero_factura ?? "" as string);
   const [savingNum, setSavingNum]     = useState(false);
+  const [isMobile, setIsMobile]       = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   function onEmitirPago(pago: Pago) { setPreviewPago(pago); }
   function onVerFactura(pago: Pago) { setPreviewPago(pago); }
@@ -361,28 +421,42 @@ function FacturaCard({
         {expanded ? <ChevronUp style={{ width: 16, height: 16, color: "#9ca3af", flexShrink: 0 }} /> : <ChevronDown style={{ width: 16, height: 16, color: "#9ca3af", flexShrink: 0 }} />}
       </div>
 
-      {/* Tabla de pagos */}
+      {/* Hitos de pago */}
       {expanded && (
-        <div style={{ borderTop: "1px solid #f3f4f6", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: "#fafafa" }}>
-                <th style={{ padding: "8px 8px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#9ca3af", whiteSpace: "nowrap" }}>Hito</th>
-                <th style={{ padding: "8px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>%</th>
-                <th style={{ padding: "8px 8px", textAlign: "right", fontSize: 11, fontWeight: 600, color: "#9ca3af", whiteSpace: "nowrap" }}>Base</th>
-                <th style={{ padding: "8px 8px", textAlign: "right", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>Extra</th>
-                <th style={{ padding: "8px 8px", textAlign: "right", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>Total</th>
-                <th style={{ padding: "8px 8px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#9ca3af", whiteSpace: "nowrap" }}>Fecha prev.</th>
-                <th style={{ padding: "8px 8px", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>Estado</th>
-                <th style={{ padding: "8px 8px", fontSize: 11, fontWeight: 600, color: "#9ca3af", textAlign: "right" }}>Acción</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div style={{ borderTop: "1px solid #f3f4f6" }}>
+          {isMobile ? (
+            // ── Tarjetas en móvil
+            <div style={{ padding: "10px 12px" }}>
               {factura.pagos.map((p) => (
-                <FilaPago key={p.id} pago={p} tenantId={tenantId} onUpdate={onUpdate} onEmitirPago={onEmitirPago} onVerFactura={onVerFactura} />
+                <FilaPago key={p.id} pago={p} tenantId={tenantId} isMobile={true}
+                  onUpdate={onUpdate} onEmitirPago={onEmitirPago} onVerFactura={onVerFactura} />
               ))}
-            </tbody>
-          </table>
+            </div>
+          ) : (
+            // ── Tabla en desktop
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#fafafa" }}>
+                    <th style={{ padding: "8px 8px", textAlign: "left",   fontSize: 11, fontWeight: 600, color: "#9ca3af", whiteSpace: "nowrap" }}>Hito</th>
+                    <th style={{ padding: "8px 8px", textAlign: "center", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>%</th>
+                    <th style={{ padding: "8px 8px", textAlign: "right",  fontSize: 11, fontWeight: 600, color: "#9ca3af", whiteSpace: "nowrap" }}>Base</th>
+                    <th style={{ padding: "8px 8px", textAlign: "right",  fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>Extra</th>
+                    <th style={{ padding: "8px 8px", textAlign: "right",  fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>Total</th>
+                    <th style={{ padding: "8px 8px", textAlign: "left",   fontSize: 11, fontWeight: 600, color: "#9ca3af", whiteSpace: "nowrap" }}>Fecha prev.</th>
+                    <th style={{ padding: "8px 8px", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>Estado</th>
+                    <th style={{ padding: "8px 8px", fontSize: 11, fontWeight: 600, color: "#9ca3af", textAlign: "right" }}>Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {factura.pagos.map((p) => (
+                    <FilaPago key={p.id} pago={p} tenantId={tenantId} isMobile={false}
+                      onUpdate={onUpdate} onEmitirPago={onEmitirPago} onVerFactura={onVerFactura} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
