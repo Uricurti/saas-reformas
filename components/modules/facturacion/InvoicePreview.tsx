@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { getTenantConfig, upsertTenantConfig, type TenantConfig } from "@/lib/insforge/database";
-import type { FacturaConPagos, Obra } from "@/types";
+import type { FacturaConPagos, Obra, Pago } from "@/types";
 import { X, Printer, Settings, Check, Loader2, Building2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -98,17 +98,32 @@ function ConfigEmpresaModal({
 
 // ─── Contenido imprimible de la factura ──────────────────────────────────────
 function InvoiceDocument({
-  factura, obra, config,
+  factura, obra, config, pago,
 }: {
   factura: FacturaConPagos;
   obra: Obra | null;
   config: TenantConfig | null;
+  pago?: Pago; // si se pasa → modo hito específico
 }) {
-  const totalBase  = factura.pagos.reduce((s, p) => s + p.importe_base, 0);
-  const totalExtra = factura.pagos.reduce((s, p) => s + (p.importe_extra ?? 0), 0);
-  const totalFinal = factura.pagos.reduce((s, p) => s + p.importe_total, 0);
-  const cobrado    = factura.pagos.filter((p) => p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
-  const pendiente  = totalFinal - cobrado;
+  // Modo hito-específico: mostramos solo ese pago con IVA
+  const isModoHito = !!pago;
+  const porcentajeIva = (factura as any).porcentaje_iva ?? 21;
+  const numeroFactura = isModoHito
+    ? `${factura.numero_factura ?? "FAC-???"}/${pago!.orden}`
+    : (factura.numero_factura ?? "—");
+
+  // Cálculos según modo
+  const pagosMostrar = isModoHito ? [pago!] : factura.pagos;
+  const baseHito     = isModoHito ? pago!.importe_total : 0;
+  const ivaHito      = isModoHito ? Math.round(baseHito * porcentajeIva / 100 * 100) / 100 : 0;
+  const totalHito    = isModoHito ? baseHito + ivaHito : 0;
+
+  // Modo completo
+  const totalBase    = factura.pagos.reduce((s, p) => s + p.importe_base, 0);
+  const totalExtra   = factura.pagos.reduce((s, p) => s + (p.importe_extra ?? 0), 0);
+  const totalFinal   = factura.pagos.reduce((s, p) => s + p.importe_total, 0);
+  const cobrado      = factura.pagos.filter((p) => p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
+  const pendiente    = totalFinal - cobrado;
 
   return (
     <div id="invoice-doc" style={{
@@ -145,11 +160,16 @@ function InvoiceDocument({
         {/* Número y fecha */}
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>
-            Factura
+            {isModoHito ? "Factura" : "Presupuesto / Factura"}
           </div>
           <div style={{ fontSize: 28, fontWeight: 900, color: "#1A1A2E", letterSpacing: "-1px" }}>
-            {factura.numero_factura ?? "—"}
+            {numeroFactura}
           </div>
+          {isModoHito && (
+            <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>
+              Hito {pago!.orden} de 3 · {pago!.porcentaje}%
+            </div>
+          )}
           {factura.fecha_emision && (
             <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
               {fmtDate(factura.fecha_emision)}
@@ -187,53 +207,68 @@ function InvoiceDocument({
         </div>
       </div>
 
-      {/* ── Concepto ────────────────────────────────────────────── */}
-      <div style={{ background: "#EEF2F8", borderRadius: 12, padding: "16px 20px", marginBottom: 28 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#607eaa", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>
-          Concepto
+      {/* ── Título del presupuesto ───────────────────────────────── */}
+      <div style={{ background: "#EEF2F8", borderRadius: 12, padding: "20px 24px", marginBottom: 28, borderLeft: "4px solid #607eaa" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#607eaa", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>
+          {isModoHito ? `Hito de cobro — ${pago!.concepto}` : "Concepto"}
         </div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A2E" }}>{factura.concepto}</div>
-        {factura.notas && <div style={{ fontSize: 13, color: "#4A5568", marginTop: 4 }}>{factura.notas}</div>}
+        <div style={{ fontSize: 18, fontWeight: 800, color: "#1A1A2E", marginBottom: factura.notas ? 12 : 0 }}>
+          {factura.concepto}
+        </div>
+        {factura.notas && (
+          <div style={{ fontSize: 13, color: "#4A5568", lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 4 }}>
+            {factura.notas}
+          </div>
+        )}
       </div>
 
-      {/* ── Tabla de hitos ──────────────────────────────────────── */}
+      {/* ── Tabla de hitos (o un solo hito) ─────────────────────── */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>
-          Hitos de pago
+          {isModoHito ? "Detalle del cobro" : "Hitos de pago"}
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "2px solid #EEF2F8" }}>
-              <th style={{ textAlign: "left",  padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>Hito</th>
+              <th style={{ textAlign: "left",  padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>Descripción</th>
               <th style={{ textAlign: "center",padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>%</th>
               <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>Importe base</th>
-              <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>Extras</th>
-              <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>Total</th>
-              <th style={{ textAlign: "center",padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>Fecha prev.</th>
-              <th style={{ textAlign: "center",padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>Estado</th>
+              {!isModoHito && <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>Extras</th>}
+              <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>Subtotal</th>
+              {!isModoHito && <th style={{ textAlign: "center",padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>Fecha prev.</th>}
+              {!isModoHito && <th style={{ textAlign: "center",padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>Estado</th>}
             </tr>
           </thead>
           <tbody>
-            {factura.pagos.map((p, i) => {
+            {pagosMostrar.map((p, i) => {
               const estadoColor = p.estado === "cobrada" ? "#10b981" : p.estado === "emitida" ? "#607eaa" : "#f59e0b";
               return (
                 <tr key={p.id} style={{ borderBottom: "1px solid #f8fafc", background: i % 2 === 0 ? "#fff" : "#fafbfc" }}>
-                  <td style={{ padding: "12px 12px", fontWeight: 600, color: "#1A1A2E" }}>{p.concepto}</td>
+                  <td style={{ padding: "12px 12px", fontWeight: 600, color: "#1A1A2E" }}>
+                    {p.concepto}
+                    {p.nota && <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400, marginTop: 2 }}>{p.nota}</div>}
+                  </td>
                   <td style={{ padding: "12px 12px", textAlign: "center", color: "#6b7280" }}>{p.porcentaje}%</td>
                   <td style={{ padding: "12px 12px", textAlign: "right", color: "#4A5568" }}>{fmtE(p.importe_base)}</td>
-                  <td style={{ padding: "12px 12px", textAlign: "right", color: p.importe_extra > 0 ? "#f59e0b" : "#d1d5db", fontWeight: p.importe_extra > 0 ? 700 : 400 }}>
-                    {p.importe_extra > 0 ? `+${fmtE(p.importe_extra)}` : "—"}
-                  </td>
+                  {!isModoHito && (
+                    <td style={{ padding: "12px 12px", textAlign: "right", color: p.importe_extra > 0 ? "#f59e0b" : "#d1d5db", fontWeight: p.importe_extra > 0 ? 700 : 400 }}>
+                      {p.importe_extra > 0 ? `+${fmtE(p.importe_extra)}` : "—"}
+                    </td>
+                  )}
                   <td style={{ padding: "12px 12px", textAlign: "right", fontWeight: 700, color: "#1A1A2E" }}>{fmtE(p.importe_total)}</td>
-                  <td style={{ padding: "12px 12px", textAlign: "center", color: "#6b7280", fontSize: 13 }}>
-                    {p.fecha_prevista ? fmtDate(p.fecha_prevista) : "—"}
-                  </td>
-                  <td style={{ padding: "12px 12px", textAlign: "center" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: estadoColor + "18", color: estadoColor }}>
-                      <span style={{ width: 5, height: 5, borderRadius: "50%", background: estadoColor }} />
-                      {ESTADO_LABEL[p.estado] ?? p.estado}
-                    </span>
-                  </td>
+                  {!isModoHito && (
+                    <td style={{ padding: "12px 12px", textAlign: "center", color: "#6b7280", fontSize: 13 }}>
+                      {p.fecha_prevista ? fmtDate(p.fecha_prevista) : "—"}
+                    </td>
+                  )}
+                  {!isModoHito && (
+                    <td style={{ padding: "12px 12px", textAlign: "center" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: estadoColor + "18", color: estadoColor }}>
+                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: estadoColor }} />
+                        {ESTADO_LABEL[p.estado] ?? p.estado}
+                      </span>
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -241,31 +276,66 @@ function InvoiceDocument({
         </table>
       </div>
 
-      {/* ── Resumen importes ────────────────────────────────────── */}
+      {/* ── Desglose IVA (modo hito) o Resumen (modo completo) ─── */}
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 36 }}>
-        <div style={{ width: 300 }}>
-          {totalExtra > 0 && (
+        <div style={{ width: 320 }}>
+          {isModoHito ? (
+            // Desglose con IVA
             <>
+              {pago!.importe_extra > 0 && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#6b7280", fontSize: 14 }}>
+                    <span>Importe base</span><span>{fmtE(pago!.importe_base)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#f59e0b", fontWeight: 600, fontSize: 14 }}>
+                    <span>Extras adicionales</span><span>+{fmtE(pago!.importe_extra)}</span>
+                  </div>
+                  <div style={{ height: 1, background: "#e5e7eb", margin: "4px 0 8px" }} />
+                </>
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#6b7280", fontSize: 14 }}>
-                <span>Importe base</span><span>{fmtE(totalBase)}</span>
+                <span>Base imponible</span><span>{fmtE(baseHito)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#f59e0b", fontWeight: 600, fontSize: 14 }}>
-                <span>Extras adicionales</span><span>+{fmtE(totalExtra)}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#6b7280", fontSize: 14 }}>
+                <span>IVA ({porcentajeIva}%)</span><span>{fmtE(ivaHito)}</span>
               </div>
               <div style={{ height: 1, background: "#e5e7eb", margin: "6px 0" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 20px", background: "#1A1A2E", borderRadius: 10, color: "#fff", fontWeight: 800, fontSize: 20, marginTop: 4 }}>
+                <span>TOTAL</span><span>{fmtE(totalHito)}</span>
+              </div>
+              {pago!.fecha_prevista && (
+                <div style={{ textAlign: "right", fontSize: 12, color: "#94a3b8", marginTop: 8 }}>
+                  Fecha prevista de cobro: {fmtDate(pago!.fecha_prevista)}
+                </div>
+              )}
             </>
-          )}
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 16px", background: "#1A1A2E", borderRadius: 10, color: "#fff", fontWeight: 800, fontSize: 18 }}>
-            <span>TOTAL</span><span>{fmtE(totalFinal)}</span>
-          </div>
-          {cobrado > 0 && (
+          ) : (
+            // Resumen sin IVA (vista general)
             <>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#10b981", fontWeight: 600, fontSize: 13, marginTop: 8 }}>
-                <span>Cobrado</span><span>−{fmtE(cobrado)}</span>
+              {totalExtra > 0 && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#6b7280", fontSize: 14 }}>
+                    <span>Importe base</span><span>{fmtE(totalBase)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#f59e0b", fontWeight: 600, fontSize: 14 }}>
+                    <span>Extras adicionales</span><span>+{fmtE(totalExtra)}</span>
+                  </div>
+                  <div style={{ height: 1, background: "#e5e7eb", margin: "6px 0" }} />
+                </>
+              )}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 16px", background: "#1A1A2E", borderRadius: 10, color: "#fff", fontWeight: 800, fontSize: 18 }}>
+                <span>TOTAL (sin IVA)</span><span>{fmtE(totalFinal)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#f59e0b", fontWeight: 700, fontSize: 14 }}>
-                <span>Pendiente</span><span>{fmtE(pendiente)}</span>
-              </div>
+              {cobrado > 0 && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#10b981", fontWeight: 600, fontSize: 13, marginTop: 8 }}>
+                    <span>Cobrado</span><span>−{fmtE(cobrado)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", color: "#f59e0b", fontWeight: 700, fontSize: 14 }}>
+                    <span>Pendiente</span><span>{fmtE(pendiente)}</span>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
@@ -275,7 +345,10 @@ function InvoiceDocument({
       <div style={{ height: 1, background: "#EEF2F8", marginBottom: 24 }} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 11, color: "#94a3b8", maxWidth: 420 }}>
-          Esta factura ha sido generada con ReforLife · El pago debe realizarse según los hitos acordados. En caso de retraso se aplicará el interés legal vigente.
+          {isModoHito
+            ? `Factura nº ${numeroFactura} emitida conforme a la ley fiscal vigente. IVA incluido según tipo aplicable. En caso de impago se aplicará el interés legal vigente.`
+            : "Este documento es un resumen de la facturación de la obra. Cada hito tiene su propia factura con IVA desglosado."
+          }
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: "#607eaa", letterSpacing: "-0.5px" }}>ReforLife</div>
@@ -288,11 +361,12 @@ function InvoiceDocument({
 
 // ─── Componente principal (modal con overlay) ─────────────────────────────────
 export function InvoicePreview({
-  factura, obra, tenantId, onClose,
+  factura, obra, tenantId, pago, onClose,
 }: {
   factura: FacturaConPagos;
   obra: Obra | null;
   tenantId: string;
+  pago?: Pago;
   onClose: () => void;
 }) {
   const [config, setConfig]           = useState<TenantConfig | null>(null);
@@ -303,6 +377,10 @@ export function InvoicePreview({
     getTenantConfig(tenantId).then((c) => { setConfig(c); setLoadingConfig(false); });
   }, [tenantId]);
 
+  const invoiceTitle = pago
+    ? `${factura.numero_factura ?? "FAC-???"}/${pago.orden}`
+    : (factura.numero_factura ?? "Factura");
+
   function handlePrint() {
     const content = document.getElementById("invoice-doc");
     if (!content) return;
@@ -312,7 +390,7 @@ export function InvoicePreview({
 <html lang="es">
 <head>
   <meta charset="UTF-8"/>
-  <title>Factura ${factura.numero_factura ?? ""}</title>
+  <title>Factura ${invoiceTitle}</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family: 'Helvetica Neue', Arial, sans-serif; background:#fff; }
@@ -340,7 +418,10 @@ export function InvoicePreview({
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#1A1A2E" }}>
-                Vista previa — {factura.numero_factura ?? "Sin número"}
+                Vista previa —{" "}
+                {pago
+                  ? `${factura.numero_factura ?? "FAC-???"}/${pago.orden} · ${pago.concepto}`
+                  : (factura.numero_factura ?? "Sin número")}
               </div>
               <div style={{ fontSize: 12, color: "#9ca3af" }}>{factura.concepto}</div>
             </div>
@@ -389,7 +470,7 @@ export function InvoicePreview({
 
               {/* Documento factura */}
               <div style={{ maxWidth: 820, margin: "0 auto", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", borderRadius: 4, overflow: "hidden" }}>
-                <InvoiceDocument factura={factura} obra={obra} config={config} />
+                <InvoiceDocument factura={factura} obra={obra} config={config} pago={pago} />
               </div>
             </>
           )}

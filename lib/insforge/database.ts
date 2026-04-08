@@ -661,6 +661,7 @@ export async function createFactura(params: {
   concepto: string;
   importeTotal: number;
   numeroFactura: string;
+  porcentajeIva?: number;
   fechaEmision?: string | null;
   notas?: string | null;
   pagos: {
@@ -677,6 +678,7 @@ export async function createFactura(params: {
       concepto: params.concepto,
       importe_total: params.importeTotal,
       numero_factura: params.numeroFactura,
+      porcentaje_iva: params.porcentajeIva ?? 21,
       fecha_emision: params.fechaEmision ?? null,
       notas: params.notas ?? null,
     })

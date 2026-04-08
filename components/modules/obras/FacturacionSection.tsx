@@ -108,10 +108,11 @@ function ModalExtra({
 
 // ─── Fila de pago ─────────────────────────────────────────────────────────────
 function FilaPago({
-  pago, onUpdate,
+  pago, onUpdate, onEmitirPago,
 }: {
   pago: Pago;
   onUpdate: () => void;
+  onEmitirPago?: (pago: Pago) => void;
 }) {
   const [saving, setSaving] = useState(false);
   const [showExtra, setShowExtra] = useState(false);
@@ -124,8 +125,12 @@ function FilaPago({
     const extra: Partial<{ fecha_cobro: string; estado: PagoEstado }> = { estado: next };
     if (next === "cobrada") extra.fecha_cobro = new Date().toISOString().split("T")[0];
     await updatePago(pago.id, extra);
-    onUpdate();
     setSaving(false);
+    onUpdate();
+    // Si pasamos a "emitida", abrimos el preview de ese hito
+    if (next === "emitida" && onEmitirPago) {
+      onEmitirPago({ ...pago, estado: "emitida" });
+    }
   }
 
   async function saveFecha() {
@@ -247,12 +252,17 @@ function FacturaCard({
   onUpdate: () => void;
   onDelete: (id: string) => void;
 }) {
-  const [expanded, setExpanded]       = useState(false);
-  const [deleting, setDeleting]       = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [editNumero, setEditNumero]   = useState(false);
-  const [numeroEdit, setNumeroEdit]   = useState(factura.numero_factura ?? "" as string);
-  const [savingNum, setSavingNum]     = useState(false);
+  const [expanded, setExpanded]         = useState(false);
+  const [deleting, setDeleting]         = useState(false);
+  // previewPago: null = cerrado, "all" = todos los hitos, Pago = hito específico
+  const [previewPago, setPreviewPago]   = useState<Pago | "all" | null>(null);
+  const [editNumero, setEditNumero]     = useState(false);
+  const [numeroEdit, setNumeroEdit]     = useState(factura.numero_factura ?? "" as string);
+  const [savingNum, setSavingNum]       = useState(false);
+
+  function onEmitirPago(pago: Pago) {
+    setPreviewPago(pago);
+  }
 
   const cobrado    = factura.pagos.filter((p) => p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
   const total      = factura.pagos.reduce((s, p) => s + p.importe_total, 0);
@@ -329,8 +339,8 @@ function FacturaCard({
         </div>
         {/* Botón preview */}
         <button
-          onClick={(e) => { e.stopPropagation(); setShowPreview(true); }}
-          title="Ver factura"
+          onClick={(e) => { e.stopPropagation(); setPreviewPago("all"); }}
+          title="Ver factura completa"
           style={{ background: PRIMARY_L, border: `1px solid ${PRIMARY}30`, borderRadius: 8, padding: "5px 8px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, color: PRIMARY, fontSize: 11, fontWeight: 600, flexShrink: 0 }}
         >
           <Eye style={{ width: 13, height: 13 }} />
@@ -361,7 +371,7 @@ function FacturaCard({
             </thead>
             <tbody>
               {factura.pagos.map((p) => (
-                <FilaPago key={p.id} pago={p} onUpdate={onUpdate} />
+                <FilaPago key={p.id} pago={p} onUpdate={onUpdate} onEmitirPago={onEmitirPago} />
               ))}
             </tbody>
           </table>
@@ -369,13 +379,14 @@ function FacturaCard({
       )}
     </div>
 
-    {/* Preview modal */}
-    {showPreview && (
+    {/* Preview modal — hito específico o factura completa */}
+    {previewPago !== null && (
       <InvoicePreview
         factura={factura}
         obra={obra}
         tenantId={tenantId}
-        onClose={() => setShowPreview(false)}
+        pago={previewPago === "all" ? undefined : previewPago}
+        onClose={() => setPreviewPago(null)}
       />
     )}
     </>
@@ -391,9 +402,10 @@ function NuevaFacturaForm({
 }) {
   const [concepto, setConcepto] = useState("");
   const [importe, setImporte] = useState("");
+  const [iva, setIva] = useState<10 | 21>(21);
   const [numero, setNumero] = useState("");
   const [fechaEmision, setFechaEmision] = useState("");
-  const [notas, setNotas] = useState("");
+  const [descripcion, setDescripcion] = useState("");
   const [pagos, setPagos] = useState(PAGOS_DEFAULT.map((p) => ({ ...p })));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -408,6 +420,8 @@ function NuevaFacturaForm({
 
   const sumPct = pagos.reduce((s, p) => s + (parseFloat(String(p.porcentaje)) || 0), 0);
   const importeNum = parseFloat(importe.replace(",", ".")) || 0;
+  const ivaImporte = Math.round(importeNum * iva / 100 * 100) / 100;
+  const totalConIva = importeNum + ivaImporte;
 
   async function handleCreate() {
     setError(null);
@@ -418,7 +432,8 @@ function NuevaFacturaForm({
     setSaving(true);
     const { error: err } = await createFactura({
       tenantId, obraId, concepto, importeTotal: importeNum,
-      numeroFactura: numero, fechaEmision: fechaEmision || null, notas: notas || null,
+      porcentajeIva: iva,
+      numeroFactura: numero, fechaEmision: fechaEmision || null, notas: descripcion || null,
       pagos: pagos.map((p) => ({
         concepto: p.concepto, porcentaje: parseFloat(String(p.porcentaje)), fechaPrevista: p.fechaPrevista,
       })),
@@ -437,19 +452,38 @@ function NuevaFacturaForm({
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div style={{ gridColumn: "1 / -1" }}>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Concepto *</label>
-          <input value={concepto} onChange={(e) => setConcepto(e.target.value)} placeholder="Reforma baño, ampliación cocina…"
+          <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Título / concepto *</label>
+          <input value={concepto} onChange={(e) => setConcepto(e.target.value)} placeholder="Reforma integral baño principal…"
             style={{ width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", fontSize: 14, boxSizing: "border-box" }} />
         </div>
         <div>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Importe total (€) *</label>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Base imponible (€) *</label>
           <input value={importe} onChange={(e) => setImporte(e.target.value)} type="number" placeholder="0.00" min="0" step="0.01"
             style={{ width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", fontSize: 14, boxSizing: "border-box" }} />
         </div>
         <div>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Nº Factura</label>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>IVA aplicable</label>
+          <div style={{ display: "flex", gap: 6 }}>
+            {([10, 21] as const).map((pct) => (
+              <button key={pct} type="button" onClick={() => setIva(pct)}
+                style={{ flex: 1, border: `2px solid ${iva === pct ? PRIMARY : "#e5e7eb"}`, borderRadius: 8, padding: "8px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", background: iva === pct ? PRIMARY_L : "#fff", color: iva === pct ? PRIMARY_D : "#6b7280", transition: "all 0.15s" }}>
+                {pct}%
+              </button>
+            ))}
+          </div>
+          {importeNum > 0 && (
+            <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280", display: "flex", gap: 8 }}>
+              <span>IVA: <strong style={{ color: PRIMARY }}>{fmt(ivaImporte)} €</strong></span>
+              <span>·</span>
+              <span>Total: <strong style={{ color: "#1A1A2E" }}>{fmt(totalConIva)} €</strong></span>
+            </div>
+          )}
+        </div>
+        <div>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Nº Factura base</label>
           <input value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="FAC-001"
             style={{ width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", fontSize: 14, boxSizing: "border-box" }} />
+          <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 3 }}>Cada hito: {numero || "FAC-001"}/1, /2, /3</div>
         </div>
         <div>
           <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Fecha emisión</label>
@@ -457,9 +491,11 @@ function NuevaFacturaForm({
             style={{ width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", fontSize: 14, boxSizing: "border-box" }} />
         </div>
         <div style={{ gridColumn: "1 / -1" }}>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Notas (opcional)</label>
-          <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={2}
-            style={{ width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", fontSize: 13, resize: "none", boxSizing: "border-box" }} />
+          <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Descripción completa del presupuesto</label>
+          <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={5}
+            placeholder={"Detalla aquí todo el alcance de la obra:\n– Demolición y preparación de paredes\n– Instalación de alicatado y solado\n– Fontanería: sustitución de tuberías y sanitarios\n– Pintura final con dos manos de acabado\n…"}
+            style={{ width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", fontSize: 13, resize: "vertical", boxSizing: "border-box", lineHeight: 1.6 }} />
+          <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 3 }}>Aparecerá en el cuerpo de cada factura</div>
         </div>
       </div>
 

@@ -228,6 +228,7 @@ export interface Factura {
   fecha_emision: string | null;
   archivo_url: string | null;
   notas: string | null;
+  porcentaje_iva: number;
   created_at: string;
   updated_at: string;
 }
