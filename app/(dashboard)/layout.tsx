@@ -30,7 +30,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Contenido principal */}
       <main className="flex-1 flex flex-col min-w-0">
-        <div className="flex-1 overflow-auto md:pb-0" style={{ paddingBottom: "calc(82px + env(safe-area-inset-bottom))" }}>
+        <div className="flex-1 overflow-auto md:pb-0" style={{ paddingBottom: "calc(100px + env(safe-area-inset-bottom))" }}>
           {children}
         </div>
       </main>

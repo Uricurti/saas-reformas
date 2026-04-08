@@ -200,7 +200,12 @@ export function BottomNav() {
               className={cn(isActive ? "bottom-nav-item-active" : "bottom-nav-item")}
             >
               <div className="relative">
-                <item.icon className={cn("w-5 h-5", isActive && "stroke-[2.5]")} />
+                <item.icon
+                  className={cn(
+                    "w-[22px] h-[22px] transition-transform duration-200",
+                    isActive ? "stroke-[2.5] scale-110" : "scale-100"
+                  )}
+                />
                 {isBell && noLeidas > 0 && (
                   <span
                     className="absolute -top-1 -right-1.5 min-w-[14px] h-3.5 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5"
@@ -210,18 +215,26 @@ export function BottomNav() {
                   </span>
                 )}
               </div>
-              <span className="text-[10px] font-medium mt-0.5">{item.label}</span>
+              <span className={cn(
+                "text-[10px] mt-0.5 transition-all duration-200",
+                isActive ? "font-bold" : "font-medium"
+              )}>
+                {item.label}
+              </span>
             </Link>
           );
         })}
 
-        {/* Botón de perfil */}
+        {/* Botón perfil */}
         <button
           onClick={() => setShowPerfil(true)}
           className="bottom-nav-item"
         >
-          <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-[9px] font-bold leading-none">
+          <div
+            className="w-[26px] h-[26px] rounded-full flex items-center justify-center flex-shrink-0 transition-transform duration-200"
+            style={{ background: "#607eaa" }}
+          >
+            <span className="text-white text-[10px] font-bold leading-none">
               {initials(user?.nombre ?? "?")}
             </span>
           </div>
