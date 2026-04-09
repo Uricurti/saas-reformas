@@ -28,6 +28,9 @@ function fichajeKey(userId: string) {
 function marcarFichadoLocal(userId: string) {
   try { localStorage.setItem(fichajeKey(userId), "1"); } catch { }
 }
+function limpiarFichadoLocal(userId: string) {
+  try { localStorage.removeItem(fichajeKey(userId)); } catch { }
+}
 function yaFichadoLocal(userId: string): boolean {
   try { return localStorage.getItem(fichajeKey(userId)) === "1"; } catch { return false; }
 }
@@ -65,23 +68,22 @@ export function FichajeModal() {
   async function comprobarJornada() {
     setIsLoading(true);
     try {
-      // 1. Check localStorage (fastest, offline-friendly)
-      if (yaFichadoLocal(user!.id)) {
-        setIsLoading(false);
-        return;
-      }
-
-      // 2. Check today's jornada
+      // 1. Siempre consultar la BD para que el admin pueda resetear fichajes
       const jornada = await getJornadaHoy(user!.id);
 
       if (jornada?.ha_fichado) {
+        // Fichado confirmado en BD → actualizar localStorage y no mostrar popup
         marcarFichadoLocal(user!.id);
         setIsLoading(false);
         return;
       }
 
+      // Si llegamos aquí, la BD dice que NO está fichado → limpiar localStorage
+      // (cubre el caso en que el admin haya reseteado el fichaje)
+      limpiarFichadoLocal(user!.id);
+
       if (jornada && !jornada.ha_fichado) {
-        // Admin planned a jornada for today → show modal with pre-filled obra
+        // Admin planificó jornada para hoy pero aún no fichó → mostrar popup
         setJornadaHoy(jornada);
         if (jornada.obra_id) {
           const { data: obraData } = await getObraById(jornada.obra_id);
@@ -92,11 +94,11 @@ export function FichajeModal() {
         return;
       }
 
-      // 3. No jornada → fall back to long-term asignacion
+      // 2. Sin jornada → buscar asignación activa de larga duración
       const obra = await getAsignacionHoyByUser(user!.id);
       if (!obra) {
         setIsLoading(false);
-        return; // Not scheduled today
+        return; // No tiene trabajo asignado hoy
       }
 
       setObraAsignada(obra);
