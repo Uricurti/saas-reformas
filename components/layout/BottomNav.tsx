@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Calendar, ShoppingCart, Bell, Calculator, LogOut, X, TrendingUp, Settings } from "lucide-react";
+import { Building2, Calendar, ShoppingCart, Bell, Calculator, LogOut, X, TrendingUp, Settings, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsAdmin, useAuthStore } from "@/lib/stores/auth-store";
 import { useNotificacionesStore } from "@/lib/stores/notificaciones-store";
@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import { initials } from "@/lib/utils/format";
 import { getTenantConfig, type TenantConfig } from "@/lib/insforge/database";
 import { EmpresaConfigModal } from "@/components/ui/EmpresaConfigModal";
+import { MiPerfilModal } from "@/components/ui/MiPerfilModal";
 
 const navEmpleado = [
   { href: "/obras",          label: "Obras",      icon: Building2 },
@@ -45,6 +46,7 @@ function PerfilSheet({
   const [mounted, setMounted] = useState(false);
   const [showEmpresa, setShowEmpresa] = useState(false);
   const [empresaConfig, setEmpresaConfig] = useState<TenantConfig | null>(null);
+  const [showMiPerfil, setShowMiPerfil] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -88,6 +90,20 @@ function PerfilSheet({
           </div>
         </div>
 
+        {/* Editar mis datos — todos los usuarios */}
+        <button
+          onClick={() => setShowMiPerfil(true)}
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", borderRadius: 12, border: "1.5px solid #EEF2F8", backgroundColor: "#f9fafb", cursor: "pointer", marginBottom: 10 }}
+        >
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: "#EEF2F8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Pencil style={{ width: 18, height: 18, color: "#607eaa" }} />
+          </div>
+          <div style={{ textAlign: "left" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Editar mis datos</div>
+            <div style={{ fontSize: 12, color: "#9ca3af" }}>Nombre, email, contraseña</div>
+          </div>
+        </button>
+
         {/* Datos de empresa — solo admin */}
         {isAdmin && (
           <button
@@ -126,7 +142,14 @@ function PerfilSheet({
     />
   ) : null;
 
-  return <>{sheet}{empresaModal}</>;
+  const perfilModal = showMiPerfil && user ? (
+    <MiPerfilModal
+      user={user as any}
+      onClose={() => setShowMiPerfil(false)}
+    />
+  ) : null;
+
+  return <>{sheet}{empresaModal}{perfilModal}</>;
 }
 
 export function BottomNav() {
