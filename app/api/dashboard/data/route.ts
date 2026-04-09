@@ -127,7 +127,8 @@ export async function GET(req: NextRequest) {
     })
     .filter(Boolean)
     .sort((a: any, b: any) => {
-      if (a.ha_fichado !== b.ha_fichado) return a.ha_fichado ? 1 : -1;
+      // Fichados primero, sin fichar al final
+      if (a.ha_fichado !== b.ha_fichado) return a.ha_fichado ? -1 : 1;
       return a.nombre.localeCompare(b.nombre, "es");
     });
 
@@ -159,7 +160,7 @@ export async function GET(req: NextRequest) {
       tipo:        "fichaje",
       user_nombre: userMap[j.user_id] ?? "Empleado",
       obra_nombre: obraMap[j.obra_id] ?? null,
-      descripcion: `fichó a las ${new Date(j.fichado_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`,
+      descripcion: `fichó a las ${new Date(j.fichado_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })}`,
       created_at:  j.fichado_at,
     });
   }

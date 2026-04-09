@@ -99,8 +99,9 @@ export const actividadConfig = {
 function FichajeRow({ emp, procesando, onFichar }: {
   emp: FichajeEmpleado; procesando: boolean; onFichar: () => void;
 }) {
+  // Siempre formatear en hora de España (el servidor guarda en UTC)
   const hora = emp.fichado_at
-    ? new Date(emp.fichado_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })
+    ? new Date(emp.fichado_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })
     : null;
 
   return (
@@ -252,14 +253,20 @@ export default function DashboardPage() {
     setProcesando(emp.user_id);
     const nuevoFichado = !emp.ha_fichado;
     const hoy = new Date().toISOString().split("T")[0];
-    setData((prev) => prev ? {
-      ...prev,
-      fichajeHoy: prev.fichajeHoy.map((e) =>
+    setData((prev) => {
+      if (!prev) return prev;
+      const updated = prev.fichajeHoy.map((e) =>
         e.user_id === emp.user_id
           ? { ...e, ha_fichado: nuevoFichado, fichado_at: nuevoFichado ? new Date().toISOString() : null }
           : e
-      ),
-    } : prev);
+      );
+      // Reordenar: fichados primero, sin fichar al final
+      updated.sort((a, b) => {
+        if (a.ha_fichado !== b.ha_fichado) return a.ha_fichado ? -1 : 1;
+        return a.nombre.localeCompare(b.nombre, "es");
+      });
+      return { ...prev, fichajeHoy: updated };
+    });
     await upsertJornada({ userId: emp.user_id, tenantId, fecha: hoy, estado: "trabajando", obraId: emp.obra_id ?? undefined, haFichado: nuevoFichado });
     setProcesando(null);
     cargar();
@@ -298,8 +305,8 @@ export default function DashboardPage() {
       {/* ── Grid principal ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
 
-        {/* ── Columna izquierda (3/5) ─────────────────────────────────────── */}
-        <div className="lg:col-span-3 space-y-5">
+        {/* ── Columna izquierda (3/5): solo fichaje ───────────────────────── */}
+        <div className="lg:col-span-3">
 
           {/* FICHAJE DE HOY */}
           <div className="card overflow-hidden">
@@ -371,41 +378,6 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
-
-          {/* ACTIVIDAD RECIENTE */}
-          {data.actividad.length > 0 && (
-            <div className="card overflow-hidden">
-              <div className="px-5 pt-5 pb-4" style={{ borderBottom: "1px solid #F3F4F6" }}>
-                <h2 className="text-xs font-bold uppercase tracking-widest" style={{ color: "#94A3B8" }}>
-                  Actividad reciente
-                </h2>
-              </div>
-              <div className="px-5 py-3">
-                {actividadPreview.map((item, i) => (
-                  <ActividadRow
-                    key={item.id}
-                    item={item}
-                    last={i === actividadPreview.length - 1 && data.actividad.length <= 4}
-                  />
-                ))}
-              </div>
-              {data.actividad.length > 4 && (
-                <Link
-                  href="/dashboard/actividad"
-                  className="flex items-center justify-center gap-2 py-3.5 transition-colors"
-                  style={{
-                    borderTop: "1px solid #F3F4F6",
-                    color: "#607eaa",
-                    fontSize: 13,
-                    fontWeight: 600,
-                  }}
-                >
-                  Ver toda la actividad
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              )}
-            </div>
-          )}
 
         </div>
 
@@ -507,6 +479,36 @@ export default function DashboardPage() {
 
         </div>
       </div>
+
+      {/* ── Actividad reciente — siempre al final, full-width ─────────────── */}
+      {data.actividad.length > 0 && (
+        <div className="card overflow-hidden mt-5">
+          <div className="px-5 pt-5 pb-4" style={{ borderBottom: "1px solid #F3F4F6" }}>
+            <h2 className="text-xs font-bold uppercase tracking-widest" style={{ color: "#94A3B8" }}>
+              Actividad reciente
+            </h2>
+          </div>
+          <div className="px-5 py-3">
+            {actividadPreview.map((item, i) => (
+              <ActividadRow
+                key={item.id}
+                item={item}
+                last={i === actividadPreview.length - 1 && data.actividad.length <= 4}
+              />
+            ))}
+          </div>
+          {data.actividad.length > 4 && (
+            <Link
+              href="/dashboard/actividad"
+              className="flex items-center justify-center gap-2 py-3.5 transition-colors"
+              style={{ borderTop: "1px solid #F3F4F6", color: "#607eaa", fontSize: 13, fontWeight: 600 }}
+            >
+              Ver toda la actividad
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* ── Empty state total ──────────────────────────────────────────────── */}
       {data.actividad.length === 0 && data.fichajeHoy.length === 0 && (
