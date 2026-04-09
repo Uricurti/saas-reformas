@@ -92,7 +92,7 @@ function PerfilSheet({
 
         {/* Editar mis datos — todos los usuarios */}
         <button
-          onClick={() => setShowMiPerfil(true)}
+          onClick={() => { onClose(); setTimeout(() => setShowMiPerfil(true), 200); }}
           style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", borderRadius: 12, border: "1.5px solid #EEF2F8", backgroundColor: "#f9fafb", cursor: "pointer", marginBottom: 10 }}
         >
           <div style={{ width: 38, height: 38, borderRadius: 10, background: "#EEF2F8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -107,7 +107,7 @@ function PerfilSheet({
         {/* Datos de empresa — solo admin */}
         {isAdmin && (
           <button
-            onClick={() => setShowEmpresa(true)}
+            onClick={() => { onClose(); setTimeout(() => setShowEmpresa(true), 200); }}
             style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", borderRadius: 12, border: "1.5px solid #EEF2F8", backgroundColor: "#f9fafb", cursor: "pointer", marginBottom: 10 }}
           >
             <div style={{ width: 38, height: 38, borderRadius: 10, background: "#EEF2F8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>

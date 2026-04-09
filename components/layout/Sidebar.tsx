@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -40,6 +41,8 @@ export function Sidebar() {
   const [showEmpresa, setShowEmpresa] = useState(false);
   const [empresaConfig, setEmpresaConfig] = useState<TenantConfig | null>(null);
   const [showMiPerfil, setShowMiPerfil] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   // Cargamos la config de empresa al montar (solo admins)
   useEffect(() => {
@@ -51,6 +54,7 @@ export function Sidebar() {
   const navItems = isAdmin ? navItemsAdmin : navItemsEmpleado;
 
   return (
+    <>
     <div
       className="h-screen flex flex-col sticky top-0"
       style={{
@@ -219,23 +223,26 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Modal datos de empresa */}
-      {showEmpresa && user?.tenant_id && (
-        <EmpresaConfigModal
-          tenantId={user.tenant_id}
-          config={empresaConfig}
-          onClose={() => setShowEmpresa(false)}
-          onSaved={(c) => setEmpresaConfig(c)}
-        />
-      )}
-
-      {/* Modal mis datos */}
-      {showMiPerfil && user && (
-        <MiPerfilModal
-          user={user}
-          onClose={() => setShowMiPerfil(false)}
-        />
-      )}
     </div>
+
+    {/* Modales fuera del sidebar para evitar el bug de backdrop-filter con position:fixed */}
+    {mounted && showEmpresa && user?.tenant_id && createPortal(
+      <EmpresaConfigModal
+        tenantId={user.tenant_id}
+        config={empresaConfig}
+        onClose={() => setShowEmpresa(false)}
+        onSaved={(c) => setEmpresaConfig(c)}
+      />,
+      document.body
+    )}
+
+    {mounted && showMiPerfil && user && createPortal(
+      <MiPerfilModal
+        user={user}
+        onClose={() => setShowMiPerfil(false)}
+      />,
+      document.body
+    )}
+  </>
   );
 }
