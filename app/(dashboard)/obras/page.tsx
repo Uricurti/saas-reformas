@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRefreshOnFocus } from "@/lib/hooks/useRefreshOnFocus";
 import { useAuthStore, useIsAdmin, useTenantId } from "@/lib/stores/auth-store";
-import { getObrasActivas, getObrasAsignadasByUser } from "@/lib/insforge/database";
+import { getObrasActivas } from "@/lib/insforge/database";
 import { getAsignacionHoyByUser } from "@/lib/insforge/database";
 import type { ObraConAsignados, Obra } from "@/types";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -19,7 +19,6 @@ export default function ObrasPage() {
   const tenantId = useTenantId();
 
   const [obras, setObras] = useState<ObraConAsignados[]>([]);
-  const [obrasEmpleado, setObrasEmpleado] = useState<Obra[]>([]);
   const [obraHoy, setObraHoy] = useState<Obra | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showCrearModal, setShowCrearModal] = useState(false);
@@ -34,19 +33,15 @@ export default function ObrasPage() {
   async function cargar() {
     setIsLoading(true);
     try {
-      if (isAdmin) {
-        const { data, error } = await getObrasActivas(tenantId!);
-        if (error) console.error("[obras] Error cargando obras:", error);
-        setObras((data as ObraConAsignados[]) ?? []);
-      } else if (user) {
-        // Empleado: carga en paralelo su obra de hoy + todas sus obras asignadas
-        // Las obras asignadas NO dependen del fichaje ni del estado de hoy
-        const [obraHoyRes, obrasAsignadas] = await Promise.all([
-          getAsignacionHoyByUser(user.id).catch(() => null),
-          getObrasAsignadasByUser(user.id).catch(() => []),
-        ]);
+      // Todos cargan todas las obras activas del tenant
+      const { data, error } = await getObrasActivas(tenantId!);
+      if (error) console.error("[obras] Error cargando obras:", error);
+      setObras((data as ObraConAsignados[]) ?? []);
+
+      // Empleados: también cargan su obra de hoy para el banner superior
+      if (!isAdmin && user) {
+        const obraHoyRes = await getAsignacionHoyByUser(user.id).catch(() => null);
         setObraHoy(obraHoyRes);
-        setObrasEmpleado(obrasAsignadas);
       }
     } catch (e) {
       console.error("[obras] Error inesperado:", e);
@@ -60,10 +55,8 @@ export default function ObrasPage() {
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
       <PageHeader
-        title={isAdmin ? "Obras" : "Mis obras"}
-        subtitle={isAdmin
-          ? `${obras.length} obra${obras.length !== 1 ? "s" : ""} activa${obras.length !== 1 ? "s" : ""}`
-          : "Tu asignación de hoy y próximos días"}
+        title="Obras"
+        subtitle={`${obras.length} obra${obras.length !== 1 ? "s" : ""} activa${obras.length !== 1 ? "s" : ""}`}
         action={isAdmin ? (
           <button onClick={() => setShowCrearModal(true)} className="btn-primary">
             <Plus className="w-4 h-4" /> Nueva obra
@@ -71,43 +64,21 @@ export default function ObrasPage() {
         ) : undefined}
       />
 
-      {/* Vista empleado: obra de hoy + sus obras asignadas */}
+      {/* Banner obra de hoy — solo empleados */}
       {!isAdmin && (
-        <>
-          {/* Asignación de hoy */}
-          <div className="mb-6">
-            {obraHoy ? (
-              <ObraEmpleadoCard obra={obraHoy} />
-            ) : (
-              <div className="card p-4 flex items-center gap-3 border-l-4 border-warning">
-                <Building2 className="w-5 h-5 text-warning flex-shrink-0" />
-                <div>
-                  <p className="font-medium text-content-primary text-sm">Sin asignación hoy</p>
-                  <p className="text-xs text-content-secondary">Día libre o ausencia registrada</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Obras a las que está asignado */}
-          {obrasEmpleado.length > 0 ? (
-            <div>
-              <p className="text-xs font-semibold text-content-muted uppercase tracking-wide mb-3">
-                Mis obras
-              </p>
-              <div className="space-y-3">
-                {obrasEmpleado.map((obra) => (
-                  <ObraCard key={obra.id} obra={obra as ObraConAsignados} onUpdate={cargar} />
-                ))}
-              </div>
-            </div>
+        <div className="mb-6">
+          {obraHoy ? (
+            <ObraEmpleadoCard obra={obraHoy} />
           ) : (
-            <div className="card p-8 flex flex-col items-center text-center gap-3 text-content-muted">
-              <Building2 className="w-8 h-8" />
-              <p className="text-sm">Aún no tienes obras asignadas.</p>
+            <div className="card p-4 flex items-center gap-3 border-l-4 border-warning">
+              <Building2 className="w-5 h-5 text-warning flex-shrink-0" />
+              <div>
+                <p className="font-medium text-content-primary text-sm">Sin asignación hoy</p>
+                <p className="text-xs text-content-secondary">Día libre o ausencia registrada</p>
+              </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* Lista de obras (admin) */}
