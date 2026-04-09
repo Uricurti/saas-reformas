@@ -59,6 +59,7 @@ export default function ObraDetallePage() {
   const [guardando,         setGuardando]         = useState(false);
 
   // Acordeones
+  const [infoAbierto,   setInfoAbierto]   = useState(false);
   const [equipoAbierto, setEquipoAbierto] = useState(false);
   const [docsAbierto,   setDocsAbierto]   = useState(false);
 
@@ -165,107 +166,130 @@ export default function ObraDetallePage() {
         <span className={cn("badge flex-shrink-0", estadoColor)}>{obra.estado}</span>
       </div>
 
-      {/* Info principal */}
-      <div className="card p-5 mb-4">
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <h2 className="font-semibold text-content-primary text-sm uppercase tracking-wide text-content-muted">Información</h2>
-          {isAdmin && !editando && (
-            <button onClick={() => setEditando(true)} className="btn-ghost py-1 px-2 text-xs gap-1">
-              <Edit3 className="w-3.5 h-3.5" /> Editar
-            </button>
-          )}
-          {editando && (
-            <div className="flex gap-2">
-              <button onClick={() => setEditando(false)} className="btn-ghost py-1 px-2 text-xs gap-1">
-                <X className="w-3.5 h-3.5" /> Cancelar
-              </button>
-              <button onClick={handleGuardarEdicion} disabled={guardando} className="btn-primary py-1 px-3 text-xs gap-1">
-                {guardando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                Guardar
-              </button>
+      {/* Info principal — acordeón */}
+      <div className="card mb-4 overflow-hidden">
+        <button
+          onClick={() => !editando && setInfoAbierto((v) => !v)}
+          className="w-full flex items-center justify-between p-4 text-left"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "#EEF2F8" }}>
+              <Building2 className="w-4 h-4" style={{ color: "#607eaa" }} />
             </div>
-          )}
-        </div>
-
-        <div className="space-y-3">
-          {/* Dirección + CP + Población */}
-          <div className="flex items-start gap-3">
-            <MapPin className="w-4 h-4 text-content-muted mt-0.5 flex-shrink-0" />
-            {editando ? (
-              <div className="flex-1 space-y-2">
-                <DireccionInput value={formDireccion} onChange={setFormDireccion} placeholder="Dirección de la obra" />
-                <div className="grid grid-cols-2 gap-2">
-                  <input value={formCodigoPostal} onChange={(e) => setFormCodigoPostal(e.target.value)} className="input text-sm" placeholder="Código postal" maxLength={10} />
-                  <input value={formPoblacion} onChange={(e) => setFormPoblacion(e.target.value)} className="input text-sm" placeholder="Población" />
-                </div>
+            <div>
+              <span className="font-semibold text-content-primary text-sm">Información</span>
+              {obra.cliente_nombre && (
+                <span className="ml-2 text-xs text-content-muted">{obra.cliente_nombre}</span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {isAdmin && infoAbierto && !editando && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setEditando(true); }}
+                className="btn-ghost py-1 px-2 text-xs gap-1"
+              >
+                <Edit3 className="w-3.5 h-3.5" /> Editar
+              </button>
+            )}
+            {editando && (
+              <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                <button onClick={() => setEditando(false)} className="btn-ghost py-1 px-2 text-xs gap-1">
+                  <X className="w-3.5 h-3.5" /> Cancelar
+                </button>
+                <button onClick={handleGuardarEdicion} disabled={guardando} className="btn-primary py-1 px-3 text-xs gap-1">
+                  {guardando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  Guardar
+                </button>
               </div>
-            ) : (
-              <div>
-                <DireccionLink direccion={obra.direccion} showExternalIcon className="text-sm text-content-primary" />
-                {((obra as any).codigo_postal || (obra as any).poblacion) && (
-                  <span className="text-xs text-content-muted"> · {[(obra as any).codigo_postal, (obra as any).poblacion].filter(Boolean).join(" ")}</span>
+            )}
+            {!editando && (
+              <ChevronDown
+                className="w-4 h-4 text-content-muted transition-transform duration-200"
+                style={{ transform: infoAbierto ? "rotate(180deg)" : "rotate(0deg)" }}
+              />
+            )}
+          </div>
+        </button>
+
+        {(infoAbierto || editando) && (
+          <div className="px-4 pb-4 border-t border-border pt-3 space-y-3">
+            {/* Dirección + CP + Población */}
+            <div className="flex items-start gap-3">
+              <MapPin className="w-4 h-4 text-content-muted mt-0.5 flex-shrink-0" />
+              {editando ? (
+                <div className="flex-1 space-y-2">
+                  <DireccionInput value={formDireccion} onChange={setFormDireccion} placeholder="Dirección de la obra" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input value={formCodigoPostal} onChange={(e) => setFormCodigoPostal(e.target.value)} className="input text-sm" placeholder="Código postal" maxLength={10} />
+                    <input value={formPoblacion} onChange={(e) => setFormPoblacion(e.target.value)} className="input text-sm" placeholder="Población" />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <DireccionLink direccion={obra.direccion} showExternalIcon className="text-sm text-content-primary" />
+                  {((obra as any).codigo_postal || (obra as any).poblacion) && (
+                    <span className="text-xs text-content-muted"> · {[(obra as any).codigo_postal, (obra as any).poblacion].filter(Boolean).join(" ")}</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {(obra.cliente_nombre || editando) && (
+              <div className="flex items-start gap-3">
+                <Users className="w-4 h-4 text-content-muted mt-0.5 flex-shrink-0" />
+                {editando ? (
+                  <input value={formCliente} onChange={(e) => setFormCliente(e.target.value)} className="input flex-1" placeholder="Nombre y apellidos del cliente" />
+                ) : (
+                  <span className="text-sm text-content-primary">{obra.cliente_nombre}</span>
+                )}
+              </div>
+            )}
+
+            {((obra as any).cliente_dni_nie_cif || editando) && (
+              <div className="flex items-start gap-3">
+                <span className="w-4 h-4 flex-shrink-0 mt-0.5 flex items-center justify-center text-[10px] font-bold" style={{ color: "#9CA3AF" }}>ID</span>
+                {editando ? (
+                  <input value={formDni} onChange={(e) => setFormDni(e.target.value.toUpperCase())} className="input flex-1" placeholder="DNI / NIE / CIF del cliente" />
+                ) : (
+                  <span className="text-sm text-content-primary">{(obra as any).cliente_dni_nie_cif}</span>
+                )}
+              </div>
+            )}
+
+            {(obra.cliente_telefono || editando) && (
+              <div className="flex items-start gap-3">
+                <Phone className="w-4 h-4 text-content-muted mt-0.5 flex-shrink-0" />
+                {editando ? (
+                  <input value={formTelefono} onChange={(e) => setFormTelefono(e.target.value)} className="input flex-1" placeholder="Teléfono del cliente" type="tel" />
+                ) : (
+                  <span className="text-sm text-content-primary">{obra.cliente_telefono}</span>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              <Calendar className="w-4 h-4 text-content-muted flex-shrink-0" />
+              <span className="text-sm text-content-secondary">
+                {format(new Date(obra.fecha_inicio), "d MMM yyyy", { locale: es })}
+                {obra.fecha_fin_estimada && (
+                  <> → {format(new Date(obra.fecha_fin_estimada), "d MMM yyyy", { locale: es })}</>
+                )}
+              </span>
+            </div>
+
+            {(obra.notas_internas || editando) && (
+              <div className="pt-2 border-t border-border">
+                <p className="text-xs text-content-muted mb-1">Notas internas</p>
+                {editando ? (
+                  <textarea value={formNotas} onChange={(e) => setFormNotas(e.target.value)} className="input w-full" rows={3} placeholder="Notas, observaciones..." />
+                ) : (
+                  <p className="text-sm text-content-primary whitespace-pre-wrap">{obra.notas_internas}</p>
                 )}
               </div>
             )}
           </div>
-
-          {/* Cliente nombre */}
-          {(obra.cliente_nombre || editando) && (
-            <div className="flex items-start gap-3">
-              <Users className="w-4 h-4 text-content-muted mt-0.5 flex-shrink-0" />
-              {editando ? (
-                <input value={formCliente} onChange={(e) => setFormCliente(e.target.value)} className="input flex-1" placeholder="Nombre y apellidos del cliente" />
-              ) : (
-                <span className="text-sm text-content-primary">{obra.cliente_nombre}</span>
-              )}
-            </div>
-          )}
-
-          {/* DNI/NIE/CIF */}
-          {((obra as any).cliente_dni_nie_cif || editando) && (
-            <div className="flex items-start gap-3">
-              <span className="w-4 h-4 flex-shrink-0 mt-0.5 flex items-center justify-center text-[10px] font-bold rounded" style={{ color: "#9CA3AF" }}>ID</span>
-              {editando ? (
-                <input value={formDni} onChange={(e) => setFormDni(e.target.value.toUpperCase())} className="input flex-1" placeholder="DNI / NIE / CIF del cliente" />
-              ) : (
-                <span className="text-sm text-content-primary">{(obra as any).cliente_dni_nie_cif}</span>
-              )}
-            </div>
-          )}
-
-          {/* Teléfono */}
-          {(obra.cliente_telefono || editando) && (
-            <div className="flex items-start gap-3">
-              <Phone className="w-4 h-4 text-content-muted mt-0.5 flex-shrink-0" />
-              {editando ? (
-                <input value={formTelefono} onChange={(e) => setFormTelefono(e.target.value)} className="input flex-1" placeholder="Teléfono del cliente" type="tel" />
-              ) : (
-                <span className="text-sm text-content-primary">{obra.cliente_telefono}</span>
-              )}
-            </div>
-          )}
-
-          <div className="flex items-center gap-3">
-            <Calendar className="w-4 h-4 text-content-muted flex-shrink-0" />
-            <span className="text-sm text-content-secondary">
-              {format(new Date(obra.fecha_inicio), "d MMM yyyy", { locale: es })}
-              {obra.fecha_fin_estimada && (
-                <> → {format(new Date(obra.fecha_fin_estimada), "d MMM yyyy", { locale: es })}</>
-              )}
-            </span>
-          </div>
-
-          {(obra.notas_internas || editando) && (
-            <div className="pt-2 border-t border-border">
-              <p className="text-xs text-content-muted mb-1">Notas internas</p>
-              {editando ? (
-                <textarea value={formNotas} onChange={(e) => setFormNotas(e.target.value)} className="input w-full" rows={3} placeholder="Notas, observaciones..." />
-              ) : (
-                <p className="text-sm text-content-primary whitespace-pre-wrap">{obra.notas_internas}</p>
-              )}
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Accesos rápidos: Materiales y Fotos */}
