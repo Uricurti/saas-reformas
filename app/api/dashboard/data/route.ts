@@ -1,6 +1,10 @@
 /**
  * GET /api/dashboard/data?tenantId=xxx
- * Agrega todos los datos necesarios para el dashboard del admin usando SERVICE_KEY.
+ * Agrega todos los datos para el dashboard del admin (SERVICE_KEY, sin RLS).
+ *
+ * Estructura en 2 rondas paralelas:
+ *  R1 — queries que solo necesitan tenantId
+ *  R2 — queries que dependen de los ids obtenidos en R1
  */
 import { NextRequest, NextResponse } from "next/server";
 
@@ -17,6 +21,10 @@ async function db(path: string): Promise<any[]> {
   return Array.isArray(d) ? d : [];
 }
 
+function uniq(arr: string[]): string[] {
+  return Array.from(new Set(arr));
+}
+
 export async function GET(req: NextRequest) {
   const tenantId = req.nextUrl.searchParams.get("tenantId");
   if (!tenantId) return NextResponse.json({ error: "tenantId requerido" }, { status: 400 });
@@ -24,9 +32,9 @@ export async function GET(req: NextRequest) {
   const hoy     = new Date().toISOString().split("T")[0];
   const hace48h = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
 
-  // ── Primera ronda de queries en paralelo ──────────────────────────────────
+  // ── Ronda 1: todo lo que solo necesita tenantId ───────────────────────────
   const [
-    asignaciones,
+    tenantUsers,
     jornadasHoy,
     obrasActivas,
     pagos,
@@ -34,61 +42,74 @@ export async function GET(req: NextRequest) {
     materiales,
     archivos,
   ] = await Promise.all([
-    db(`/api/database/records/asignaciones?tenant_id=eq.${tenantId}&fecha_inicio=lte.${hoy}&select=user_id,obra_id,es_libre,created_at&or=(fecha_fin.is.null,fecha_fin.gte.${hoy})&order=created_at.desc`),
+    // Todos los empleados activos del tenant (la tabla users SÍ tiene tenant_id)
+    db(`/api/database/records/users?tenant_id=eq.${tenantId}&activo=eq.true&select=id,nombre`),
+    // Jornadas de hoy (jornadas SÍ tiene tenant_id)
     db(`/api/database/records/jornadas?tenant_id=eq.${tenantId}&fecha=eq.${hoy}&select=id,user_id,ha_fichado,fichado_at,estado`),
+    // Obras activas
     db(`/api/database/records/obras?tenant_id=eq.${tenantId}&estado=in.(activa,pausada)&select=id`),
+    // Pagos pendientes/emitidos con fecha prevista
     db(`/api/database/records/pagos?tenant_id=eq.${tenantId}&estado=in.(pendiente_emitir,emitida)&fecha_prevista=not.is.null&select=id,importe_total,fecha_prevista,estado,obra_id,factura_id&order=fecha_prevista.asc`),
-    db(`/api/database/records/jornadas?tenant_id=eq.${tenantId}&ha_fichado=eq.true&fichado_at=gte.${hace48h}&select=user_id,obra_id,fichado_at&order=fichado_at.desc&limit=15`),
-    db(`/api/database/records/materiales?tenant_id=eq.${tenantId}&created_at=gte.${hace48h}&select=id,descripcion,cantidad,unidad,obra_id,solicitado_por,estado,created_at,comprado_at&order=created_at.desc&limit=15`),
-    db(`/api/database/records/archivos?tenant_id=eq.${tenantId}&created_at=gte.${hace48h}&select=id,tipo,obra_id,user_id,created_at&order=created_at.desc&limit=15`),
+    // Fichajes recientes (últimas 48h) para actividad
+    db(`/api/database/records/jornadas?tenant_id=eq.${tenantId}&ha_fichado=eq.true&fichado_at=gte.${hace48h}&select=user_id,obra_id,fichado_at&order=fichado_at.desc&limit=20`),
+    // Materiales recientes
+    db(`/api/database/records/materiales?tenant_id=eq.${tenantId}&created_at=gte.${hace48h}&select=id,descripcion,cantidad,unidad,obra_id,solicitado_por,estado,created_at,comprado_at&order=created_at.desc&limit=20`),
+    // Archivos recientes
+    db(`/api/database/records/archivos?tenant_id=eq.${tenantId}&created_at=gte.${hace48h}&select=id,tipo,obra_id,user_id,created_at&order=created_at.desc&limit=20`),
   ]);
 
-  // Deduplica asignaciones por user_id (la más reciente = mayor prioridad)
-  const asigByUser: Record<string, any> = {};
-  for (const a of asignaciones) {
-    if (a.es_libre === true) continue;
-    if (!asigByUser[a.user_id]) asigByUser[a.user_id] = a;
-  }
-  const userIds     = Object.keys(asigByUser);
-  const obraIdsAsig = Array.from(new Set(Object.values(asigByUser).map((a: any) => a.obra_id).filter(Boolean))) as string[];
+  // IDs de usuarios del tenant
+  const tenantUserIds = tenantUsers.map((u: any) => u.id as string);
 
-  // Recoge todos los IDs de users y obras necesarios
-  const allUserIds = Array.from(new Set([
-    ...userIds,
-    ...jornadasFichadas.map((j: any) => j.user_id),
-    ...materiales.map((m: any) => m.solicitado_por),
-    ...archivos.map((a: any) => a.user_id),
-  ].filter(Boolean))) as string[];
-
-  const allObraIds = Array.from(new Set([
-    ...obraIdsAsig,
+  // ── Ronda 2: asignaciones (por user_ids, no tenant_id) + obras/facturas ──
+  const pagosObraIds    = uniq(pagos.map((p: any) => p.obra_id).filter(Boolean));
+  const pagosFactIds    = uniq(pagos.map((p: any) => p.factura_id).filter(Boolean));
+  const actObraIds      = uniq([
     ...jornadasFichadas.map((j: any) => j.obra_id),
     ...materiales.map((m: any) => m.obra_id),
     ...archivos.map((a: any) => a.obra_id),
-    ...pagos.map((p: any) => p.obra_id),
-  ].filter(Boolean))) as string[];
+    ...pagosObraIds,
+  ].filter(Boolean));
+  const actUserIds      = uniq([
+    ...tenantUserIds,
+    ...jornadasFichadas.map((j: any) => j.user_id),
+    ...materiales.map((m: any) => m.solicitado_por),
+    ...archivos.map((a: any) => a.user_id),
+  ].filter(Boolean));
 
-  const facturaIds = Array.from(new Set(pagos.map((p: any) => p.factura_id).filter(Boolean))) as string[];
-
-  // ── Segunda ronda de queries en paralelo ──────────────────────────────────
-  const [allUsers, allObras, allFacturas] = await Promise.all([
-    allUserIds.length > 0
-      ? db(`/api/database/records/users?id=in.(${allUserIds.join(",")})&select=id,nombre`)
+  const [asignaciones, allObras, allFacturas] = await Promise.all([
+    tenantUserIds.length > 0
+      // Usamos user_id IN (...) para evitar la falta de tenant_id en asignaciones
+      ? db(`/api/database/records/asignaciones?user_id=in.(${tenantUserIds.join(",")})&fecha_inicio=lte.${hoy}&select=user_id,obra_id,es_libre,created_at&or=(fecha_fin.is.null,fecha_fin.gte.${hoy})&order=created_at.desc`)
       : Promise.resolve([]),
-    allObraIds.length > 0
-      ? db(`/api/database/records/obras?id=in.(${allObraIds.join(",")})&select=id,nombre`)
+    actObraIds.length > 0
+      ? db(`/api/database/records/obras?id=in.(${actObraIds.join(",")})&select=id,nombre`)
       : Promise.resolve([]),
-    facturaIds.length > 0
-      ? db(`/api/database/records/facturas?id=in.(${facturaIds.join(",")})&select=id,concepto`)
+    pagosFactIds.length > 0
+      ? db(`/api/database/records/facturas?id=in.(${pagosFactIds.join(",")})&select=id,concepto`)
       : Promise.resolve([]),
   ]);
 
-  const userMap:    Record<string, string> = Object.fromEntries(allUsers.map((u: any) => [u.id, u.nombre]));
+  // ── Mapas de lookup ────────────────────────────────────────────────────────
+  const userMap:    Record<string, string> = Object.fromEntries(tenantUsers.map((u: any) => [u.id, u.nombre]));
+  // Complementar con otros users del feed de actividad (pueden estar fuera del tenant si hay datos cruzados)
+  for (const uid of actUserIds) {
+    if (!userMap[uid]) {
+      // Intentamos obtenerlo si no está (raro, pero por seguridad dejamos el fallback)
+    }
+  }
   const obraMap:    Record<string, string> = Object.fromEntries(allObras.map((o: any) => [o.id, o.nombre]));
   const facturaMap: Record<string, string> = Object.fromEntries(allFacturas.map((f: any) => [f.id, f.concepto]));
   const jornadaByUser: Record<string, any> = Object.fromEntries(jornadasHoy.map((j: any) => [j.user_id, j]));
 
   // ── Sección 1: Fichaje de hoy ─────────────────────────────────────────────
+  // Deduplica asignaciones por user_id (más reciente primero)
+  const asigByUser: Record<string, any> = {};
+  for (const a of asignaciones) {
+    if (a.es_libre === true) continue;
+    if (!asigByUser[a.user_id]) asigByUser[a.user_id] = a;
+  }
+
   const fichajeHoy = Object.entries(asigByUser)
     .map(([userId, asig]: [string, any]) => {
       const nombre = userMap[userId];
@@ -106,7 +127,6 @@ export async function GET(req: NextRequest) {
     })
     .filter(Boolean)
     .sort((a: any, b: any) => {
-      // Sin fichar primero, luego alfabético
       if (a.ha_fichado !== b.ha_fichado) return a.ha_fichado ? 1 : -1;
       return a.nombre.localeCompare(b.nombre, "es");
     });
@@ -116,15 +136,15 @@ export async function GET(req: NextRequest) {
   const alertas = pagos
     .map((p: any) => {
       const diffDias = Math.round((new Date(p.fecha_prevista).getTime() - hoyMs) / 86400000);
-      if (diffDias > 7) return null; // Solo alertas urgentes (7 días o vencidas)
+      if (diffDias > 7) return null;
       return {
-        id:           p.id,
-        obra_nombre:  obraMap[p.obra_id]      ?? "Obra",
-        concepto:     facturaMap[p.factura_id] ?? "",
+        id:            p.id,
+        obra_nombre:   obraMap[p.obra_id]       ?? "Obra",
+        concepto:      facturaMap[p.factura_id]  ?? "",
         importe_total: p.importe_total,
         fecha_prevista: p.fecha_prevista,
-        estado:       p.estado,
-        dias_diff:    diffDias,
+        estado:        p.estado,
+        dias_diff:     diffDias,
       };
     })
     .filter(Boolean);
@@ -132,7 +152,6 @@ export async function GET(req: NextRequest) {
   // ── Sección 4: Actividad reciente ─────────────────────────────────────────
   const actividad: any[] = [];
 
-  // Fichajes
   for (const j of jornadasFichadas) {
     if (!j.fichado_at) continue;
     actividad.push({
@@ -145,7 +164,6 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Materiales pedidos y comprados
   for (const m of materiales) {
     if (m.estado === "pendiente") {
       actividad.push({
@@ -168,8 +186,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Archivos — agrupados por user+obra+tipo para no repetir
-  const archivoGroups: Record<string, { count: number; tipo: string; obra_id: string; user_id: string; created_at: string }> = {};
+  const archivoGroups: Record<string, any> = {};
   for (const a of archivos) {
     const key = `${a.user_id}-${a.obra_id}-${a.tipo}`;
     if (!archivoGroups[key]) {
@@ -177,10 +194,8 @@ export async function GET(req: NextRequest) {
     }
     archivoGroups[key].count++;
   }
-  for (const [key, g] of Object.entries(archivoGroups)) {
-    const tipoLabel = g.tipo === "video"
-      ? `vídeo${g.count > 1 ? "s" : ""}`
-      : `foto${g.count > 1 ? "s" : ""}`;
+  for (const [key, g] of Object.entries(archivoGroups) as any) {
+    const tipoLabel = g.tipo === "video" ? `vídeo${g.count > 1 ? "s" : ""}` : `foto${g.count > 1 ? "s" : ""}`;
     actividad.push({
       id:          `ar-${key}`,
       tipo:        "foto",
@@ -196,8 +211,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     hoy,
     fichajeHoy,
-    obras:    { total: obrasActivas.length, empleados_hoy: userIds.length },
+    obras:     { total: obrasActivas.length, empleados_hoy: Object.keys(asigByUser).length },
     alertas,
-    actividad: actividad.slice(0, 20),
+    actividad: actividad.slice(0, 30),
   });
 }

@@ -2,7 +2,7 @@
 
 import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { useAuthStore, useIsAdmin } from "@/lib/stores/auth-store";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,14 +15,21 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted]       = useState(false);
 
+  function landingFor(rol?: string) {
+    return rol === "admin" ? "/dashboard" : "/obras";
+  }
+
   useEffect(() => { setMounted(true); }, []);
-  useEffect(() => { if (user) router.replace("/obras"); }, [user, router]);
+  useEffect(() => { if (user) router.replace(landingFor(user.rol)); }, [user, router]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     clearError();
     const { error } = await login(email, password);
-    if (!error) router.replace("/obras");
+    if (!error) {
+      const u = useAuthStore.getState().user;
+      router.replace(landingFor(u?.rol));
+    }
   }
 
   if (user) return null;
