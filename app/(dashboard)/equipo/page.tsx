@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import {
   Users, Plus, UserCheck, UserX, Loader2, X,
   Shield, HardHat, Euro, Edit3, Check, Lock,
+  Pencil, KeyRound, Mail, User as UserIcon, CheckCircle2,
 } from "lucide-react";
 import insforge from "@/lib/insforge/client";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,8 @@ export default function EquipoPage() {
   const [usuarios, setUsuarios] = useState<UserConTarifa[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCrear, setShowCrear] = useState(false);
+  const [editandoUsuario, setEditandoUsuario] = useState<UserConTarifa | null>(null);
+  const [credencialesConfirmadas, setCredencialesConfirmadas] = useState<{ nombre: string; email: string; password: string | null } | null>(null);
   // userId del empleado cuya tarifa se está editando inline
   const [editandoTarifa, setEditandoTarifa] = useState<string | null>(null);
   const [valorTarifa, setValorTarifa] = useState("");
@@ -217,6 +220,17 @@ export default function EquipoPage() {
                           </button>
                         )}
 
+                        {/* Editar usuario */}
+                        {editandoTarifa !== user.id && (
+                          <button
+                            onClick={() => setEditandoUsuario(user)}
+                            title="Editar datos del empleado"
+                            className="p-2 rounded-lg text-content-muted hover:bg-primary-light hover:text-primary transition-colors flex-shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        )}
+
                         {/* Activar/desactivar */}
                         {user.id !== currentUser?.id && editandoTarifa !== user.id && (
                           <button
@@ -295,6 +309,27 @@ export default function EquipoPage() {
           tenantId={tenantId!}
           onClose={() => setShowCrear(false)}
           onCreated={() => { setShowCrear(false); cargar(); }}
+        />
+      )}
+
+      {editandoUsuario && (
+        <EditarUsuarioModal
+          user={editandoUsuario}
+          onClose={() => setEditandoUsuario(null)}
+          onSaved={(nombre, email, password) => {
+            setEditandoUsuario(null);
+            setCredencialesConfirmadas({ nombre, email, password });
+            cargar();
+          }}
+        />
+      )}
+
+      {credencialesConfirmadas && (
+        <ConfirmacionCredencialesModal
+          nombre={credencialesConfirmadas.nombre}
+          email={credencialesConfirmadas.email}
+          password={credencialesConfirmadas.password}
+          onClose={() => setCredencialesConfirmadas(null)}
         />
       )}
 
@@ -416,6 +451,218 @@ function CrearUsuarioModal({
           <button onClick={handleSubmit} disabled={isLoading} className="btn-primary">
             {isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Creando...</> : "Crear cuenta"}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Modal editar usuario
+// ─────────────────────────────────────────────────────────────
+function EditarUsuarioModal({
+  user,
+  onClose,
+  onSaved,
+}: {
+  user: User;
+  onClose: () => void;
+  onSaved: (nombre: string, email: string, password: string | null) => void;
+}) {
+  const [nombre,    setNombre]    = useState(user.nombre);
+  const [email,     setEmail]     = useState(user.email);
+  const [password,  setPassword]  = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error,     setError]     = useState<string | null>(null);
+
+  async function handleGuardar() {
+    if (!nombre.trim() || !email.trim()) {
+      setError("El nombre y el email son obligatorios.");
+      return;
+    }
+    if (password && password.length < 6) {
+      setError("La contraseña debe tener mínimo 6 caracteres.");
+      return;
+    }
+    setError(null);
+    setIsLoading(true);
+
+    const res = await fetch("/api/admin/update-user", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId:   user.id,
+        nombre:   nombre.trim(),
+        email:    email.trim().toLowerCase(),
+        password: password || undefined,
+      }),
+    });
+
+    const json = await res.json();
+    setIsLoading(false);
+
+    if (json.error) {
+      setError(json.error);
+      return;
+    }
+
+    onSaved(nombre.trim(), email.trim().toLowerCase(), password || null);
+  }
+
+  const cambioEmail    = email.trim().toLowerCase() !== user.email.toLowerCase();
+  const cambioPassword = password.length > 0;
+
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-panel max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="icon-container w-9 h-9"><Pencil className="w-4 h-4" /></div>
+            <div>
+              <h2 className="text-lg font-semibold">Editar empleado</h2>
+              <p className="text-xs text-content-muted">{user.nombre}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="btn-ghost p-2"><X className="w-4 h-4" /></button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-5">
+          {/* Nombre */}
+          <div>
+            <label className="label flex items-center gap-1.5">
+              <UserIcon className="w-3.5 h-3.5 text-content-muted" /> Nombre completo *
+            </label>
+            <input
+              className="input"
+              value={nombre}
+              onChange={(e) => { setNombre(e.target.value); setError(null); }}
+              placeholder="Juan García"
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="label flex items-center gap-1.5">
+              <Mail className="w-3.5 h-3.5 text-content-muted" /> Email *
+            </label>
+            <input
+              className="input"
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setError(null); }}
+              placeholder="juan@email.com"
+            />
+            {cambioEmail && (
+              <p className="text-xs text-warning-foreground bg-warning-light rounded-lg px-3 py-2 mt-2">
+                ⚠️ Estás cambiando el email de acceso. El empleado tendrá que usar el nuevo email para entrar.
+              </p>
+            )}
+          </div>
+
+          {/* Contraseña */}
+          <div>
+            <label className="label flex items-center gap-1.5">
+              <KeyRound className="w-3.5 h-3.5 text-content-muted" /> Nueva contraseña
+              <span className="text-content-muted font-normal text-xs ml-1">— dejar vacío para no cambiarla</span>
+            </label>
+            <input
+              className="input"
+              type="text"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setError(null); }}
+              placeholder="Mínimo 6 caracteres"
+            />
+          </div>
+
+          {/* Aviso cambios */}
+          {(cambioEmail || cambioPassword) && (
+            <div className="bg-primary-light border border-primary/20 rounded-xl px-4 py-3 text-sm text-content-primary space-y-1">
+              <p className="font-semibold text-primary">Resumen de cambios:</p>
+              {cambioEmail    && <p>📧 Email nuevo: <strong>{email.trim().toLowerCase()}</strong></p>}
+              {cambioPassword && <p>🔑 Contraseña: <strong>{password}</strong></p>}
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-danger-light text-danger-foreground text-sm rounded-lg px-4 py-3">{error}</div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-5 border-t border-border flex gap-3 justify-end">
+          <button onClick={onClose} className="btn-secondary">Cancelar</button>
+          <button onClick={handleGuardar} disabled={isLoading} className="btn-primary">
+            {isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</> : "Guardar cambios"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Popup confirmación credenciales
+// ─────────────────────────────────────────────────────────────
+function ConfirmacionCredencialesModal({
+  nombre,
+  email,
+  password,
+  onClose,
+}: {
+  nombre:   string;
+  email:    string;
+  password: string | null;
+  onClose:  () => void;
+}) {
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-panel">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-success-light flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5 text-success" />
+            </div>
+            <h2 className="text-lg font-semibold">Datos actualizados</h2>
+          </div>
+          <button onClick={onClose} className="btn-ghost p-2"><X className="w-4 h-4" /></button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-4">
+          <p className="text-sm text-content-secondary">
+            <strong>{nombre}</strong> deberá usar las siguientes credenciales para acceder a la app:
+          </p>
+
+          <div className="bg-gray-50 rounded-xl p-4 space-y-3 border border-border">
+            <div className="flex items-center gap-3">
+              <Mail className="w-4 h-4 text-content-muted flex-shrink-0" />
+              <div>
+                <p className="text-xs text-content-muted uppercase font-semibold tracking-wide">Email</p>
+                <p className="font-mono text-sm font-semibold text-content-primary">{email}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <KeyRound className="w-4 h-4 text-content-muted flex-shrink-0" />
+              <div>
+                <p className="text-xs text-content-muted uppercase font-semibold tracking-wide">Contraseña</p>
+                <p className="font-mono text-sm font-semibold text-content-primary">
+                  {password ?? <span className="text-content-muted font-normal not-italic">Sin cambios (la misma de antes)</span>}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-content-muted">
+            💡 Pásale estas credenciales por WhatsApp antes de que intente entrar.
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="p-5 border-t border-border flex justify-end">
+          <button onClick={onClose} className="btn-primary px-8">Entendido</button>
         </div>
       </div>
     </div>
