@@ -1,12 +1,1 @@
-{
-  "crons": [
-    {
-      "path": "/api/facturacion/check-pagos",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/daily-notifications",
-      "schedule": "0 18 * * *"
-    }
-  ]
-}
+{}
