@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2, Calendar, ShoppingCart,
-  Calculator, Users, LogOut, Bell, TrendingUp, Settings, Pencil
+  Calculator, Users, LogOut, Bell, TrendingUp, Settings, Pencil, LayoutDashboard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore, useIsAdmin } from "@/lib/stores/auth-store";
@@ -23,12 +23,13 @@ const navItemsEmpleado = [
 ];
 
 const navItemsAdmin = [
-  { href: "/obras",      label: "Obras",      icon: Building2,   group: "operativa" },
-  { href: "/calendario", label: "Calendario", icon: Calendar,    group: "operativa" },
-  { href: "/materiales", label: "Materiales", icon: ShoppingCart,group: "operativa" },
-  { href: "/jornales",   label: "Jornales",   icon: Calculator,  group: "operativa" },
-  { href: "/equipo",     label: "Equipo",     icon: Users,       group: "operativa" },
-  { href: "/facturacion",label: "Finanzas",   icon: TrendingUp,  group: "finanzas"  },
+  { href: "/dashboard",  label: "Dashboard",  icon: LayoutDashboard, group: "operativa" },
+  { href: "/obras",      label: "Obras",      icon: Building2,       group: "operativa" },
+  { href: "/calendario", label: "Calendario", icon: Calendar,        group: "operativa" },
+  { href: "/materiales", label: "Materiales", icon: ShoppingCart,    group: "operativa" },
+  { href: "/jornales",   label: "Jornales",   icon: Calculator,      group: "operativa" },
+  { href: "/equipo",     label: "Equipo",     icon: Users,           group: "operativa" },
+  { href: "/facturacion",label: "Finanzas",   icon: TrendingUp,      group: "finanzas"  },
 ];
 
 export function Sidebar() {

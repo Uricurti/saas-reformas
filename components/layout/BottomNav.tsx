@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Calendar, ShoppingCart, Bell, Calculator, LogOut, X, TrendingUp, Settings, Pencil } from "lucide-react";
+import { Building2, Calendar, ShoppingCart, Bell, Calculator, LogOut, X, TrendingUp, Settings, Pencil, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsAdmin, useAuthStore } from "@/lib/stores/auth-store";
 import { useNotificacionesStore } from "@/lib/stores/notificaciones-store";
@@ -21,11 +21,11 @@ const navEmpleado = [
 ];
 
 const navAdmin = [
-  { href: "/obras",          label: "Obras",        icon: Building2 },
-  { href: "/calendario",     label: "Calendario",   icon: Calendar },
-  { href: "/jornales",       label: "Jornales",     icon: Calculator },
-  { href: "/facturacion",    label: "Finanzas",     icon: TrendingUp },
-  { href: "/notificaciones", label: "Avisos",       icon: Bell },
+  { href: "/dashboard",   label: "Dashboard",  icon: LayoutDashboard },
+  { href: "/obras",       label: "Obras",      icon: Building2 },
+  { href: "/calendario",  label: "Calendario", icon: Calendar },
+  { href: "/jornales",    label: "Jornales",   icon: Calculator },
+  { href: "/facturacion", label: "Finanzas",   icon: TrendingUp },
 ];
 
 function PerfilSheet({
