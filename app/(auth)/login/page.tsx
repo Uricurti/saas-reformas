@@ -67,7 +67,7 @@ export default function LoginPage() {
       >
         {/* Logo ReforLife — img nativo para SVG complejo */}
         <div
-          className="flex flex-col items-center mb-2"
+          className="flex flex-col items-center mb-4"
           style={{
             opacity: mounted ? 1 : 0,
             transform: mounted ? "translateY(0)" : "translateY(-16px)",
@@ -78,7 +78,7 @@ export default function LoginPage() {
           <img
             src="/logo/4.svg"
             alt="ReforLife"
-            style={{ width: 180, height: 180, objectFit: "contain" }}
+            style={{ width: 220, height: "auto" }}
           />
         </div>
 
