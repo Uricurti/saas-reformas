@@ -268,6 +268,31 @@ export default function ObraDetallePage() {
         </div>
       </div>
 
+      {/* Accesos rápidos: Materiales y Fotos */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <Link href={`/materiales?obra=${obra.id}`} className="card p-4 flex flex-col gap-2 hover:shadow-md transition-shadow active:scale-95">
+          <div className="icon-container w-10 h-10">
+            <Package className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="font-semibold text-content-primary text-sm">Materiales</p>
+            <p className="text-xs text-content-muted">{matsPendientes > 0 ? `${matsPendientes} pendiente${matsPendientes > 1 ? "s" : ""}` : `${materiales.length} total`}</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-content-muted self-end" />
+        </Link>
+
+        <Link href={`/fotos?obra=${obra.id}`} className="card p-4 flex flex-col gap-2 hover:shadow-md transition-shadow active:scale-95">
+          <div className="icon-container w-10 h-10">
+            <Image className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="font-semibold text-content-primary text-sm">Fotos obra</p>
+            <p className="text-xs text-content-muted">{archivos.length > 0 ? `${archivos.length} archivo${archivos.length > 1 ? "s" : ""}` : "Sin fotos"}</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-content-muted self-end" />
+        </Link>
+      </div>
+
       {/* Equipo asignado — acordeón */}
       <div className="card mb-4 overflow-hidden">
         <button
@@ -339,31 +364,6 @@ export default function ObraDetallePage() {
             )}
           </div>
         )}
-      </div>
-
-      {/* Accesos rápidos: Materiales y Fotos */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <Link href={`/materiales?obra=${obra.id}`} className="card p-4 flex flex-col gap-2 hover:shadow-md transition-shadow active:scale-95">
-          <div className="icon-container w-10 h-10">
-            <Package className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="font-semibold text-content-primary text-sm">Materiales</p>
-            <p className="text-xs text-content-muted">{matsPendientes > 0 ? `${matsPendientes} pendiente${matsPendientes > 1 ? "s" : ""}` : `${materiales.length} total`}</p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-content-muted self-end" />
-        </Link>
-
-        <Link href={`/fotos?obra=${obra.id}`} className="card p-4 flex flex-col gap-2 hover:shadow-md transition-shadow active:scale-95">
-          <div className="icon-container w-10 h-10">
-            <Image className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="font-semibold text-content-primary text-sm">Fotos obra</p>
-            <p className="text-xs text-content-muted">{archivos.length > 0 ? `${archivos.length} archivo${archivos.length > 1 ? "s" : ""}` : "Sin fotos"}</p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-content-muted self-end" />
-        </Link>
       </div>
 
       {/* Documentación — acordeón */}
