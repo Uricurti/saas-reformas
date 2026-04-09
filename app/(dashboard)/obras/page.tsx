@@ -86,37 +86,39 @@ export default function ObrasPage() {
         </div>
       )}
 
-      {/* Lista de obras (admin) */}
-      {isAdmin && (
-        <>
-          {obras.length === 0 ? (
-            <div className="card p-10 flex flex-col items-center text-center gap-4">
-              <div className="icon-container w-14 h-14">
-                <Building2 className="w-7 h-7" />
-              </div>
-              <div>
-                <p className="font-semibold text-content-primary mb-1">Sin obras activas</p>
-                <p className="text-sm text-content-secondary">Crea la primera obra para empezar a gestionar tu equipo.</p>
-              </div>
-              <button onClick={() => setShowCrearModal(true)} className="btn-primary mt-2">
-                <Plus className="w-4 h-4" /> Crear primera obra
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {obras.map((obra) => (
-                <ObraCard key={obra.id} obra={obra} onUpdate={cargar} />
-              ))}
-            </div>
-          )}
-
-          {/* Link al archivo */}
-          <div className="mt-6 text-center">
-            <Link href="/obras/archivo" className="btn-ghost text-content-secondary">
-              <Archive className="w-4 h-4" /> Ver obras archivadas
-            </Link>
+      {/* Lista de obras — visible para todos */}
+      {obras.length === 0 ? (
+        <div className="card p-10 flex flex-col items-center text-center gap-4">
+          <div className="icon-container w-14 h-14">
+            <Building2 className="w-7 h-7" />
           </div>
-        </>
+          <div>
+            <p className="font-semibold text-content-primary mb-1">Sin obras activas</p>
+            <p className="text-sm text-content-secondary">
+              {isAdmin ? "Crea la primera obra para empezar a gestionar tu equipo." : "No hay obras activas en este momento."}
+            </p>
+          </div>
+          {isAdmin && (
+            <button onClick={() => setShowCrearModal(true)} className="btn-primary mt-2">
+              <Plus className="w-4 h-4" /> Crear primera obra
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {obras.map((obra) => (
+            <ObraCard key={obra.id} obra={obra} onUpdate={cargar} />
+          ))}
+        </div>
+      )}
+
+      {/* Link al archivo — solo admin */}
+      {isAdmin && (
+        <div className="mt-6 text-center">
+          <Link href="/obras/archivo" className="btn-ghost text-content-secondary">
+            <Archive className="w-4 h-4" /> Ver obras archivadas
+          </Link>
+        </div>
       )}
 
       {showCrearModal && (
