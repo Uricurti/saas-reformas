@@ -33,14 +33,19 @@ export default function ObrasPage() {
   async function cargar() {
     setIsLoading(true);
     try {
-      // Todos cargan todas las obras activas del tenant
-      const { data, error } = await getObrasActivas(tenantId!);
-      if (error) console.error("[obras] Error cargando obras:", error);
-      setObras((data as ObraConAsignados[]) ?? []);
-
-      // Empleados: también cargan su obra de hoy para el banner superior
-      if (!isAdmin && user) {
-        const obraHoyRes = await getAsignacionHoyByUser(user.id).catch(() => null);
+      if (isAdmin) {
+        // Admin usa el cliente directo (RLS no restringe al admin)
+        const { data, error } = await getObrasActivas(tenantId!);
+        if (error) console.error("[obras] Error cargando obras:", error);
+        setObras((data as ObraConAsignados[]) ?? []);
+      } else {
+        // Empleado: usa la API route con SERVICE_KEY para saltar el RLS
+        // y poder ver todas las obras del tenant
+        const [obrasRes, obraHoyRes] = await Promise.all([
+          fetch(`/api/obras/activas?tenantId=${tenantId}`).then((r) => r.json()).catch(() => []),
+          getAsignacionHoyByUser(user!.id).catch(() => null),
+        ]);
+        setObras(Array.isArray(obrasRes) ? obrasRes : []);
         setObraHoy(obraHoyRes);
       }
     } catch (e) {
