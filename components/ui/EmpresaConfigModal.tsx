@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { upsertTenantConfig, type TenantConfig } from "@/lib/insforge/database";
-import { X, Building2, Check, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { upsertTenantConfig, type TenantConfig, getNotificacionConfig, upsertNotificacionConfig, type NotificacionConfig } from "@/lib/insforge/database";
+import { X, Building2, Check, Loader2, Bell } from "lucide-react";
 
 interface Props {
   tenantId: string;
@@ -21,17 +21,39 @@ export function EmpresaConfigModal({ tenantId, config, onClose, onSaved }: Props
   const [saving,  setSaving]  = useState(false);
   const [saved,   setSaved]   = useState(false);
 
+  // Notificaciones
+  const [notifConfig, setNotifConfig] = useState<NotificacionConfig | null>(null);
+  const [notifAsig,   setNotifAsig]   = useState(true);
+  const [notifFich,   setNotifFich]   = useState(true);
+  const [notifManana, setNotifManana] = useState(true);
+
+  useEffect(() => {
+    getNotificacionConfig(tenantId).then((c) => {
+      setNotifConfig(c);
+      setNotifAsig(c.notif_asignacion);
+      setNotifFich(c.notif_fichaje);
+      setNotifManana(c.notif_obra_manana);
+    });
+  }, [tenantId]);
+
   async function handleSave() {
     if (!nombre.trim()) return;
     setSaving(true);
-    const { data } = await upsertTenantConfig(tenantId, {
-      empresa_nombre:    nombre || null,
-      empresa_cif:       cif || null,
-      empresa_direccion: dir || null,
-      empresa_telefono:  tel || null,
-      empresa_email:     email || null,
-      numero_cuenta:     cuenta || null,
-    });
+    const [{ data }] = await Promise.all([
+      upsertTenantConfig(tenantId, {
+        empresa_nombre:    nombre || null,
+        empresa_cif:       cif || null,
+        empresa_direccion: dir || null,
+        empresa_telefono:  tel || null,
+        empresa_email:     email || null,
+        numero_cuenta:     cuenta || null,
+      }),
+      upsertNotificacionConfig(tenantId, {
+        notif_asignacion:  notifAsig,
+        notif_fichaje:     notifFich,
+        notif_obra_manana: notifManana,
+      }),
+    ]);
     setSaving(false);
     if (data) {
       onSaved?.(data as TenantConfig);
@@ -126,6 +148,51 @@ export function EmpresaConfigModal({ tenantId, config, onClose, onSaved }: Props
           <p style={{ margin: "5px 0 0", fontSize: 11, color: "#9ca3af" }}>
             Aparecerá al pie de cada factura como instrucción de pago por transferencia.
           </p>
+        </div>
+
+        {/* ── Notificaciones por email ── */}
+        <div style={{ borderTop: "1.5px dashed #e5e7eb", paddingTop: 18, marginTop: 4, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 9, background: "#EEF2F8", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Bell style={{ width: 16, height: 16, color: "#607eaa" }} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#111827" }}>Notificaciones por email</p>
+              <p style={{ margin: 0, fontSize: 11, color: "#9ca3af" }}>Activa o desactiva cada tipo de aviso</p>
+            </div>
+          </div>
+
+          {[
+            { label: "Nueva obra asignada",      desc: "Email al empleado al asignarle una obra",         val: notifAsig,   set: setNotifAsig },
+            { label: "Recordatorio de fichaje",  desc: "Si no ha fichado a las 8pm, recibe un aviso",     val: notifFich,   set: setNotifFich },
+            { label: "Obra de mañana",           desc: "Dirección y hora de la obra del día siguiente",   val: notifManana, set: setNotifManana },
+          ].map((item) => (
+            <div
+              key={item.label}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", borderRadius: 11, border: "1.5px solid #f0f0f4", marginBottom: 8, background: item.val ? "#f8faff" : "#fafafa" }}
+            >
+              <div style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#111827" }}>{item.label}</p>
+                <p style={{ margin: "2px 0 0", fontSize: 11, color: "#9ca3af" }}>{item.desc}</p>
+              </div>
+              {/* Toggle switch */}
+              <button
+                onClick={() => item.set(!item.val)}
+                style={{
+                  width: 44, height: 24, borderRadius: 99, border: "none", cursor: "pointer",
+                  background: item.val ? "#607eaa" : "#d1d5db",
+                  position: "relative", flexShrink: 0, transition: "background 0.2s",
+                }}
+              >
+                <span style={{
+                  position: "absolute", top: 3,
+                  left: item.val ? "calc(100% - 21px)" : 3,
+                  width: 18, height: 18, borderRadius: "50%", background: "#fff",
+                  transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                }} />
+              </button>
+            </div>
+          ))}
         </div>
 
         {/* Guardar */}

@@ -446,6 +446,9 @@ export default function ObraDetallePage() {
       {showAsignarModal && (
         <AsignarModal
           obraId={obra.id}
+          obraNombre={obra.nombre}
+          obraDireccion={obra.direccion}
+          tenantId={tenantId!}
           empleados={empleadosDisponibles}
           onClose={() => setShowAsignarModal(false)}
           onAsignado={() => { setShowAsignarModal(false); cargar(); }}
@@ -460,11 +463,17 @@ export default function ObraDetallePage() {
 // ─────────────────────────────────────────────────────────────
 function AsignarModal({
   obraId,
+  obraNombre,
+  obraDireccion,
+  tenantId,
   empleados,
   onClose,
   onAsignado,
 }: {
   obraId: string;
+  obraNombre: string;
+  obraDireccion: string;
+  tenantId: string;
   empleados: User[];
   onClose: () => void;
   onAsignado: () => void;
@@ -478,6 +487,20 @@ function AsignarModal({
     if (!userId) return;
     setGuardando(true);
     await createAsignacion(obraId, userId, fechaInicio, fechaFin || undefined);
+
+    // Trigger email notificación (no bloqueante)
+    fetch("/api/notifications/asignacion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenantId,
+        userId,
+        obraId,
+        fechaInicio,
+        fechaFin: fechaFin || null,
+      }),
+    }).catch(() => { /* silent */ });
+
     setGuardando(false);
     onAsignado();
   }

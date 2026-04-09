@@ -3,6 +3,14 @@
     {
       "path": "/api/facturacion/check-pagos",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/fichaje-reminder",
+      "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/cron/obra-manana",
+      "schedule": "0 17 * * *"
     }
   ]
 }

@@ -1097,3 +1097,42 @@ export async function upsertTenantConfig(tenantId: string, params: Partial<Omit<
     .upsert({ tenant_id: tenantId, ...params, updated_at: new Date().toISOString() }, { onConflict: "tenant_id" })
     .select().single();
 }
+
+// ══════════════════════════════════════════════════════════════════
+// NOTIFICACIONES CONFIG
+// ══════════════════════════════════════════════════════════════════
+
+export interface NotificacionConfig {
+  id: string;
+  tenant_id: string;
+  notif_asignacion: boolean;
+  notif_fichaje: boolean;
+  notif_obra_manana: boolean;
+  hora_fichaje: string;   // "HH:MM" en hora local España
+  updated_at: string;
+}
+
+const NOTIF_DEFAULTS: Omit<NotificacionConfig, "id" | "tenant_id" | "updated_at"> = {
+  notif_asignacion:  true,
+  notif_fichaje:     true,
+  notif_obra_manana: true,
+  hora_fichaje:      "20:00",
+};
+
+export async function getNotificacionConfig(tenantId: string): Promise<NotificacionConfig> {
+  const { data } = await insforge.database
+    .from("notificacion_config").select("*").eq("tenant_id", tenantId).maybeSingle();
+  return data ? (data as NotificacionConfig) : { id: "", tenant_id: tenantId, updated_at: "", ...NOTIF_DEFAULTS };
+}
+
+export async function upsertNotificacionConfig(
+  tenantId: string,
+  params: Partial<Omit<NotificacionConfig, "id" | "tenant_id" | "updated_at">>
+) {
+  return insforge.database.from("notificacion_config")
+    .upsert(
+      { tenant_id: tenantId, ...NOTIF_DEFAULTS, ...params, updated_at: new Date().toISOString() },
+      { onConflict: "tenant_id" }
+    )
+    .select().single();
+}
