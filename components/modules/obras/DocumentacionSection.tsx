@@ -342,10 +342,11 @@ interface Props {
   isAdmin: boolean;
   documentos: Documento[];
   onActualizar: () => void;
+  embedded?: boolean; // cuando está dentro de un acordeón externo
 }
 
 export function DocumentacionSection({
-  obraId, tenantId, userId, isAdmin, documentos, onActualizar,
+  obraId, tenantId, userId, isAdmin, documentos, onActualizar, embedded = false,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging]   = useState(false);
@@ -419,27 +420,33 @@ export function DocumentacionSection({
 
   return (
     <>
-      <div className="card p-5 mb-4">
-        {/* Cabecera */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="icon-container w-8 h-8">
-              <FolderOpen className="w-4 h-4" />
+      <div className={embedded ? "p-4" : "card p-5 mb-4"}>
+        {/* Cabecera — solo se muestra si no está embebido (el acordeón ya tiene el título) */}
+        {!embedded && (
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="icon-container w-8 h-8">
+                <FolderOpen className="w-4 h-4" />
+              </div>
+              <h2 className="font-semibold text-content-primary">
+                Documentación
+                {documentos.length > 0 && (
+                  <span className="ml-2 text-sm font-normal text-content-muted">({documentos.length})</span>
+                )}
+              </h2>
             </div>
-            <h2 className="font-semibold text-content-primary">
-              Documentación
-              {documentos.length > 0 && (
-                <span className="ml-2 text-sm font-normal text-content-muted">({documentos.length})</span>
-              )}
-            </h2>
+            <button onClick={() => fileInputRef.current?.click()} className="btn-primary py-1.5 px-3 text-sm gap-1.5">
+              <Plus className="w-4 h-4" /> Subir
+            </button>
           </div>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="btn-primary py-1.5 px-3 text-sm gap-1.5"
-          >
-            <Plus className="w-4 h-4" /> Subir
-          </button>
-        </div>
+        )}
+        {embedded && (
+          <div className="flex justify-end mb-3">
+            <button onClick={() => fileInputRef.current?.click()} className="btn-primary py-1.5 px-3 text-sm gap-1.5">
+              <Plus className="w-4 h-4" /> Subir doc.
+            </button>
+          </div>
+        )}
 
         {/* Categoría + Drop zone */}
         <div className="mb-4 space-y-3">

@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import {
   ArrowLeft, Building2, MapPin, Calendar, Phone, Users,
   Plus, Trash2, Archive, Edit3, Check, X, Package,
-  Image, ChevronRight, Loader2, UserPlus,
+  Image, ChevronRight, ChevronDown, Loader2, UserPlus, FileText,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -57,6 +57,10 @@ export default function ObraDetallePage() {
   const [formDni,           setFormDni]           = useState("");
   const [formNotas,         setFormNotas]         = useState("");
   const [guardando,         setGuardando]         = useState(false);
+
+  // Acordeones
+  const [equipoAbierto, setEquipoAbierto] = useState(false);
+  const [docsAbierto,   setDocsAbierto]   = useState(false);
 
   // Modal asignar
   const [showAsignarModal, setShowAsignarModal] = useState(false);
@@ -264,59 +268,75 @@ export default function ObraDetallePage() {
         </div>
       </div>
 
-      {/* Equipo asignado */}
-      <div className="card p-5 mb-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-content-primary">
-            Equipo asignado
-            <span className="ml-2 text-sm font-normal text-content-muted">({asignados.length})</span>
-          </h2>
-          {isAdmin && empleadosDisponibles.length > 0 && (
-            <button onClick={() => setShowAsignarModal(true)} className="btn-primary py-1.5 px-3 text-sm gap-1.5">
-              <UserPlus className="w-4 h-4" /> Asignar
-            </button>
-          )}
-        </div>
-
-        {asignados.length === 0 ? (
-          <div className="flex flex-col items-center py-6 text-center">
-            <div className="icon-container-gray w-12 h-12 mb-3">
-              <Users className="w-5 h-5" />
+      {/* Equipo asignado — acordeón */}
+      <div className="card mb-4 overflow-hidden">
+        <button
+          onClick={() => setEquipoAbierto((v) => !v)}
+          className="w-full flex items-center justify-between p-4 text-left"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "#EEF2F8" }}>
+              <Users className="w-4 h-4" style={{ color: "#607eaa" }} />
             </div>
-            <p className="text-sm text-content-secondary">Sin trabajadores asignados</p>
-            {isAdmin && (
-              <button onClick={() => setShowAsignarModal(true)} className="btn-primary mt-3 py-1.5 px-4 text-sm gap-1.5">
-                <UserPlus className="w-4 h-4" /> Asignar trabajador
+            <div>
+              <span className="font-semibold text-content-primary text-sm">Equipo asignado</span>
+              <span className="ml-2 text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ background: "#EEF2F8", color: "#607eaa" }}>
+                {asignados.length}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {isAdmin && empleadosDisponibles.length > 0 && equipoAbierto && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowAsignarModal(true); }}
+                className="btn-primary py-1 px-2.5 text-xs gap-1"
+              >
+                <UserPlus className="w-3.5 h-3.5" /> Asignar
               </button>
             )}
+            <ChevronDown
+              className="w-4 h-4 text-content-muted transition-transform duration-200"
+              style={{ transform: equipoAbierto ? "rotate(180deg)" : "rotate(0deg)" }}
+            />
           </div>
-        ) : (
-          <div className="space-y-2">
-            {asignados.map((asig) => (
-              <div key={asig.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                <div className="w-9 h-9 rounded-full bg-primary-light flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-bold text-primary">
-                    {asig.user?.nombre?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() ?? "?"}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-content-primary">{asig.user?.nombre}</p>
-                  <p className="text-xs text-content-muted">
-                    Desde {format(new Date(asig.fecha_inicio), "d MMM yyyy", { locale: es })}
-                    {asig.fecha_fin && <> · Hasta {format(new Date(asig.fecha_fin), "d MMM yyyy", { locale: es })}</>}
-                  </p>
-                </div>
+        </button>
+
+        {equipoAbierto && (
+          <div className="px-4 pb-4 border-t border-border pt-3">
+            {asignados.length === 0 ? (
+              <div className="flex flex-col items-center py-4 text-center">
+                <p className="text-sm text-content-secondary mb-3">Sin trabajadores asignados</p>
                 {isAdmin && (
-                  <button
-                    onClick={() => handleQuitarAsignacion(asig.id)}
-                    className="btn-ghost p-2 text-danger hover:bg-danger-light"
-                    title="Quitar de la obra"
-                  >
-                    <Trash2 className="w-4 h-4" />
+                  <button onClick={() => setShowAsignarModal(true)} className="btn-primary py-1.5 px-4 text-sm gap-1.5">
+                    <UserPlus className="w-4 h-4" /> Asignar trabajador
                   </button>
                 )}
               </div>
-            ))}
+            ) : (
+              <div className="space-y-2">
+                {asignados.map((asig) => (
+                  <div key={asig.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                    <div className="w-9 h-9 rounded-full bg-primary-light flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold text-primary">
+                        {asig.user?.nombre?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() ?? "?"}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-content-primary">{asig.user?.nombre}</p>
+                      <p className="text-xs text-content-muted">
+                        Desde {format(new Date(asig.fecha_inicio), "d MMM yyyy", { locale: es })}
+                        {asig.fecha_fin && <> · Hasta {format(new Date(asig.fecha_fin), "d MMM yyyy", { locale: es })}</>}
+                      </p>
+                    </div>
+                    {isAdmin && (
+                      <button onClick={() => handleQuitarAsignacion(asig.id)} className="btn-ghost p-2 text-danger hover:bg-danger-light" title="Quitar">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -346,15 +366,43 @@ export default function ObraDetallePage() {
         </Link>
       </div>
 
-      {/* Documentación */}
-      <DocumentacionSection
-        obraId={obra.id}
-        tenantId={tenantId!}
-        userId={user!.id}
-        isAdmin={isAdmin}
-        documentos={documentos}
-        onActualizar={cargar}
-      />
+      {/* Documentación — acordeón */}
+      <div className="card mb-4 overflow-hidden">
+        <button
+          onClick={() => setDocsAbierto((v) => !v)}
+          className="w-full flex items-center justify-between p-4 text-left"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "#EEF2F8" }}>
+              <FileText className="w-4 h-4" style={{ color: "#607eaa" }} />
+            </div>
+            <div>
+              <span className="font-semibold text-content-primary text-sm">Documentación</span>
+              <span className="ml-2 text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ background: "#EEF2F8", color: "#607eaa" }}>
+                {documentos.length}
+              </span>
+            </div>
+          </div>
+          <ChevronDown
+            className="w-4 h-4 text-content-muted transition-transform duration-200"
+            style={{ transform: docsAbierto ? "rotate(180deg)" : "rotate(0deg)" }}
+          />
+        </button>
+
+        {docsAbierto && (
+          <div className="border-t border-border">
+            <DocumentacionSection
+              obraId={obra.id}
+              tenantId={tenantId!}
+              userId={user!.id}
+              isAdmin={isAdmin}
+              documentos={documentos}
+              onActualizar={cargar}
+              embedded
+            />
+          </div>
+        )}
+      </div>
 
       {/* Facturación (solo admin) */}
       {isAdmin && tenantId && (
