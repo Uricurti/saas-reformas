@@ -21,8 +21,9 @@ export async function POST(req: NextRequest) {
     if (!res.ok) return NextResponse.json({ emailAuth: null });
 
     const rows = await res.json();
+    const found     = Array.isArray(rows) && rows.length > 0;
     const emailAuth = rows?.[0]?.email_auth ?? null;
-    return NextResponse.json({ emailAuth });
+    return NextResponse.json({ emailAuth, found });
   } catch {
     return NextResponse.json({ emailAuth: null });
   }

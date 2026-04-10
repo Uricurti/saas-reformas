@@ -65,10 +65,17 @@ export async function signIn(email: string, password: string) {
       body:    JSON.stringify({ email: authEmail }),
     });
     if (lookup.ok) {
-      const { emailAuth } = await lookup.json();
-      if (emailAuth) authEmail = emailAuth;
+      const { emailAuth, found } = await lookup.json();
+      if (found && emailAuth) {
+        authEmail = emailAuth; // usar el email_auth fijo de InsForge
+      } else if (found === false) {
+        // Email no existe en la app → credenciales inválidas
+        // (evita que alguien entre con el email antiguo de InsForge)
+        return { data: null, error: { message: "Email o contraseña incorrectos" } };
+      }
+      // Si lookup falla por error de red (found === undefined) → fallback al email introducido
     }
-  } catch { /* fallback: usar el email introducido */ }
+  } catch { /* error de red → fallback: usar el email introducido */ }
 
   // Intentar login directo → devuelve accessToken + refreshToken en el body
   try {
