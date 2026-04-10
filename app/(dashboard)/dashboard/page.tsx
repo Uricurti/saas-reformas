@@ -215,20 +215,96 @@ export function ActividadRow({ item, last }: { item: ActividadItem; last: boolea
 }
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
+function Sk({ w, h, className = "" }: { w?: string; h: string; className?: string }) {
+  return <div className={`skeleton rounded-xl ${className}`} style={{ width: w, height: h }} />;
+}
+
 function LoadingSkeleton() {
   return (
-    <div className="p-4 md:p-8 w-full">
-      <div className="h-8 w-64 rounded-xl animate-pulse mb-2" style={{ background: "#E5E7EB" }} />
-      <div className="h-4 w-40 rounded-lg animate-pulse mb-8" style={{ background: "#E5E7EB" }} />
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-        <div className="lg:col-span-3 space-y-3">
-          {[1,2,3,4].map(i => (
-            <div key={i} className="h-14 rounded-xl animate-pulse" style={{ background: "#F3F4F6" }} />
-          ))}
+    <div className="w-full">
+      {/* Barra de progreso superior — como apps premium */}
+      <div className="fixed top-0 left-0 right-0 z-50 h-0.5 overflow-hidden" style={{ background: "rgba(96,126,170,0.12)" }}>
+        <div
+          className="h-full"
+          style={{
+            background: "linear-gradient(90deg, #1c3879, #607eaa, #26bbec, #607eaa, #1c3879)",
+            backgroundSize: "300% 100%",
+            animation: "shimmer 1.8s ease-in-out infinite",
+            width: "100%",
+          }}
+        />
+      </div>
+
+      <div className="p-4 md:p-8 w-full">
+        {/* Cabecera */}
+        <div className="mb-7">
+          <Sk w="220px" h="28px" className="mb-2" />
+          <Sk w="140px" h="16px" />
         </div>
-        <div className="lg:col-span-2 space-y-4">
-          <div className="h-32 rounded-2xl animate-pulse" style={{ background: "#F3F4F6" }} />
-          <div className="h-24 rounded-2xl animate-pulse" style={{ background: "#F3F4F6" }} />
+
+        {/* Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
+
+          {/* Columna izquierda — Fichaje */}
+          <div className="lg:col-span-3">
+            <div className="card overflow-hidden">
+              {/* Header card */}
+              <div className="px-5 pt-5 pb-4" style={{ borderBottom: "1px solid #F3F4F6" }}>
+                <div className="flex items-center justify-between mb-3">
+                  <Sk w="110px" h="12px" />
+                  <Sk w="44px" h="22px" className="rounded-full" />
+                </div>
+                <Sk w="100%" h="6px" className="rounded-full" />
+              </div>
+
+              {/* Filas empleados */}
+              <div className="px-3 py-3 space-y-1">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="flex items-center gap-3 px-2 py-2.5 rounded-xl">
+                    <Sk w="36px" h="36px" className="rounded-full flex-shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <Sk w={i % 2 === 0 ? "120px" : "90px"} h="13px" />
+                      <Sk w="80px" h="11px" />
+                    </div>
+                    <Sk w="64px" h="30px" className="rounded-lg flex-shrink-0" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Columna derecha */}
+          <div className="lg:col-span-2 space-y-4">
+
+            {/* Obras stat card */}
+            <div className="rounded-2xl p-5 overflow-hidden relative" style={{ background: "linear-gradient(135deg, #1c3879 0%, #607eaa 100%)", minHeight: 120 }}>
+              <div className="absolute inset-0" style={{
+                background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0) 100%)",
+                backgroundSize: "200% 100%",
+                animation: "shimmer 2s ease-in-out infinite",
+              }} />
+              <div className="relative space-y-3">
+                <div className="h-3 w-24 rounded-lg" style={{ background: "rgba(255,255,255,0.2)" }} />
+                <div className="h-9 w-16 rounded-xl" style={{ background: "rgba(255,255,255,0.25)" }} />
+                <div className="h-3 w-32 rounded-lg" style={{ background: "rgba(255,255,255,0.15)" }} />
+              </div>
+            </div>
+
+            {/* Actividad reciente */}
+            <div className="card p-4 space-y-3">
+              <Sk w="100px" h="12px" />
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Sk w="32px" h="32px" className="rounded-full flex-shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <Sk w={i === 2 ? "140px" : "100px"} h="12px" />
+                    <Sk w="70px" h="10px" />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+          </div>
         </div>
       </div>
     </div>
