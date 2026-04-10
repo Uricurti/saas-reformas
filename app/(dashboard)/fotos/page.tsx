@@ -159,25 +159,53 @@ function Lightbox({
   archivo: Archivo; initialUrl: string | null; onClose: () => void;
 }) {
   const isVideo = archivo.tipo === "video";
-  const [url,      setUrl]      = useState<string | null>(initialUrl);
-  const [loading,  setLoading]  = useState(!initialUrl);
-  const [vidError, setVidError] = useState(false);
+  const [url,     setUrl]     = useState<string | null>(initialUrl);
+  const [loading, setLoading] = useState(isVideo && !initialUrl);
 
-  // Para vídeos: cargar URL server-side al montar el lightbox
+  // Para vídeos: carga URL server-side al montar
   useEffect(() => {
-    if (!isVideo || initialUrl) return;
+    if (!isVideo) return;
+    if (initialUrl) { setUrl(initialUrl); setLoading(false); return; }
     fetchMediaUrl(archivo.url_storage).then((u) => {
       setUrl(u);
       setLoading(false);
     });
   }, [archivo.id, archivo.url_storage, isVideo, initialUrl]);
 
-  // Para fotos sin URL precargada (raro): igual
+  // Para vídeos con URL lista: abre el reproductor nativo del dispositivo
   useEffect(() => {
-    if (isVideo || initialUrl) return;
-    setLoading(false);
-  }, [isVideo, initialUrl]);
+    if (!isVideo || !url || loading) return;
+    // Abre la URL directamente → iOS abre el reproductor nativo, Android igual
+    window.open(url, "_blank", "noopener");
+    onClose(); // cierra el lightbox inmediatamente
+  }, [isVideo, url, loading, onClose]);
 
+  // Si es vídeo: muestra spinner mientras carga la URL (luego se cierra solo)
+  if (isVideo) {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="relative w-full max-w-xs mx-4 flex flex-col items-center gap-4"
+          onClick={(e) => e.stopPropagation()}>
+          <div className="w-full rounded-2xl bg-black/80 flex flex-col items-center justify-center gap-3 py-12">
+            {loading ? (
+              <>
+                <Loader2 className="w-8 h-8 text-white/60 animate-spin" />
+                <span className="text-sm text-white/60">Abriendo vídeo…</span>
+              </>
+            ) : !url ? (
+              <>
+                <ImageOff className="w-8 h-8 text-white/40" />
+                <span className="text-sm text-white/60">No se pudo cargar el vídeo</span>
+                <button onClick={onClose} className="text-xs text-white/50 mt-1">Cerrar</button>
+              </>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Fotos: lightbox normal
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="relative w-full max-w-2xl mx-4" onClick={(e) => e.stopPropagation()}>
@@ -197,45 +225,12 @@ function Lightbox({
             )}
           </div>
         </div>
-
-        {loading ? (
-          <div className="w-full rounded-2xl bg-black flex items-center justify-center" style={{ height: 260 }}>
-            <Loader2 className="w-8 h-8 text-white/60 animate-spin" />
-          </div>
-        ) : isVideo ? (
-          !url || vidError ? (
-            <div className="w-full rounded-2xl bg-black flex flex-col items-center justify-center gap-3 py-16">
-              <ImageOff className="w-8 h-8 text-white/40" />
-              <span className="text-sm text-white/60">No se puede reproducir el vídeo</span>
-              {url && (
-                <a href={url} download target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-white/80 underline">
-                  Descargar vídeo
-                </a>
-              )}
-            </div>
-          ) : (
-            <video
-              key={url}
-              src={url}
-              controls
-              playsInline
-              muted={false}
-              autoPlay
-              className="w-full rounded-2xl max-h-[75vh] bg-black"
-              onError={() => setVidError(true)}
-              // iOS requiere que el usuario inicie la reproducción si no está muted
-              // playsInline evita que abra el player nativo en iPhone
-            />
-          )
-        ) : (
-          <img
-            src={url ?? ""}
-            alt="Foto de obra"
-            className="w-full rounded-2xl max-h-[75vh] object-contain bg-black"
-            draggable={false}
-          />
-        )}
+        <img
+          src={url ?? ""}
+          alt="Foto de obra"
+          className="w-full rounded-2xl max-h-[75vh] object-contain bg-black"
+          draggable={false}
+        />
       </div>
     </div>
   );
