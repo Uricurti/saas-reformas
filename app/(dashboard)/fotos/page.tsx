@@ -6,7 +6,7 @@ import { useAuthStore, useTenantId } from "@/lib/stores/auth-store";
 import { getArchivosByObra, createArchivoRecord, deleteArchivo, getObraById } from "@/lib/insforge/database";
 import {
   subirFoto, subirVideo, validarTamanoArchivo,
-  detectarTipoArchivo, getMediaUrl, eliminarArchivo,
+  detectarTipoArchivo, eliminarArchivo, MAX_VIDEO_COMPRESS_MB,
 } from "@/lib/insforge/storage";
 import type { Archivo } from "@/types";
 import {
@@ -18,6 +18,20 @@ import { formatDateTime } from "@/lib/utils/format";
 
 // ─── Caché de URLs en sesión ─────────────────────────────────────────────────
 const urlCache: Record<string, string> = {};
+
+// Obtiene URL de media via API server-side (evita problemas CORS/auth en móvil)
+async function fetchMediaUrl(storagePath: string): Promise<string | null> {
+  // Si ya es una URL completa, usarla directamente
+  if (storagePath.startsWith("blob:")) return storagePath;
+  try {
+    const res = await fetch(`/api/media/url?path=${encodeURIComponent(storagePath)}`);
+    if (res.ok) {
+      const { url } = await res.json();
+      return url ?? null;
+    }
+  } catch { /* fallback */ }
+  return null;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function getDayKey(iso: string) {
@@ -42,28 +56,33 @@ function MediaThumb({
   archivo: Archivo;
   deleteMode: boolean;
   selected: boolean;
-  onOpen: (a: Archivo, url: string) => void;
+  onOpen: (a: Archivo) => void;
   onToggleSelect: (id: string) => void;
 }) {
-  const [url,     setUrl]     = useState<string | null>(urlCache[archivo.id] ?? null);
-  const [loading, setLoading] = useState(!urlCache[archivo.id]);
+  const isVideo = archivo.tipo === "video";
+  const autorNombre = archivo.autor?.nombre ?? null;
+
+  // Los vídeos NO cargan URL en el thumbnail — solo placeholder estático.
+  // Esto evita descargar el video completo en móvil (causaba el error).
+  const [url,     setUrl]     = useState<string | null>(
+    isVideo ? null : (urlCache[archivo.id] ?? null)
+  );
+  const [loading, setLoading] = useState(!isVideo && !urlCache[archivo.id]);
   const [error,   setError]   = useState(false);
 
   useEffect(() => {
+    if (isVideo) return; // los vídeos se cargan solo al abrirse en el lightbox
     if (urlCache[archivo.id]) { setUrl(urlCache[archivo.id]); setLoading(false); return; }
-    getMediaUrl(archivo.url_storage).then((u) => {
+    fetchMediaUrl(archivo.url_storage).then((u) => {
       if (u) { urlCache[archivo.id] = u; setUrl(u); }
       else setError(true);
       setLoading(false);
     });
-  }, [archivo.id, archivo.url_storage]);
-
-  const isVideo = archivo.tipo === "video";
-  const autorNombre = archivo.autor?.nombre ?? null;
+  }, [archivo.id, archivo.url_storage, isVideo]);
 
   function handleClick() {
     if (deleteMode) { onToggleSelect(archivo.id); return; }
-    if (url) onOpen(archivo, url);
+    onOpen(archivo);
   }
 
   return (
@@ -73,7 +92,14 @@ function MediaThumb({
       style={{ outline: selected ? "3px solid #607eaa" : "none", outlineOffset: 2 }}
     >
       {/* ── Media ── */}
-      {loading ? (
+      {isVideo ? (
+        /* Vídeo: placeholder estático con icono play — sin carga de red */
+        <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+          <div className="w-11 h-11 rounded-full bg-white/90 flex items-center justify-center shadow">
+            <Play className="w-5 h-5 text-gray-800 ml-0.5" fill="currentColor" />
+          </div>
+        </div>
+      ) : loading ? (
         <div className="w-full h-full flex items-center justify-center bg-gray-200 animate-pulse">
           <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
         </div>
@@ -82,15 +108,6 @@ function MediaThumb({
           <ImageOff className="w-6 h-6 text-gray-300" />
           <span className="text-[10px] text-gray-400">Sin vista previa</span>
         </div>
-      ) : isVideo ? (
-        <>
-          <video src={url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
-          <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
-            <div className="w-11 h-11 rounded-full bg-white/90 flex items-center justify-center shadow">
-              <Play className="w-5 h-5 text-gray-800 ml-0.5" fill="currentColor" />
-            </div>
-          </div>
-        </>
       ) : (
         <>
           <img src={url} alt="Foto de obra" className="w-full h-full object-cover" draggable={false} />
@@ -137,11 +154,30 @@ function MediaThumb({
 
 // ─── Lightbox ────────────────────────────────────────────────────────────────
 function Lightbox({
-  archivo, url, onClose,
+  archivo, initialUrl, onClose,
 }: {
-  archivo: Archivo; url: string; onClose: () => void;
+  archivo: Archivo; initialUrl: string | null; onClose: () => void;
 }) {
   const isVideo = archivo.tipo === "video";
+  const [url,      setUrl]      = useState<string | null>(initialUrl);
+  const [loading,  setLoading]  = useState(!initialUrl);
+  const [vidError, setVidError] = useState(false);
+
+  // Para vídeos: cargar URL server-side al montar el lightbox
+  useEffect(() => {
+    if (!isVideo || initialUrl) return;
+    fetchMediaUrl(archivo.url_storage).then((u) => {
+      setUrl(u);
+      setLoading(false);
+    });
+  }, [archivo.id, archivo.url_storage, isVideo, initialUrl]);
+
+  // Para fotos sin URL precargada (raro): igual
+  useEffect(() => {
+    if (isVideo || initialUrl) return;
+    setLoading(false);
+  }, [isVideo, initialUrl]);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="relative w-full max-w-2xl mx-4" onClick={(e) => e.stopPropagation()}>
@@ -161,10 +197,44 @@ function Lightbox({
             )}
           </div>
         </div>
-        {isVideo ? (
-          <video src={url} controls autoPlay playsInline className="w-full rounded-2xl max-h-[75vh] bg-black" />
+
+        {loading ? (
+          <div className="w-full rounded-2xl bg-black flex items-center justify-center" style={{ height: 260 }}>
+            <Loader2 className="w-8 h-8 text-white/60 animate-spin" />
+          </div>
+        ) : isVideo ? (
+          !url || vidError ? (
+            <div className="w-full rounded-2xl bg-black flex flex-col items-center justify-center gap-3 py-16">
+              <ImageOff className="w-8 h-8 text-white/40" />
+              <span className="text-sm text-white/60">No se puede reproducir el vídeo</span>
+              {url && (
+                <a href={url} download target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-white/80 underline">
+                  Descargar vídeo
+                </a>
+              )}
+            </div>
+          ) : (
+            <video
+              key={url}
+              src={url}
+              controls
+              playsInline
+              muted={false}
+              autoPlay
+              className="w-full rounded-2xl max-h-[75vh] bg-black"
+              onError={() => setVidError(true)}
+              // iOS requiere que el usuario inicie la reproducción si no está muted
+              // playsInline evita que abra el player nativo en iPhone
+            />
+          )
         ) : (
-          <img src={url} alt="Foto de obra" className="w-full rounded-2xl max-h-[75vh] object-contain bg-black" draggable={false} />
+          <img
+            src={url ?? ""}
+            alt="Foto de obra"
+            className="w-full rounded-2xl max-h-[75vh] object-contain bg-black"
+            draggable={false}
+          />
         )}
       </div>
     </div>
@@ -253,8 +323,8 @@ function FotosInner() {
   const [deleting,   setDeleting]   = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
 
-  // Lightbox
-  const [lightbox, setLightbox] = useState<{ archivo: Archivo; url: string } | null>(null);
+  // Lightbox — url puede ser null (para vídeos: se carga al abrir)
+  const [lightbox, setLightbox] = useState<{ archivo: Archivo; url: string | null } | null>(null);
 
   const inputRef  = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -285,14 +355,32 @@ function FotosInner() {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      setUploadProgress(`Subiendo ${i + 1} de ${files.length}…`);
+      const tipo = detectarTipoArchivo(file);
       const errorTamano = validarTamanoArchivo(file);
       if (errorTamano) { setUploadError(errorTamano); continue; }
-      const tipo = detectarTipoArchivo(file);
-      const upFn = tipo === "video" ? subirVideo : subirFoto;
-      const { url, error, tamano } = await upFn(file, tenantId, obraId, user.id);
-      if (error || !url) { setUploadError(error ?? "Error al subir"); continue; }
-      await createArchivoRecord({ obraId, userId: user.id, tenantId, tipo, urlStorage: url, tamanoByte: tamano });
+
+      if (tipo === "video") {
+        const mb = file.size / (1024 * 1024);
+        const necesitaComprimir = mb > MAX_VIDEO_COMPRESS_MB;
+        if (necesitaComprimir) {
+          setUploadProgress(`Vídeo ${i + 1}/${files.length} — preparando compresión…`);
+        } else {
+          setUploadProgress(`Subiendo vídeo ${i + 1} de ${files.length}…`);
+        }
+        const { url, error, tamano } = await subirVideo(
+          file, tenantId, obraId, user.id,
+          necesitaComprimir
+            ? (etapa, pct) => setUploadProgress(`Vídeo ${i + 1}/${files.length} — ${etapa} ${pct}%`)
+            : undefined
+        );
+        if (error || !url) { setUploadError(error ?? "Error al subir"); continue; }
+        await createArchivoRecord({ obraId, userId: user.id, tenantId, tipo, urlStorage: url, tamanoByte: tamano });
+      } else {
+        setUploadProgress(`Subiendo foto ${i + 1} de ${files.length}…`);
+        const { url, error, tamano } = await subirFoto(file, tenantId, obraId, user.id);
+        if (error || !url) { setUploadError(error ?? "Error al subir"); continue; }
+        await createArchivoRecord({ obraId, userId: user.id, tenantId, tipo, urlStorage: url, tamanoByte: tamano });
+      }
     }
 
     setIsUploading(false);
@@ -508,7 +596,10 @@ function FotosInner() {
                       archivo={archivo}
                       deleteMode={deleteMode}
                       selected={selected.has(archivo.id)}
-                      onOpen={(a, url) => setLightbox({ archivo: a, url })}
+                      onOpen={(a) => setLightbox({
+                          archivo: a,
+                          url: a.tipo !== "video" ? (urlCache[a.id] ?? null) : null,
+                        })}
                       onToggleSelect={toggleSelect}
                     />
                   ))}
@@ -533,7 +624,7 @@ function FotosInner() {
       {lightbox && !deleteMode && (
         <Lightbox
           archivo={lightbox.archivo}
-          url={lightbox.url}
+          initialUrl={lightbox.url}
           onClose={() => setLightbox(null)}
         />
       )}

@@ -194,6 +194,7 @@ export interface Jornada {
   es_libre: boolean;
   ha_fichado: boolean;
   fichado_at: string | null;
+  fichado_por: string | null;  // user_id de quien fichó (null = el propio empleado, distinto = admin)
   hora_inicio: string | null;
   nota: string | null;
   created_at: string;

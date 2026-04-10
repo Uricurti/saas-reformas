@@ -133,23 +133,94 @@ export async function subirFoto(
   return { url: storedPath, error: null, tamano: comprimido.size };
 }
 
-// ─── Subir vídeo (sin compresión en MVP) ────────────────────────────────────
+// ─── Comprimir vídeo con ffmpeg.wasm ────────────────────────────────────────
+// Se carga el core de ffmpeg desde CDN la primera vez (~30 MB, queda cacheado).
+// Solo se llama si el vídeo pesa más de MAX_VIDEO_COMPRESS_MB.
+let _ffmpegInstance: any = null;
+
+export async function comprimirVideo(
+  file: File,
+  onProgress?: (etapa: string, pct: number) => void
+): Promise<File> {
+  onProgress?.("Cargando compresor…", 0);
+
+  if (!_ffmpegInstance) {
+    const { FFmpeg } = await import("@ffmpeg/ffmpeg");
+    _ffmpegInstance = new FFmpeg();
+  }
+  const ffmpeg = _ffmpegInstance;
+
+  if (!ffmpeg.loaded) {
+    const { toBlobURL } = await import("@ffmpeg/util");
+    const base = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm";
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`,   "text/javascript"),
+      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
+    });
+  }
+
+  onProgress?.("Preparando vídeo…", 5);
+  const { fetchFile } = await import("@ffmpeg/util");
+  await ffmpeg.writeFile("input", await fetchFile(file));
+
+  const progressHandler = ({ progress }: { progress: number }) => {
+    onProgress?.("Comprimiendo vídeo…", Math.round(5 + progress * 90));
+  };
+  ffmpeg.on("progress", progressHandler);
+
+  // 720p máx, H.264, CRF 28 ≈ 15-20 MB/min · faststart para reproducción web
+  await ffmpeg.exec([
+    "-i", "input",
+    "-vf", "scale=-2:min(720\\,ih)",   // no upscale si ya es <720p
+    "-c:v", "libx264",
+    "-crf", "28",
+    "-preset", "fast",
+    "-movflags", "+faststart",
+    "-c:a", "aac",
+    "-b:a", "96k",
+    "output.mp4",
+  ]);
+
+  ffmpeg.off("progress", progressHandler);
+  onProgress?.("Finalizando…", 97);
+
+  const data = await ffmpeg.readFile("output.mp4") as Uint8Array;
+  await ffmpeg.deleteFile("input");
+  await ffmpeg.deleteFile("output.mp4");
+
+  return new File([data], "video_comprimido.mp4", { type: "video/mp4" });
+}
+
+// ─── Subir vídeo (comprime automáticamente si supera el límite) ──────────────
+export const MAX_VIDEO_COMPRESS_MB = 30; // por encima de esto → comprimir
+
 export async function subirVideo(
   file: File,
   tenantId: string,
   obraId: string,
-  userId: string
+  userId: string,
+  onProgress?: (etapa: string, pct: number) => void
 ): Promise<{ url: string | null; error: string | null; tamano: number }> {
-  const ext  = file.name.split(".").pop() ?? "mp4";
-  const path = `${tenantId}/${obraId}/${userId}/${Date.now()}.${ext}`;
+  let videoFile = file;
 
-  const { data, error } = await insforge.storage.from(BUCKET).upload(path, file);
+  const mb = file.size / (1024 * 1024);
+  if (mb > MAX_VIDEO_COMPRESS_MB) {
+    try {
+      videoFile = await comprimirVideo(file, onProgress);
+    } catch {
+      return { url: null, error: "No se pudo comprimir el vídeo. Inténtalo de nuevo.", tamano: 0 };
+    }
+  }
+
+  onProgress?.("Subiendo vídeo…", 98);
+  const path = `${tenantId}/${obraId}/${userId}/${Date.now()}.mp4`;
+  const { data, error } = await insforge.storage.from(BUCKET).upload(path, videoFile);
   if (error || !data) {
     return { url: null, error: (error as any)?.message ?? "Error al subir vídeo", tamano: 0 };
   }
 
   const storedPath = (data as any).key ?? (data as any).path ?? path;
-  return { url: storedPath, error: null, tamano: file.size };
+  return { url: storedPath, error: null, tamano: videoFile.size };
 }
 
 // ─── Eliminar archivo ────────────────────────────────────────────────────────
@@ -186,7 +257,7 @@ export async function subirDocumento(
 // ─── Límites de tamaño ───────────────────────────────────────────────────────
 export const MAX_DOC_MB  = 50;
 export const MAX_FOTO_MB = 10;
-export const MAX_VIDEO_MB = 100;
+export const MAX_VIDEO_MB = 500; // sin límite práctico: se comprime automáticamente si >30 MB
 
 export function validarDocumento(file: File): string | null {
   const mb  = file.size / (1024 * 1024);

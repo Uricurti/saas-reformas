@@ -222,31 +222,48 @@ function LoadingSkeleton() {
 }
 
 // ── Página principal ───────────────────────────────────────────────────────────
+// Caché en memoria — se mantiene mientras el módulo esté cargado (misma sesión)
+const _cache: { data: DashboardData | null; at: number; tenantId: string | null } =
+  { data: null, at: 0, tenantId: null };
+const CACHE_TTL = 45_000; // 45 segundos
+
 export default function DashboardPage() {
   const router   = useRouter();
   const user     = useAuthStore((s) => s.user);
   const isAdmin  = useIsAdmin();
   const tenantId = useTenantId();
 
-  const [data,       setData]       = useState<DashboardData | null>(null);
-  const [loading,    setLoading]    = useState(true);
+  const cached = _cache.tenantId === tenantId && _cache.data && Date.now() - _cache.at < CACHE_TTL;
+  const [data,       setData]       = useState<DashboardData | null>(cached ? _cache.data : null);
+  const [loading,    setLoading]    = useState(!cached);
   const [procesando, setProcesando] = useState<string | null>(null);
   const [cobrando,   setCobrando]   = useState<string | null>(null);
 
   useEffect(() => { if (user && !isAdmin) router.replace("/obras"); }, [user, isAdmin, router]);
 
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (silencioso = false) => {
     if (!tenantId) return;
+    if (!silencioso) setLoading(true);
     try {
       const res = await fetch(`/api/dashboard/data?tenantId=${tenantId}`);
-      if (res.ok) setData(await res.json());
+      if (res.ok) {
+        const json = await res.json();
+        _cache.data = json;
+        _cache.at = Date.now();
+        _cache.tenantId = tenantId;
+        setData(json);
+      }
     } finally {
       setLoading(false);
     }
   }, [tenantId]);
 
-  useEffect(() => { if (tenantId) cargar(); }, [tenantId, cargar]);
-  useRefreshOnFocus(() => { if (tenantId) cargar(); });
+  useEffect(() => {
+    if (!tenantId) return;
+    const stale = !cached;
+    if (stale) cargar(); else cargar(true); // si hay caché fresca, recarga en silencio
+  }, [tenantId, cargar]); // eslint-disable-line react-hooks/exhaustive-deps
+  useRefreshOnFocus(() => { if (tenantId) cargar(true); });
 
   async function handleFichar(emp: FichajeEmpleado) {
     if (!tenantId || procesando) return;
@@ -267,9 +284,18 @@ export default function DashboardPage() {
       });
       return { ...prev, fichajeHoy: updated };
     });
-    await upsertJornada({ userId: emp.user_id, tenantId, fecha: hoy, estado: "trabajando", obraId: emp.obra_id ?? undefined, haFichado: nuevoFichado });
+    await upsertJornada({
+      userId:     emp.user_id,
+      tenantId,
+      fecha:      hoy,
+      estado:     "trabajando",
+      obraId:     emp.obra_id ?? undefined,
+      haFichado:  nuevoFichado,
+      fichadoPor: nuevoFichado ? (user?.id ?? null) : null, // admin que ficha (o null si desfichamos)
+    });
+    _cache.at = 0; // invalida caché para que la siguiente carga traiga datos frescos
     setProcesando(null);
-    cargar();
+    cargar(true);
   }
 
   async function handleCobrar(alertaId: string) {

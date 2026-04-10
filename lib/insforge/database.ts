@@ -535,6 +535,7 @@ export async function upsertJornada(params: {
   obraId?: string | null;
   esLibre?: boolean;
   haFichado?: boolean;
+  fichadoPor?: string | null;  // user_id de quien realiza la acción (admin o null = empleado)
   horaInicio?: string;
   nota?: string;
 }): Promise<{ data: Jornada | null; error: any }> {
@@ -551,7 +552,15 @@ export async function upsertJornada(params: {
     ha_fichado: params.haFichado ?? false,
     updated_at: new Date().toISOString(),
   };
-  if (params.haFichado) payload.fichado_at = new Date().toISOString();
+  if (params.haFichado) {
+    payload.fichado_at  = new Date().toISOString();
+    // Si fichadoPor es distinto al userId → fue el admin; si es null/igual → fue el empleado
+    payload.fichado_por = params.fichadoPor ?? null;
+  } else {
+    // Al desfichar, limpiamos ambos campos
+    payload.fichado_at  = null;
+    payload.fichado_por = null;
+  }
   if (params.horaInicio) payload.hora_inicio = params.horaInicio;
   if (params.nota !== undefined) payload.nota = params.nota;
 
