@@ -20,8 +20,6 @@ interface LineaPedido {
   descripcion: string;
 }
 
-const UNIDADES = ["ud", "sacos", "m", "m²", "m³", "kg", "litros", "caja", "rollo", "paquete", "bote", "tubo", "plancha"];
-
 let _nextId = 1;
 function nuevaLinea(): LineaPedido {
   return { id: _nextId++, cantidad: "", unidad: "ud", descripcion: "" };
@@ -138,16 +136,6 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
                     className="input text-center"
                     style={{ width: 64, flexShrink: 0 }}
                   />
-
-                  {/* Unidad */}
-                  <select
-                    value={linea.unidad}
-                    onChange={(e) => updateLinea(linea.id, "unidad", e.target.value)}
-                    className="select"
-                    style={{ width: 88, flexShrink: 0 }}
-                  >
-                    {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
-                  </select>
 
                   {/* Descripción */}
                   <input
