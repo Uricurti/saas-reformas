@@ -93,7 +93,6 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
   }
 
   return (
-    {/* En móvil el modal va arriba para que el teclado no lo tape */}
     <div
       className="fixed inset-0 z-50 flex items-start justify-center animate-fade-in bg-black/40 backdrop-blur-sm sm:items-center"
       onClick={(e) => e.target === e.currentTarget && onClose()}
