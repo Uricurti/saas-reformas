@@ -15,14 +15,13 @@ interface Props {
 
 interface LineaPedido {
   id:          number;
-  cantidad:    string;  // string para input libre, se parsea al enviar
-  unidad:      string;
+  cantidad:    string;
   descripcion: string;
 }
 
 let _nextId = 1;
 function nuevaLinea(): LineaPedido {
-  return { id: _nextId++, cantidad: "", unidad: "ud", descripcion: "" };
+  return { id: _nextId++, cantidad: "", descripcion: "" };
 }
 
 export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, onCreated }: Props) {
@@ -31,7 +30,11 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
   const [lineas,    setLineas]    = useState<LineaPedido[]>([nuevaLinea()]);
   const [isLoading, setIsLoading] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
+
+  // Ref para el campo cantidad de la ÚLTIMA línea (para foco al añadir)
   const lastCantidadRef = useRef<HTMLInputElement>(null);
+  // Controla si ya se ha hecho el foco inicial (no repetir en cada render)
+  const initialFocusDone = useRef(false);
 
   useEffect(() => {
     getObrasActivas(tenantId).then(({ data }) => {
@@ -41,11 +44,14 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
     });
   }, []);
 
-  // Foco automático al abrir y al añadir línea → siempre va a la cantidad
+  // Foco al añadir línea nueva (no en el primer render — lo hace autoFocus)
   useEffect(() => {
-    // Pequeño delay para que el DOM esté listo (especialmente en móvil)
-    const t = setTimeout(() => lastCantidadRef.current?.focus(), 80);
-    return () => clearTimeout(t);
+    if (!initialFocusDone.current) {
+      initialFocusDone.current = true;
+      return; // primera vez: autoFocus ya se encarga
+    }
+    // Nueva línea añadida → foco en su cantidad lo antes posible
+    requestAnimationFrame(() => lastCantidadRef.current?.focus());
   }, [lineas.length]);
 
   function updateLinea(id: number, field: keyof LineaPedido, value: string) {
@@ -63,44 +69,46 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
 
   async function handleSubmit() {
     if (!obraId) { setError("Selecciona una obra."); return; }
-
     const validas = lineas.filter((l) => l.descripcion.trim());
     if (validas.length === 0) { setError("Escribe al menos un material."); return; }
 
     setIsLoading(true);
     setError(null);
 
-    // Enviamos una petición por línea (en paralelo)
     const resultados = await Promise.all(
       validas.map((l) =>
         pedirMaterial(tenantId, obraId, userId, {
           descripcion: l.descripcion.trim(),
           categoria:   "otro",
           cantidad:    parseFloat(l.cantidad) || 1,
-          unidad:      l.unidad,
+          unidad:      "ud",
           urgencia:    "normal",
         })
       )
     );
 
     setIsLoading(false);
-    const hayError = resultados.some((r) => r.error);
-    if (hayError) {
+    if (resultados.some((r) => r.error)) {
       setError("Hubo un error al enviar alguna petición. Inténtalo de nuevo.");
     } else {
       onCreated();
     }
   }
 
+  const nValidas = lineas.filter((l) => l.descripcion.trim()).length;
+
   return (
+    // Overlay: en móvil el modal se muestra arriba (evita que el teclado lo tape)
+    // px-4 → 16 px de margen a cada lado para que no quede pegado a los bordes
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center animate-fade-in bg-black/40 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center px-4 pt-4 sm:pt-0 animate-fade-in bg-black/50 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="modal-panel max-h-[90vh] flex flex-col w-full sm:w-auto mt-4 sm:mt-0 rounded-t-2xl sm:rounded-2xl">
+      {/* Panel: ancho máximo controlado, nunca toca los bordes */}
+      <div className="w-full max-w-md bg-surface rounded-2xl shadow-2xl flex flex-col max-h-[88vh] sm:max-h-[85vh] overflow-hidden border border-border">
 
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-border flex-shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="icon-container w-9 h-9"><ShoppingCart className="w-4 h-4" /></div>
             <h2 className="text-lg font-semibold text-content-primary">Pedir material</h2>
@@ -108,7 +116,8 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
           <button onClick={onClose} className="btn-ghost p-2"><X className="w-4 h-4" /></button>
         </div>
 
-        <div className="overflow-y-auto flex-1 p-5 space-y-5">
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 px-5 py-5 space-y-5">
 
           {/* Obra */}
           <div>
@@ -125,26 +134,29 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
 
           {/* Líneas de pedido */}
           <div>
-            <label className="label mb-2">¿Qué necesitas? *</label>
-            <div className="space-y-2">
+            <label className="label mb-3">¿Qué necesitas? *</label>
+            <div className="space-y-2.5">
               {lineas.map((linea, idx) => (
                 <div key={linea.id} className="flex items-center gap-2">
 
-                  {/* Cantidad — recibe el foco al abrir y al añadir línea */}
+                  {/* Cantidad — autoFocus en la primera línea para abrir teclado en móvil */}
                   <input
                     ref={idx === lineas.length - 1 ? lastCantidadRef : undefined}
+                    // eslint-disable-next-line jsx-a11y/no-autofocus
+                    autoFocus={idx === 0 && lineas.length === 1}
                     type="number"
+                    inputMode="decimal"
                     min="0.1"
                     step="any"
                     placeholder="1"
                     value={linea.cantidad}
                     onChange={(e) => updateLinea(linea.id, "cantidad", e.target.value)}
                     onKeyDown={(e) => {
-                      // Enter en cantidad → pasa al campo descripción de la misma línea
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        const parent = e.currentTarget.closest(".flex");
-                        const desc = parent?.querySelectorAll("input")[1] as HTMLInputElement | null;
+                        // Salta al campo descripción de la misma fila
+                        const row  = e.currentTarget.closest(".flex") as HTMLElement | null;
+                        const desc = row?.querySelectorAll("input")[1] as HTMLInputElement | null;
                         desc?.focus();
                       }
                     }}
@@ -159,7 +171,6 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
                     value={linea.descripcion}
                     onChange={(e) => updateLinea(linea.id, "descripcion", e.target.value)}
                     onKeyDown={(e) => {
-                      // Enter en la última descripción → añade nueva línea
                       if (e.key === "Enter" && idx === lineas.length - 1) {
                         e.preventDefault();
                         if (linea.descripcion.trim()) addLinea();
@@ -168,7 +179,7 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
                     className="input flex-1 min-w-0"
                   />
 
-                  {/* Borrar línea */}
+                  {/* Borrar fila */}
                   <button
                     type="button"
                     onClick={() => removeLinea(linea.id)}
@@ -200,12 +211,12 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
         </div>
 
         {/* Footer */}
-        <div className="p-5 border-t border-border flex-shrink-0 flex gap-3 justify-end">
+        <div className="px-5 py-4 border-t border-border flex-shrink-0 flex gap-3 justify-end">
           <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
           <button onClick={handleSubmit} disabled={isLoading} className="btn-primary">
             {isLoading
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
-              : <>Enviar petición {lineas.filter(l => l.descripcion.trim()).length > 1 && `(${lineas.filter(l => l.descripcion.trim()).length})`}</>
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Enviando…</>
+              : <>Enviar petición{nValidas > 1 ? ` (${nValidas})` : ""}</>
             }
           </button>
         </div>

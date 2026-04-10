@@ -11,43 +11,27 @@ interface Props {
   onCancelar: () => void;
 }
 
-const categoriasEmoji: Record<string, string> = {
-  electricidad: "⚡",
-  fontaneria: "🔧",
-  albanileria: "🧱",
-  pintura: "🎨",
-  carpinteria: "🪵",
-  otro: "📦",
-};
-
 export function ModoCompraView({ materiales, onFinalizar, onCancelar }: Props) {
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   const [mostrarCompletados, setMostrarCompletados] = useState(false);
 
-  const pendientes = materiales.filter((m) => !marcados.has(m.id));
-  const completados = materiales.filter((m) => marcados.has(m.id));
+  const pendientes  = materiales.filter((m) => !marcados.has(m.id));
+  const completados = materiales.filter((m) =>  marcados.has(m.id));
 
   function toggleMarcado(id: string) {
     setMarcados((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
   }
 
   function handleFinalizar() {
-    if (marcados.size === 0) {
-      onCancelar();
-      return;
-    }
+    if (marcados.size === 0) { onCancelar(); return; }
     onFinalizar(Array.from(marcados));
   }
 
-  // Agrupar por obra
+  // Agrupar pendientes por obra
   const pendientesPorObra = pendientes.reduce<Record<string, MaterialConDetalles[]>>((acc, m) => {
     const nombre = m.obra?.nombre ?? "Sin obra";
     if (!acc[nombre]) acc[nombre] = [];
@@ -57,7 +41,8 @@ export function ModoCompraView({ materiales, onFinalizar, onCancelar }: Props) {
 
   return (
     <div className="min-h-screen bg-app-bg flex flex-col">
-      {/* Header del Modo Compra */}
+
+      {/* ── Header ── */}
       <div className="bg-primary text-white px-4 py-4 flex items-center justify-between flex-shrink-0 sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <ShoppingBag className="w-5 h-5" />
@@ -68,22 +53,20 @@ export function ModoCompraView({ materiales, onFinalizar, onCancelar }: Props) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onCancelar}
-            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        <button
+          onClick={onCancelar}
+          className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
-      {/* Lista de materiales — letra GRANDE */}
+      {/* ── Lista ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 pb-32">
         {Object.entries(pendientesPorObra).map(([obraNombre, items]) => (
           <div key={obraNombre} className="mb-6">
             <p className="text-xs font-bold text-content-muted uppercase tracking-wider mb-3 px-1">
-              📍 {obraNombre}
+              {obraNombre}
             </p>
             <div className="space-y-3">
               {items.map((m) => (
@@ -128,12 +111,12 @@ export function ModoCompraView({ materiales, onFinalizar, onCancelar }: Props) {
             <div className="w-16 h-16 bg-success-light rounded-full flex items-center justify-center">
               <Check className="w-8 h-8 text-success" />
             </div>
-            <p className="font-bold text-content-primary text-lg">¡Todo comprado! 🎉</p>
+            <p className="font-bold text-content-primary text-lg">Todo comprado</p>
           </div>
         )}
       </div>
 
-      {/* Footer fijo */}
+      {/* ── Footer fijo ── */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-border p-4 pb-safe">
         <button
           onClick={handleFinalizar}
@@ -149,25 +132,29 @@ export function ModoCompraView({ materiales, onFinalizar, onCancelar }: Props) {
   );
 }
 
+// ── Tarjeta individual ──────────────────────────────────────────────────────
 function MaterialItemCompra({
   material,
   marcado,
   onToggle,
 }: {
   material: MaterialConDetalles;
-  marcado: boolean;
+  marcado:  boolean;
   onToggle: () => void;
 }) {
+  const cantidadLabel = [
+    material.cantidad != null ? String(material.cantidad) : null,
+    material.unidad   || null,
+  ].filter(Boolean).join(" ");
+
   return (
     <button
       onClick={onToggle}
       className={cn(
         "w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all active:scale-[0.98]",
         marcado
-          ? "border-success bg-success-light line-through"
-          : material.urgencia === "urgente"
-          ? "border-warning bg-warning-light"
-          : "border-border bg-white hover:border-primary/50"
+          ? "border-success bg-success-light"
+          : "border-border bg-white hover:border-primary/40"
       )}
     >
       {/* Checkbox XL */}
@@ -178,20 +165,22 @@ function MaterialItemCompra({
         {marcado && <Check className="w-4 h-4 text-white" />}
       </div>
 
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-base font-semibold text-content-primary">
-            {categoriasEmoji[material.categoria]} {material.descripcion}
-          </span>
-          {material.urgencia === "urgente" && !marcado && (
-            <span className="badge badge-warning text-xs">⚡ Urgente</span>
-          )}
-        </div>
-        <p className="text-sm text-content-secondary mt-0.5">
-          {material.cantidad} {material.unidad}
-          {material.nota && ` · ${material.nota}`}
+      {/* Info: cantidad arriba, descripción abajo */}
+      <div className={cn("flex-1 min-w-0", marcado && "line-through opacity-60")}>
+        {cantidadLabel && (
+          <p className="text-xl font-bold text-content-primary leading-tight">
+            {cantidadLabel}
+          </p>
+        )}
+        <p className={cn(
+          "text-base leading-snug mt-0.5",
+          cantidadLabel ? "text-content-secondary" : "text-xl font-bold text-content-primary"
+        )}>
+          {material.descripcion}
         </p>
+        {material.nota && (
+          <p className="text-xs text-content-muted mt-1">{material.nota}</p>
+        )}
       </div>
     </button>
   );
