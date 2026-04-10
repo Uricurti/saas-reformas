@@ -104,8 +104,8 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
       className="fixed inset-0 z-50 flex items-start sm:items-center justify-center px-4 pt-4 sm:pt-0 animate-fade-in bg-black/50 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      {/* Panel: ancho máximo controlado, nunca toca los bordes */}
-      <div className="w-full max-w-md bg-surface rounded-2xl shadow-2xl flex flex-col max-h-[88vh] sm:max-h-[85vh] overflow-hidden border border-border">
+      {/* Panel: usa modal-panel (fondo blanco sólido) + ancho máximo */}
+      <div className="modal-panel w-full max-w-md flex flex-col max-h-[88vh] sm:max-h-[85vh] overflow-hidden" style={{ borderRadius: "1rem" }}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
