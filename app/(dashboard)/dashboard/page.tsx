@@ -17,6 +17,7 @@ import type { PagoEstado } from "@/types";
 export interface FichajeEmpleado {
   user_id:    string;
   nombre:     string;
+  es_libre:   boolean;
   obra_nombre: string | null;
   obra_id:    string | null;
   ha_fichado: boolean;
@@ -104,38 +105,51 @@ function FichajeRow({ emp, procesando, onFichar }: {
     ? new Date(emp.fichado_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })
     : null;
 
+  // Color de fondo: libre = gris suave, fichado = transparente, sin fichar = rojo suave
+  const bgColor = emp.es_libre
+    ? "rgba(243,244,246,0.8)"
+    : emp.ha_fichado ? "transparent" : "rgba(254,242,242,0.5)";
+
+  // Color del dot: libre = gris, fichado = verde, sin fichar = rojo
+  const dotColor = emp.es_libre ? "#9CA3AF" : emp.ha_fichado ? "#10B981" : "#EF4444";
+
   return (
     <div
       className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all"
-      style={{ background: emp.ha_fichado ? "transparent" : "rgba(254,242,242,0.5)" }}
+      style={{ background: bgColor }}
     >
       {/* Status dot */}
-      <div
-        className="w-2 h-2 rounded-full flex-shrink-0"
-        style={{ background: emp.ha_fichado ? "#10B981" : "#EF4444" }}
-      />
+      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: dotColor }} />
 
       {/* Avatar */}
       <div
         className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[11px] font-bold"
-        style={{ background: "linear-gradient(135deg, #1c3879 0%, #607eaa 100%)" }}
+        style={{ background: emp.es_libre
+          ? "linear-gradient(135deg, #9CA3AF 0%, #D1D5DB 100%)"
+          : "linear-gradient(135deg, #1c3879 0%, #607eaa 100%)" }}
       >
         {initials(emp.nombre)}
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold leading-tight truncate" style={{ color: "#111827" }}>
+        <p className="text-sm font-semibold leading-tight truncate" style={{ color: emp.es_libre ? "#6B7280" : "#111827" }}>
           {emp.nombre}
         </p>
-        {emp.obra_nombre && (
+        {!emp.es_libre && emp.obra_nombre && (
           <p className="text-xs truncate" style={{ color: "#94A3B8" }}>{emp.obra_nombre}</p>
         )}
       </div>
 
       {/* Badge + acción */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        {emp.ha_fichado ? (
+        {emp.es_libre ? (
+          /* Día libre: solo badge, sin botón de fichar */
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full"
+            style={{ background: "#F3F4F6", color: "#6B7280" }}>
+            Día libre
+          </span>
+        ) : emp.ha_fichado ? (
           <>
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full"
               style={{ background: "#D1FAE5", color: "#065F46" }}>
@@ -266,7 +280,7 @@ export default function DashboardPage() {
   useRefreshOnFocus(() => { if (tenantId) cargar(true); });
 
   async function handleFichar(emp: FichajeEmpleado) {
-    if (!tenantId || procesando) return;
+    if (!tenantId || procesando || emp.es_libre) return;
     setProcesando(emp.user_id);
     const nuevoFichado = !emp.ha_fichado;
     const hoy = new Date().toISOString().split("T")[0];
@@ -310,8 +324,9 @@ export default function DashboardPage() {
   if (loading) return <LoadingSkeleton />;
   if (!data)   return null;
 
-  const fichados       = data.fichajeHoy.filter((e) => e.ha_fichado).length;
-  const totalEmp       = data.fichajeHoy.length;
+  const trabajando     = data.fichajeHoy.filter((e) => !e.es_libre);
+  const fichados       = trabajando.filter((e) => e.ha_fichado).length;
+  const totalEmp       = trabajando.length;
   const todosHanFichado = totalEmp > 0 && fichados === totalEmp;
   const actividadPreview = data.actividad.slice(0, 4);
 

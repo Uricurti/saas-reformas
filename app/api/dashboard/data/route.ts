@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     archivos,
   ] = await Promise.all([
     db(`/api/database/records/users?tenant_id=eq.${tenantId}&activo=eq.true&select=id,nombre`),
-    db(`/api/database/records/jornadas?tenant_id=eq.${tenantId}&fecha=eq.${hoy}&select=id,user_id,ha_fichado,fichado_at,estado,obra_id`),
+    db(`/api/database/records/jornadas?tenant_id=eq.${tenantId}&fecha=eq.${hoy}&select=id,user_id,ha_fichado,fichado_at,estado,obra_id,es_libre`),
     db(`/api/database/records/obras?tenant_id=eq.${tenantId}&estado=in.(activa,pausada)&select=id,nombre`),
     db(`/api/database/records/pagos?tenant_id=eq.${tenantId}&estado=in.(pendiente_emitir,emitida)&fecha_prevista=not.is.null&select=id,importe_total,fecha_prevista,estado,obra_id,factura_id&order=fecha_prevista.asc`),
     db(`/api/database/records/jornadas?tenant_id=eq.${tenantId}&ha_fichado=eq.true&fichado_at=gte.${hace48h}&select=user_id,obra_id,fichado_at,fichado_por&order=fichado_at.desc&limit=20`),
@@ -104,12 +104,13 @@ export async function GET(req: NextRequest) {
       const asig    = asigByUser[userId];
       // La jornada tiene la obra real del día (la fuente de verdad)
       // Si no hay jornada todavía, usamos la asignación
-      const obraId = jornada?.obra_id ?? asig?.obra_id ?? null;
-      if (!obraId && !jornada) return null; // sin obra ni jornada, no mostramos
+      const esLibre = jornada?.es_libre ?? false;
+      const obraId  = esLibre ? null : (jornada?.obra_id ?? asig?.obra_id ?? null);
       return {
         user_id:     userId,
         nombre,
-        obra_nombre: obraId ? (obraMap[obraId] ?? null) : null,
+        es_libre:    esLibre,
+        obra_nombre: esLibre ? null : (obraId ? (obraMap[obraId] ?? null) : null),
         obra_id:     obraId,
         ha_fichado:  jornada?.ha_fichado ?? false,
         fichado_at:  jornada?.fichado_at ?? null,
