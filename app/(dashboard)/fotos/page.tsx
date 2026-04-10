@@ -159,35 +159,40 @@ function Lightbox({
   archivo: Archivo; initialUrl: string | null; onClose: () => void;
 }) {
   const isVideo = archivo.tipo === "video";
-  const [url,     setUrl]     = useState<string | null>(initialUrl);
-  const [loading, setLoading] = useState(isVideo && !initialUrl);
+  const [url,        setUrl]        = useState<string | null>(initialUrl);
+  const [loadingUrl, setLoadingUrl] = useState(!initialUrl); // cargando URL (foto o vídeo)
+  const [imgLoaded,  setImgLoaded]  = useState(false);       // imagen descargada al browser
+  const [imgError,   setImgError]   = useState(false);
 
-  // Para vídeos: carga URL server-side al montar
+  // Carga la URL via API server-side si no viene ya en la caché
   useEffect(() => {
-    if (!isVideo) return;
-    if (initialUrl) { setUrl(initialUrl); setLoading(false); return; }
+    if (initialUrl) { setUrl(initialUrl); setLoadingUrl(false); return; }
     fetchMediaUrl(archivo.url_storage).then((u) => {
       setUrl(u);
-      setLoading(false);
+      setLoadingUrl(false);
     });
-  }, [archivo.id, archivo.url_storage, isVideo, initialUrl]);
+  }, [archivo.id, archivo.url_storage, initialUrl]);
 
-  // Para vídeos con URL lista: abre el reproductor nativo del dispositivo
+  // Para vídeos: cuando la URL está lista, abre reproductor nativo y cierra el lightbox
   useEffect(() => {
-    if (!isVideo || !url || loading) return;
-    // Abre la URL directamente → iOS abre el reproductor nativo, Android igual
+    if (!isVideo || !url || loadingUrl) return;
     window.open(url, "_blank", "noopener");
-    onClose(); // cierra el lightbox inmediatamente
-  }, [isVideo, url, loading, onClose]);
+    onClose();
+  }, [isVideo, url, loadingUrl, onClose]);
 
-  // Si es vídeo: muestra spinner mientras carga la URL (luego se cierra solo)
+  // Overlay siempre centrado (no usa modal-overlay para evitar items-end en móvil)
+  const overlayClass = "fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4";
+
+  // ── Vídeo: spinner mientras carga URL, luego se cierra solo ──
   if (isVideo) {
     return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="relative w-full max-w-xs mx-4 flex flex-col items-center gap-4"
-          onClick={(e) => e.stopPropagation()}>
+      <div className={overlayClass} onClick={onClose}>
+        <div
+          className="relative w-full max-w-xs flex flex-col items-center gap-4"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="w-full rounded-2xl bg-black/80 flex flex-col items-center justify-center gap-3 py-12">
-            {loading ? (
+            {loadingUrl ? (
               <>
                 <Loader2 className="w-8 h-8 text-white/60 animate-spin" />
                 <span className="text-sm text-white/60">Abriendo vídeo…</span>
@@ -198,21 +203,30 @@ function Lightbox({
                 <span className="text-sm text-white/60">No se pudo cargar el vídeo</span>
                 <button onClick={onClose} className="text-xs text-white/50 mt-1">Cerrar</button>
               </>
-            ) : null}
+            ) : (
+              <>
+                <Loader2 className="w-8 h-8 text-white/60 animate-spin" />
+                <span className="text-sm text-white/60">Abriendo reproductor…</span>
+              </>
+            )}
           </div>
         </div>
       </div>
     );
   }
 
-  // Fotos: lightbox normal
+  // ── Foto: lightbox centrado con imagen ──
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="relative w-full max-w-2xl mx-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3 px-1">
+    <div className={overlayClass} onClick={onClose}>
+      <div
+        className="relative w-full max-w-2xl flex flex-col gap-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Cabecera: cerrar + info autor/fecha */}
+        <div className="flex items-center justify-between px-1">
           <button
             onClick={onClose}
-            className="w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70"
+            className="w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 active:scale-95 transition-transform"
           >
             <X className="w-5 h-5" />
           </button>
@@ -225,12 +239,46 @@ function Lightbox({
             )}
           </div>
         </div>
-        <img
-          src={url ?? ""}
-          alt="Foto de obra"
-          className="w-full rounded-2xl max-h-[75vh] object-contain bg-black"
-          draggable={false}
-        />
+
+        {/* Imagen o estados de carga/error */}
+        <div className="relative w-full rounded-2xl overflow-hidden bg-black min-h-[200px] flex items-center justify-center">
+          {/* Spinner mientras se obtiene la URL o se descarga la imagen */}
+          {(loadingUrl || (!imgLoaded && !imgError && url)) && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-white/50 animate-spin" />
+            </div>
+          )}
+
+          {/* Error de URL */}
+          {!loadingUrl && !url && (
+            <div className="flex flex-col items-center gap-2 py-12">
+              <ImageOff className="w-10 h-10 text-white/30" />
+              <span className="text-sm text-white/50">No se pudo cargar la foto</span>
+            </div>
+          )}
+
+          {/* Imagen real */}
+          {url && (
+            <img
+              src={url}
+              alt="Foto de obra"
+              className={`w-full rounded-2xl max-h-[75vh] object-contain transition-opacity duration-200 ${
+                imgLoaded ? "opacity-100" : "opacity-0"
+              }`}
+              draggable={false}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => { setImgError(true); setImgLoaded(false); }}
+            />
+          )}
+
+          {/* Error al descargar la imagen */}
+          {imgError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 py-12">
+              <ImageOff className="w-10 h-10 text-white/30" />
+              <span className="text-sm text-white/50">Error al mostrar la foto</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
