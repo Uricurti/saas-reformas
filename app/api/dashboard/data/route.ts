@@ -89,12 +89,12 @@ export async function GET(req: NextRequest) {
   const jornadaByUser: Record<string, any> = Object.fromEntries(jornadasHoy.map((j: any) => [j.user_id, j]));
 
   // ── Sección 1: Fichaje de hoy ─────────────────────────────────────────────
-  // Empezamos por los user_ids que tienen jornada hoy (fuente de verdad del admin)
-  // y añadimos los que tienen asignación activa pero aún no tienen jornada creada
-  const fichajeUserIds = uniq([
-    ...jornadasHoy.map((j: any) => j.user_id),
-    ...Object.keys(asigByUser),
-  ]).filter((uid) => tenantUserIds.includes(uid));
+  // Solo mostramos empleados con jornada creada HOY (igual que el calendario).
+  // Las asignaciones activas sin jornada de hoy NO se muestran — el admin
+  // no ha planificado ese empleado para hoy.
+  const fichajeUserIds = jornadasHoy
+    .map((j: any) => j.user_id)
+    .filter((uid: string) => tenantUserIds.includes(uid));
 
   const fichajeHoy = fichajeUserIds
     .map((userId: string) => {
