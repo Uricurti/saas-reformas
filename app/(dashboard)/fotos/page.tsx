@@ -12,33 +12,25 @@ import type { Archivo } from "@/types";
 import {
   Camera, Images, X, ZoomIn, Loader2, ArrowLeft,
   Play, Trash2, ImageOff, AlertTriangle, Tag, Check,
-  CheckCircle2, Circle,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils/format";
 
-// ─── Caché de URLs en sesión ─────────────────────────────────────────────────
-const urlCache: Record<string, string> = {};
-
-// Obtiene URL de media via API server-side (evita problemas CORS/auth en móvil)
-async function fetchMediaUrl(storagePath: string): Promise<string | null> {
-  // Si ya es una URL completa, usarla directamente
+// ─── URL proxy server-side (sin CORS, con auth) ──────────────────────────────
+// El browser nunca contacta InsForge directamente → sin problemas de CORS.
+function mediaProxyUrl(storagePath: string): string {
+  if (!storagePath) return "";
+  // Si ya es una URL blob (subida reciente), devolverla tal cual
   if (storagePath.startsWith("blob:")) return storagePath;
-  try {
-    const res = await fetch(`/api/media/url?path=${encodeURIComponent(storagePath)}`);
-    if (res.ok) {
-      const { url } = await res.json();
-      return url ?? null;
-    }
-  } catch { /* fallback */ }
-  return null;
+  // Quitar slashes iniciales
+  const clean = storagePath.replace(/^\/+/, "");
+  return `/api/media/file?path=${encodeURIComponent(clean)}`;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function getDayKey(iso: string) {
-  return iso.slice(0, 10); // "2026-04-08"
+  return iso.slice(0, 10);
 }
 function formatDayHeader(dayKey: string) {
-  // "martes, 8 de abril de 2026"
   const d = new Date(dayKey + "T12:00:00");
   return d.toLocaleDateString("es-ES", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
@@ -59,26 +51,9 @@ function MediaThumb({
   onOpen: (a: Archivo) => void;
   onToggleSelect: (id: string) => void;
 }) {
-  const isVideo = archivo.tipo === "video";
+  const isVideo    = archivo.tipo === "video";
   const autorNombre = archivo.autor?.nombre ?? null;
-
-  // Los vídeos NO cargan URL en el thumbnail — solo placeholder estático.
-  // Esto evita descargar el video completo en móvil (causaba el error).
-  const [url,     setUrl]     = useState<string | null>(
-    isVideo ? null : (urlCache[archivo.id] ?? null)
-  );
-  const [loading, setLoading] = useState(!isVideo && !urlCache[archivo.id]);
-  const [error,   setError]   = useState(false);
-
-  useEffect(() => {
-    if (isVideo) return; // los vídeos se cargan solo al abrirse en el lightbox
-    if (urlCache[archivo.id]) { setUrl(urlCache[archivo.id]); setLoading(false); return; }
-    fetchMediaUrl(archivo.url_storage).then((u) => {
-      if (u) { urlCache[archivo.id] = u; setUrl(u); }
-      else setError(true);
-      setLoading(false);
-    });
-  }, [archivo.id, archivo.url_storage, isVideo]);
+  const proxyUrl   = mediaProxyUrl(archivo.url_storage);
 
   function handleClick() {
     if (deleteMode) { onToggleSelect(archivo.id); return; }
@@ -93,24 +68,28 @@ function MediaThumb({
     >
       {/* ── Media ── */}
       {isVideo ? (
-        /* Vídeo: placeholder estático con icono play — sin carga de red */
+        /* Vídeo: placeholder estático, sin carga de red hasta que el usuario lo abre */
         <div className="w-full h-full bg-gray-800 flex items-center justify-center">
           <div className="w-11 h-11 rounded-full bg-white/90 flex items-center justify-center shadow">
             <Play className="w-5 h-5 text-gray-800 ml-0.5" fill="currentColor" />
           </div>
         </div>
-      ) : loading ? (
-        <div className="w-full h-full flex items-center justify-center bg-gray-200 animate-pulse">
-          <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-        </div>
-      ) : error || !url ? (
-        <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-gray-100">
-          <ImageOff className="w-6 h-6 text-gray-300" />
-          <span className="text-[10px] text-gray-400">Sin vista previa</span>
-        </div>
       ) : (
+        /* Foto: img con src directo al proxy */
         <>
-          <img src={url} alt="Foto de obra" className="w-full h-full object-cover" draggable={false} />
+          <img
+            src={proxyUrl}
+            alt="Foto de obra"
+            className="w-full h-full object-cover"
+            draggable={false}
+            loading="lazy"
+            onError={(e) => {
+              // Si falla, mostrar icono de error
+              (e.target as HTMLImageElement).style.display = "none";
+              (e.target as HTMLImageElement).parentElement!.setAttribute("data-err", "1");
+            }}
+          />
+          {/* Overlay hover */}
           {!deleteMode && (
             <div className="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
               <ZoomIn className="w-7 h-7 text-white" />
@@ -119,7 +98,7 @@ function MediaThumb({
         </>
       )}
 
-      {/* ── Autor badge (abajo izquierda) ── */}
+      {/* ── Autor badge ── */}
       {autorNombre && !deleteMode && (
         <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 bg-black/50 rounded-full pl-0.5 pr-2 py-0.5">
           <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
@@ -135,16 +114,12 @@ function MediaThumb({
       {deleteMode && (
         <div className="absolute inset-0 bg-black/10 flex items-start justify-end p-2">
           <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all ${
-            selected
-              ? "bg-primary border-primary scale-110"
-              : "bg-white/80 border-gray-300"
+            selected ? "bg-primary border-primary scale-110" : "bg-white/80 border-gray-300"
           }`}>
             {selected && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
           </div>
         </div>
       )}
-
-      {/* ── Overlay seleccionado ── */}
       {deleteMode && selected && (
         <div className="absolute inset-0 bg-primary/15 pointer-events-none" />
       )}
@@ -154,75 +129,30 @@ function MediaThumb({
 
 // ─── Lightbox ────────────────────────────────────────────────────────────────
 function Lightbox({
-  archivo, initialUrl, onClose,
+  archivo, onClose,
 }: {
-  archivo: Archivo; initialUrl: string | null; onClose: () => void;
+  archivo: Archivo; onClose: () => void;
 }) {
-  const isVideo = archivo.tipo === "video";
-  const [url,        setUrl]        = useState<string | null>(initialUrl);
-  const [loadingUrl, setLoadingUrl] = useState(!initialUrl); // cargando URL (foto o vídeo)
-  const [imgLoaded,  setImgLoaded]  = useState(false);       // imagen descargada al browser
-  const [imgError,   setImgError]   = useState(false);
+  const isVideo  = archivo.tipo === "video";
+  const proxyUrl = mediaProxyUrl(archivo.url_storage);
 
-  // Carga la URL via API server-side si no viene ya en la caché
+  // Cerrar con Escape
   useEffect(() => {
-    if (initialUrl) { setUrl(initialUrl); setLoadingUrl(false); return; }
-    fetchMediaUrl(archivo.url_storage).then((u) => {
-      setUrl(u);
-      setLoadingUrl(false);
-    });
-  }, [archivo.id, archivo.url_storage, initialUrl]);
-
-  // Para vídeos: cuando la URL está lista, abre reproductor nativo y cierra el lightbox
-  useEffect(() => {
-    if (!isVideo || !url || loadingUrl) return;
-    window.open(url, "_blank", "noopener");
-    onClose();
-  }, [isVideo, url, loadingUrl, onClose]);
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   // Overlay siempre centrado (no usa modal-overlay para evitar items-end en móvil)
-  const overlayClass = "fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4";
+  const overlay = "fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4";
 
-  // ── Vídeo: spinner mientras carga URL, luego se cierra solo ──
-  if (isVideo) {
-    return (
-      <div className={overlayClass} onClick={onClose}>
-        <div
-          className="relative w-full max-w-xs flex flex-col items-center gap-4"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="w-full rounded-2xl bg-black/80 flex flex-col items-center justify-center gap-3 py-12">
-            {loadingUrl ? (
-              <>
-                <Loader2 className="w-8 h-8 text-white/60 animate-spin" />
-                <span className="text-sm text-white/60">Abriendo vídeo…</span>
-              </>
-            ) : !url ? (
-              <>
-                <ImageOff className="w-8 h-8 text-white/40" />
-                <span className="text-sm text-white/60">No se pudo cargar el vídeo</span>
-                <button onClick={onClose} className="text-xs text-white/50 mt-1">Cerrar</button>
-              </>
-            ) : (
-              <>
-                <Loader2 className="w-8 h-8 text-white/60 animate-spin" />
-                <span className="text-sm text-white/60">Abriendo reproductor…</span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Foto: lightbox centrado con imagen ──
   return (
-    <div className={overlayClass} onClick={onClose}>
+    <div className={overlay} onClick={onClose}>
       <div
         className="relative w-full max-w-2xl flex flex-col gap-3"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Cabecera: cerrar + info autor/fecha */}
+        {/* Cabecera */}
         <div className="flex items-center justify-between px-1">
           <button
             onClick={onClose}
@@ -240,58 +170,53 @@ function Lightbox({
           </div>
         </div>
 
-        {/* Imagen o estados de carga/error */}
-        <div className="relative w-full rounded-2xl overflow-hidden bg-black min-h-[200px] flex items-center justify-center">
-          {/* Spinner mientras se obtiene la URL o se descarga la imagen */}
-          {(loadingUrl || (!imgLoaded && !imgError && url)) && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 text-white/50 animate-spin" />
-            </div>
-          )}
-
-          {/* Error de URL */}
-          {!loadingUrl && !url && (
-            <div className="flex flex-col items-center gap-2 py-12">
-              <ImageOff className="w-10 h-10 text-white/30" />
-              <span className="text-sm text-white/50">No se pudo cargar la foto</span>
-            </div>
-          )}
-
-          {/* Imagen real */}
-          {url && (
+        {/* Contenido */}
+        {isVideo ? (
+          /* Vídeo: elemento <video> nativo con controles */
+          <div className="w-full rounded-2xl overflow-hidden bg-black">
+            <video
+              src={proxyUrl}
+              controls
+              autoPlay
+              playsInline
+              className="w-full max-h-[75vh]"
+              style={{ display: "block" }}
+            >
+              Tu navegador no soporta la reproducción de vídeo.
+            </video>
+          </div>
+        ) : (
+          /* Foto */
+          <div className="relative w-full rounded-2xl overflow-hidden bg-black flex items-center justify-center min-h-[200px]">
             <img
-              src={url}
+              src={proxyUrl}
               alt="Foto de obra"
-              className={`w-full rounded-2xl max-h-[75vh] object-contain transition-opacity duration-200 ${
-                imgLoaded ? "opacity-100" : "opacity-0"
-              }`}
+              className="w-full rounded-2xl max-h-[75vh] object-contain"
               draggable={false}
-              onLoad={() => setImgLoaded(true)}
-              onError={() => { setImgError(true); setImgLoaded(false); }}
+              onError={(e) => {
+                const el = e.target as HTMLImageElement;
+                el.style.display = "none";
+                const parent = el.parentElement!;
+                parent.innerHTML = `
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:48px 16px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m2 2 20 20"/><path d="M8.5 8.5h.01"/></svg>
+                    <span style="color:rgba(255,255,255,0.5);font-size:14px;">No se pudo cargar la foto</span>
+                  </div>`;
+              }}
             />
-          )}
-
-          {/* Error al descargar la imagen */}
-          {imgError && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 py-12">
-              <ImageOff className="w-10 h-10 text-white/30" />
-              <span className="text-sm text-white/50">Error al mostrar la foto</span>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ─── Etiqueta de día (editable) ──────────────────────────────────────────────
-function DayEtiqueta({
-  dayKey, obraId,
-}: {
-  dayKey: string; obraId: string;
-}) {
+// ─── Etiqueta de día ─────────────────────────────────────────────────────────
+function DayEtiqueta({ dayKey, obraId }: { dayKey: string; obraId: string }) {
   const storageKey = `fotos_etiqueta_${obraId}_${dayKey}`;
-  const [value,   setValue]   = useState(() => localStorage.getItem(storageKey) ?? "");
+  const [value,   setValue]   = useState(() => {
+    try { return localStorage.getItem(storageKey) ?? ""; } catch { return ""; }
+  });
   const [editing, setEditing] = useState(false);
   const [draft,   setDraft]   = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -301,8 +226,10 @@ function DayEtiqueta({
   function save() {
     const trimmed = draft.trim();
     setValue(trimmed);
-    if (trimmed) localStorage.setItem(storageKey, trimmed);
-    else         localStorage.removeItem(storageKey);
+    try {
+      if (trimmed) localStorage.setItem(storageKey, trimmed);
+      else         localStorage.removeItem(storageKey);
+    } catch { }
     setEditing(false);
   }
 
@@ -360,14 +287,12 @@ function FotosInner() {
   const [uploadProgress, setUploadProgress] = useState("");
   const [uploadError,    setUploadError]    = useState<string | null>(null);
 
-  // Delete mode
   const [deleteMode, setDeleteMode] = useState(false);
   const [selected,   setSelected]   = useState<Set<string>>(new Set());
   const [deleting,   setDeleting]   = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
 
-  // Lightbox — url puede ser null (para vídeos: se carga al abrir)
-  const [lightbox, setLightbox] = useState<{ archivo: Archivo; url: string | null } | null>(null);
+  const [lightbox, setLightbox] = useState<Archivo | null>(null);
 
   const inputRef  = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -405,11 +330,11 @@ function FotosInner() {
       if (tipo === "video") {
         const mb = file.size / (1024 * 1024);
         const necesitaComprimir = mb > MAX_VIDEO_COMPRESS_MB;
-        if (necesitaComprimir) {
-          setUploadProgress(`Vídeo ${i + 1}/${files.length} — preparando compresión…`);
-        } else {
-          setUploadProgress(`Subiendo vídeo ${i + 1} de ${files.length}…`);
-        }
+        setUploadProgress(
+          necesitaComprimir
+            ? `Vídeo ${i + 1}/${files.length} — preparando compresión…`
+            : `Subiendo vídeo ${i + 1} de ${files.length}…`
+        );
         const { url, error, tamano } = await subirVideo(
           file, tenantId, obraId, user.id,
           necesitaComprimir
@@ -437,16 +362,11 @@ function FotosInner() {
     if (selected.size === 0) return;
     setDeleting(true);
     setConfirmDel(false);
-
     const toDelete = archivos.filter((a) => selected.has(a.id));
-    await Promise.all(
-      toDelete.map(async (a) => {
-        await eliminarArchivo(a.url_storage);
-        delete urlCache[a.id];
-        await deleteArchivo(a.id);
-      })
-    );
-
+    await Promise.all(toDelete.map(async (a) => {
+      await eliminarArchivo(a.url_storage);
+      await deleteArchivo(a.id);
+    }));
     setArchivos((prev) => prev.filter((a) => !selected.has(a.id)));
     setSelected(new Set());
     setDeleteMode(false);
@@ -467,14 +387,12 @@ function FotosInner() {
     setConfirmDel(false);
   }
 
-  // ── Agrupar por día ──────────────────────────────────────────────────────
   const byDay = archivos.reduce<Record<string, Archivo[]>>((acc, a) => {
     const key = getDayKey(a.created_at);
     (acc[key] = acc[key] ?? []).push(a);
     return acc;
   }, {});
-  const days = Object.keys(byDay).sort((a, b) => b.localeCompare(a)); // más reciente primero
-
+  const days = Object.keys(byDay).sort((a, b) => b.localeCompare(a));
   const canUpload = !isUploading && !deleteMode && !!obraId;
 
   return (
@@ -491,12 +409,10 @@ function FotosInner() {
         </div>
 
         {deleteMode ? (
-          /* Modo eliminar: Cancelar */
           <button onClick={exitDeleteMode} className="btn-ghost text-sm gap-1.5 text-content-muted">
             <X className="w-4 h-4" /> Cancelar
           </button>
         ) : (
-          /* Modo normal: subida + activar eliminar */
           <div className="flex items-center gap-2 flex-shrink-0">
             <button onClick={() => cameraRef.current?.click()} disabled={!canUpload} className="btn-secondary" title="Cámara">
               <Camera className="w-4 h-4" />
@@ -535,7 +451,6 @@ function FotosInner() {
                 : `${selected.size} seleccionado${selected.size !== 1 ? "s" : ""}`}
             </span>
           </div>
-
           {selected.size > 0 && !confirmDel && (
             <button
               onClick={() => setConfirmDel(true)}
@@ -544,19 +459,13 @@ function FotosInner() {
               Eliminar {selected.size}
             </button>
           )}
-
           {confirmDel && (
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className="text-xs text-danger font-medium">¿Seguro?</span>
-              <button
-                onClick={handleDeleteSelected}
-                className="text-xs font-bold px-3 py-1.5 rounded-xl bg-danger text-white hover:bg-red-600"
-              >
+              <button onClick={handleDeleteSelected} className="text-xs font-bold px-3 py-1.5 rounded-xl bg-danger text-white hover:bg-red-600">
                 Sí, eliminar
               </button>
-              <button onClick={() => setConfirmDel(false)} className="text-xs text-gray-500 px-2">
-                No
-              </button>
+              <button onClick={() => setConfirmDel(false)} className="text-xs text-gray-500 px-2">No</button>
             </div>
           )}
         </div>
@@ -593,7 +502,6 @@ function FotosInner() {
             </div>
           ))}
         </div>
-
       ) : archivos.length === 0 ? (
         <div className="card p-10 flex flex-col items-center text-center gap-4">
           <div className="icon-container w-14 h-14"><Camera className="w-7 h-7" /></div>
@@ -610,17 +518,12 @@ function FotosInner() {
             </button>
           </div>
         </div>
-
       ) : (
         <div className="space-y-8">
           {days.map((dayKey) => {
-            const items  = byDay[dayKey];
-            const fotos  = items.filter((a) => a.tipo !== "video");
-            const videos = items.filter((a) => a.tipo === "video");
-
+            const items = byDay[dayKey];
             return (
               <div key={dayKey}>
-                {/* ── Cabecera del día ── */}
                 <div className="flex items-center gap-3 mb-3 flex-wrap">
                   <span className="text-sm font-bold text-content-primary capitalize">
                     {formatDayHeader(dayKey)}
@@ -630,8 +533,6 @@ function FotosInner() {
                   </span>
                   {obraId && <DayEtiqueta dayKey={dayKey} obraId={obraId} />}
                 </div>
-
-                {/* ── Grid del día ── */}
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
                   {items.map((archivo) => (
                     <MediaThumb
@@ -639,10 +540,7 @@ function FotosInner() {
                       archivo={archivo}
                       deleteMode={deleteMode}
                       selected={selected.has(archivo.id)}
-                      onOpen={(a) => setLightbox({
-                          archivo: a,
-                          url: a.tipo !== "video" ? (urlCache[a.id] ?? null) : null,
-                        })}
+                      onOpen={(a) => setLightbox(a)}
                       onToggleSelect={toggleSelect}
                     />
                   ))}
@@ -665,11 +563,7 @@ function FotosInner() {
 
       {/* Lightbox */}
       {lightbox && !deleteMode && (
-        <Lightbox
-          archivo={lightbox.archivo}
-          initialUrl={lightbox.url}
-          onClose={() => setLightbox(null)}
-        />
+        <Lightbox archivo={lightbox} onClose={() => setLightbox(null)} />
       )}
     </div>
   );
