@@ -31,7 +31,7 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
   const [lineas,    setLineas]    = useState<LineaPedido[]>([nuevaLinea()]);
   const [isLoading, setIsLoading] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
-  const lastInputRef = useRef<HTMLInputElement>(null);
+  const lastCantidadRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getObrasActivas(tenantId).then(({ data }) => {
@@ -41,9 +41,11 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
     });
   }, []);
 
-  // Foco automático al añadir línea
+  // Foco automático al abrir y al añadir línea → siempre va a la cantidad
   useEffect(() => {
-    lastInputRef.current?.focus();
+    // Pequeño delay para que el DOM esté listo (especialmente en móvil)
+    const t = setTimeout(() => lastCantidadRef.current?.focus(), 80);
+    return () => clearTimeout(t);
   }, [lineas.length]);
 
   function updateLinea(id: number, field: keyof LineaPedido, value: string) {
@@ -91,8 +93,12 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
   }
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-panel max-h-[90vh] flex flex-col">
+    {/* En móvil el modal va arriba para que el teclado no lo tape */}
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center animate-fade-in bg-black/40 backdrop-blur-sm sm:items-center"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="modal-panel max-h-[90vh] flex flex-col w-full sm:w-auto mt-4 sm:mt-0 rounded-t-2xl sm:rounded-2xl">
 
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border flex-shrink-0">
@@ -125,27 +131,36 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
               {lineas.map((linea, idx) => (
                 <div key={linea.id} className="flex items-center gap-2">
 
-                  {/* Cantidad */}
+                  {/* Cantidad — recibe el foco al abrir y al añadir línea */}
                   <input
+                    ref={idx === lineas.length - 1 ? lastCantidadRef : undefined}
                     type="number"
                     min="0.1"
                     step="any"
                     placeholder="1"
                     value={linea.cantidad}
                     onChange={(e) => updateLinea(linea.id, "cantidad", e.target.value)}
+                    onKeyDown={(e) => {
+                      // Enter en cantidad → pasa al campo descripción de la misma línea
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const parent = e.currentTarget.closest(".flex");
+                        const desc = parent?.querySelectorAll("input")[1] as HTMLInputElement | null;
+                        desc?.focus();
+                      }
+                    }}
                     className="input text-center"
                     style={{ width: 64, flexShrink: 0 }}
                   />
 
                   {/* Descripción */}
                   <input
-                    ref={idx === lineas.length - 1 ? lastInputRef : undefined}
                     type="text"
                     placeholder="cemento, cable 2.5mm…"
                     value={linea.descripcion}
                     onChange={(e) => updateLinea(linea.id, "descripcion", e.target.value)}
                     onKeyDown={(e) => {
-                      // Enter en la última línea → añade nueva
+                      // Enter en la última descripción → añade nueva línea
                       if (e.key === "Enter" && idx === lineas.length - 1) {
                         e.preventDefault();
                         if (linea.descripcion.trim()) addLinea();
