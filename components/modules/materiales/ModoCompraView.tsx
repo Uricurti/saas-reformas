@@ -142,11 +142,6 @@ function MaterialItemCompra({
   marcado:  boolean;
   onToggle: () => void;
 }) {
-  const cantidadLabel = [
-    material.cantidad != null ? String(material.cantidad) : null,
-    material.unidad   || null,
-  ].filter(Boolean).join(" ");
-
   return (
     <button
       onClick={onToggle}
@@ -165,21 +160,16 @@ function MaterialItemCompra({
         {marcado && <Check className="w-4 h-4 text-white" />}
       </div>
 
-      {/* Info: cantidad arriba, descripción abajo */}
+      {/* Info: número en negro + descripción, todo en la misma línea */}
       <div className={cn("flex-1 min-w-0", marcado && "line-through opacity-60")}>
-        {cantidadLabel && (
-          <p className="text-xl font-bold text-content-primary leading-tight">
-            {cantidadLabel}
-          </p>
-        )}
-        <p className={cn(
-          "text-base leading-snug mt-0.5",
-          cantidadLabel ? "text-content-secondary" : "text-xl font-bold text-content-primary"
-        )}>
+        <p className="text-lg font-semibold text-content-primary leading-snug">
+          {material.cantidad != null && material.cantidad !== 1 && (
+            <span className="font-bold text-content-primary">{material.cantidad} </span>
+          )}
           {material.descripcion}
         </p>
         {material.nota && (
-          <p className="text-xs text-content-muted mt-1">{material.nota}</p>
+          <p className="text-xs text-content-muted mt-0.5">{material.nota}</p>
         )}
       </div>
     </button>

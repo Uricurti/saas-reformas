@@ -11,15 +11,6 @@ interface Props {
   onUpdate: () => void;
 }
 
-const categoriasEmoji: Record<string, string> = {
-  electricidad: "⚡",
-  fontaneria: "🔧",
-  albanileria: "🧱",
-  pintura: "🎨",
-  carpinteria: "🪵",
-  otro: "📦",
-};
-
 export function ListaMateriales({ materiales, onUpdate }: Props) {
   // Agrupar por obra
   const porObra = materiales.reduce<Record<string, MaterialConDetalles[]>>((acc, m) => {
@@ -60,21 +51,18 @@ export function ListaMateriales({ materiales, onUpdate }: Props) {
                   m.urgencia === "urgente" && "border-l-4 border-l-warning"
                 )}
               >
-                {/* Emoji categoría */}
-                <span className="text-xl mt-0.5 flex-shrink-0">
-                  {categoriasEmoji[m.categoria]}
-                </span>
-
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                    <span className="font-medium text-content-primary">{m.descripcion}</span>
+                    <span className="font-semibold text-content-primary">
+                      {m.cantidad != null && <span className="text-primary">{m.cantidad} </span>}
+                      {m.descripcion}
+                    </span>
                     {m.urgencia === "urgente" && <span className="badge badge-warning">Urgente</span>}
                   </div>
-                  <p className="text-sm text-content-secondary">
-                    {m.cantidad} {m.unidad}
-                    {m.nota && ` · ${m.nota}`}
-                  </p>
+                  {m.nota && (
+                    <p className="text-sm text-content-secondary">{m.nota}</p>
+                  )}
                   <div className="flex items-center gap-1 mt-1 text-xs text-content-muted">
                     <Clock className="w-3 h-3" />
                     <span>Pedido {formatRelative(m.created_at)}</span>
