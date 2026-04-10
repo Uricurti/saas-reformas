@@ -36,14 +36,24 @@ export function MiPerfilModal({ user, onClose }: Props) {
     setError(null);
     setIsLoading(true);
 
+    // Recuperar el accessToken guardado en localStorage para poder actualizar
+    // las credenciales de acceso (email/contraseña) en InsForge
+    let accessToken: string | undefined;
+    try {
+      const raw = localStorage.getItem("insforge_session_v1");
+      if (raw) accessToken = JSON.parse(raw)?.accessToken;
+    } catch { /* ignorar */ }
+
     const res = await fetch("/api/auth/update-me", {
       method:  "PATCH",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({
-        userId:   user.id,
-        nombre:   nombre.trim(),
-        email:    email.trim().toLowerCase(),
-        password: password || undefined,
+        userId:      user.id,
+        nombre:      nombre.trim(),
+        email:       email.trim().toLowerCase(),
+        emailActual: user.email,
+        password:    password || undefined,
+        accessToken,
       }),
     });
 

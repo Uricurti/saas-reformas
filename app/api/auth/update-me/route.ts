@@ -16,7 +16,11 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
     }
 
-    const cambioCredenciales = password || (emailActual && email.toLowerCase() !== emailActual.toLowerCase());
+    // Hay cambio de credenciales si cambia el email (con o sin emailActual) o la contraseña
+    const emailCambiado = emailActual
+      ? email.toLowerCase() !== emailActual.toLowerCase()
+      : false; // si no viene emailActual no podemos comparar → no tocamos auth email
+    const cambioCredenciales = password || emailCambiado;
 
     // ── 1. Actualizar credenciales auth (solo si cambia email o contraseña) ──
     // InsForge: PATCH /api/auth/profiles/current con el token del propio usuario

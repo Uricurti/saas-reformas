@@ -467,57 +467,33 @@ function EditarUsuarioModal({
 }: {
   user: User;
   onClose: () => void;
-  onSaved: (nombre: string, email: string, password: string | null) => void;
+  onSaved: (nombre: string) => void;
 }) {
   const [nombre,    setNombre]    = useState(user.nombre);
-  const [email,     setEmail]     = useState(user.email);
-  const [password,  setPassword]  = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
-  const [warning,   setWarning]   = useState<string | null>(null);
 
   async function handleGuardar() {
-    if (!nombre.trim() || !email.trim()) {
-      setError("El nombre y el email son obligatorios.");
-      return;
-    }
-    if (password && password.length < 6) {
-      setError("La contraseña debe tener mínimo 6 caracteres.");
-      return;
-    }
+    if (!nombre.trim()) { setError("El nombre es obligatorio."); return; }
     setError(null);
-    setWarning(null);
     setIsLoading(true);
 
     const res = await fetch("/api/admin/update-user", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        userId:       user.id,
-        nombre:       nombre.trim(),
-        email:        email.trim().toLowerCase(),
-        emailActual:  user.email,
-        password:     password || undefined,
+        userId: user.id,
+        nombre: nombre.trim(),
+        email:  user.email, // mantenemos el email actual sin cambios
       }),
     });
 
     const json = await res.json();
     setIsLoading(false);
 
-    if (json.error) {
-      setError(json.error);
-      return;
-    }
-
-    if (json.warning) {
-      setWarning(json.warning);
-    }
-
-    onSaved(nombre.trim(), email.trim().toLowerCase(), password || null);
+    if (json.error) { setError(json.error); return; }
+    onSaved(nombre.trim());
   }
-
-  const cambioEmail    = email.trim().toLowerCase() !== user.email.toLowerCase();
-  const cambioPassword = password.length > 0;
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -546,59 +522,17 @@ function EditarUsuarioModal({
               value={nombre}
               onChange={(e) => { setNombre(e.target.value); setError(null); }}
               placeholder="Juan García"
+              autoFocus
             />
           </div>
 
-          {/* Email */}
-          <div>
-            <label className="label flex items-center gap-1.5">
-              <Mail className="w-3.5 h-3.5 text-content-muted" /> Email *
-            </label>
-            <input
-              className="input"
-              type="email"
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setError(null); }}
-              placeholder="juan@email.com"
-            />
-            {cambioEmail && (
-              <p className="text-xs text-warning-foreground bg-warning-light rounded-lg px-3 py-2 mt-2">
-                ⚠️ Estás cambiando el email de acceso. El empleado tendrá que usar el nuevo email para entrar.
-              </p>
-            )}
+          {/* Nota informativa */}
+          <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-content-muted">
+            <p>El email y contraseña de acceso solo los puede cambiar el propio empleado desde su perfil.</p>
           </div>
-
-          {/* Contraseña */}
-          <div>
-            <label className="label flex items-center gap-1.5">
-              <KeyRound className="w-3.5 h-3.5 text-content-muted" /> Nueva contraseña
-              <span className="text-content-muted font-normal text-xs ml-1">— dejar vacío para no cambiarla</span>
-            </label>
-            <input
-              className="input"
-              type="text"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(null); }}
-              placeholder="Mínimo 6 caracteres"
-            />
-          </div>
-
-          {/* Aviso cambios */}
-          {(cambioEmail || cambioPassword) && (
-            <div className="bg-primary-light border border-primary/20 rounded-xl px-4 py-3 text-sm text-content-primary space-y-1">
-              <p className="font-semibold text-primary">Resumen de cambios:</p>
-              {cambioEmail    && <p>📧 Email nuevo: <strong>{email.trim().toLowerCase()}</strong></p>}
-              {cambioPassword && <p>🔑 Contraseña: <strong>{password}</strong></p>}
-            </div>
-          )}
 
           {error && (
             <div className="bg-danger-light text-danger-foreground text-sm rounded-lg px-4 py-3">{error}</div>
-          )}
-          {warning && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
-              ⚠️ {warning}
-            </div>
           )}
         </div>
 
