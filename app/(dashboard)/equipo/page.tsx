@@ -474,6 +474,7 @@ function EditarUsuarioModal({
   const [password,  setPassword]  = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
+  const [warning,   setWarning]   = useState<string | null>(null);
 
   async function handleGuardar() {
     if (!nombre.trim() || !email.trim()) {
@@ -485,16 +486,18 @@ function EditarUsuarioModal({
       return;
     }
     setError(null);
+    setWarning(null);
     setIsLoading(true);
 
     const res = await fetch("/api/admin/update-user", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        userId:   user.id,
-        nombre:   nombre.trim(),
-        email:    email.trim().toLowerCase(),
-        password: password || undefined,
+        userId:       user.id,
+        nombre:       nombre.trim(),
+        email:        email.trim().toLowerCase(),
+        emailActual:  user.email,
+        password:     password || undefined,
       }),
     });
 
@@ -504,6 +507,10 @@ function EditarUsuarioModal({
     if (json.error) {
       setError(json.error);
       return;
+    }
+
+    if (json.warning) {
+      setWarning(json.warning);
     }
 
     onSaved(nombre.trim(), email.trim().toLowerCase(), password || null);
@@ -587,6 +594,11 @@ function EditarUsuarioModal({
 
           {error && (
             <div className="bg-danger-light text-danger-foreground text-sm rounded-lg px-4 py-3">{error}</div>
+          )}
+          {warning && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+              ⚠️ {warning}
+            </div>
           )}
         </div>
 

@@ -1,41 +1,24 @@
 /**
  * API Route: editar usuario (admin only)
- * Actualiza email y/o contraseña en InsForge Auth + nombre/email en tabla users.
+ *
+ * InsForge NO tiene endpoint admin para cambiar email/contraseña de otro usuario.
+ * Solo existe PATCH /api/auth/profiles/current (el propio usuario).
+ *
+ * Lo que SÍ podemos hacer como admin:
+ *   - Actualizar nombre + email en la tabla `users` → se propaga en toda la app
+ *
+ * Para cambiar el email o contraseña de acceso, el empleado debe hacerlo
+ * desde su propio perfil (o el admin lo resetea desde el panel de InsForge).
  */
 import { NextRequest, NextResponse } from "next/server";
 
 const INSFORGE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL!;
 const SERVICE_KEY  = process.env.INSFORGE_SERVICE_KEY!;
 
-function adminHeaders() {
-  return {
-    "Content-Type": "application/json",
-    "x-api-key": SERVICE_KEY,
-  };
-}
-
-async function insforgeAdmin(
-  path: string,
-  options: RequestInit = {}
-): Promise<{ data: any; error: string | null; status: number }> {
-  const url = `${INSFORGE_URL}${path}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: { ...adminHeaders(), ...(options.headers ?? {}) },
-  });
-  let data: any = null;
-  try { data = await res.json(); } catch { /* no JSON */ }
-  if (!res.ok) {
-    const msg = data?.message ?? data?.error ?? `HTTP ${res.status}`;
-    return { data: null, error: msg, status: res.status };
-  }
-  return { data, error: null, status: res.status };
-}
-
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { userId, nombre, email, password } = body;
+    const { userId, nombre, email, password, emailActual } = body;
 
     if (!userId || !nombre || !email) {
       return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
@@ -44,42 +27,40 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "INSFORGE_SERVICE_KEY no configurado" }, { status: 500 });
     }
 
-    // ── 1. Actualizar auth (email y/o contraseña) ──────────────────────────
-    const authPayload: Record<string, string> = { email };
-    if (password) authPayload.password = password;
-
-    const { error: authError } = await insforgeAdmin(
-      `/api/auth/users/${userId}`,
+    // ── Actualizar nombre + email en la tabla users ────────────────────────
+    // Esto se propaga en calendarios, fichajes, jornales y toda la app.
+    const profileRes = await fetch(
+      `${INSFORGE_URL}/api/database/records/users?id=eq.${userId}`,
       {
         method: "PATCH",
-        body: JSON.stringify(authPayload),
+        headers: { "Content-Type": "application/json", "x-api-key": SERVICE_KEY },
+        body: JSON.stringify({ nombre, email }),
+        cache: "no-store",
       }
     );
 
-    if (authError) {
-      return NextResponse.json({ error: "Error al actualizar auth: " + authError }, { status: 400 });
+    if (!profileRes.ok) {
+      let d: any = null;
+      try { d = await profileRes.json(); } catch { }
+      const msg = d?.message ?? d?.error ?? `HTTP ${profileRes.status}`;
+      return NextResponse.json({ error: "Error al guardar el perfil: " + msg }, { status: 400 });
     }
 
-    // ── 2. Actualizar perfil en tabla users ────────────────────────────────
-    const { error: profileError } = await insforgeAdmin(
-      `/api/database/records/users?id=eq.${userId}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({ nombre, email }),
-      }
-    );
+    // Si intentó cambiar email o contraseña, avisar que eso requiere acción del empleado
+    const cambioEmail    = emailActual && email.toLowerCase() !== emailActual.toLowerCase();
+    const cambioPassword = !!password;
 
-    if (profileError) {
-      return NextResponse.json(
-        { error: "Auth actualizado pero falló el perfil: " + profileError },
-        { status: 400 }
-      );
+    if (cambioEmail || cambioPassword) {
+      return NextResponse.json({
+        error: null,
+        warning: "Nombre actualizado correctamente. Para cambiar el email o contraseña de acceso, el empleado debe actualizarlo desde su propio perfil.",
+      });
     }
 
     return NextResponse.json({ error: null });
 
   } catch (err: any) {
-    console.error("[update-user] error inesperado:", err);
+    console.error("[update-user] error:", err);
     return NextResponse.json({ error: err?.message ?? "Error interno" }, { status: 500 });
   }
 }

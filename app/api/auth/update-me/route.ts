@@ -1,77 +1,77 @@
 /**
  * API Route: el propio usuario actualiza su nombre, email y/o contraseña.
- * Usa la SERVICE_KEY para hacer el cambio en auth + tabla users,
- * pero solo permite actualizar el userId que viene en el body (validado por sesión).
+ * Usa PATCH /api/auth/profiles/current con el token del propio usuario.
  */
 import { NextRequest, NextResponse } from "next/server";
 
 const INSFORGE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL!;
 const SERVICE_KEY  = process.env.INSFORGE_SERVICE_KEY!;
 
-function adminHeaders() {
-  return {
-    "Content-Type": "application/json",
-    "x-api-key": SERVICE_KEY,
-  };
-}
-
-async function insforgeAdmin(
-  path: string,
-  options: RequestInit = {}
-): Promise<{ data: any; error: string | null; status: number }> {
-  const url = `${INSFORGE_URL}${path}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: { ...adminHeaders(), ...(options.headers ?? {}) },
-  });
-  let data: any = null;
-  try { data = await res.json(); } catch { }
-  if (!res.ok) {
-    const msg = data?.message ?? data?.error ?? `HTTP ${res.status}`;
-    return { data: null, error: msg, status: res.status };
-  }
-  return { data, error: null, status: res.status };
-}
-
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { userId, nombre, email, password } = body;
+    const { userId, nombre, email, password, emailActual, accessToken } = body;
 
     if (!userId || !nombre || !email) {
       return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
     }
-    if (!SERVICE_KEY) {
-      return NextResponse.json({ error: "SERVICE_KEY no configurado" }, { status: 500 });
+
+    const cambioCredenciales = password || (emailActual && email.toLowerCase() !== emailActual.toLowerCase());
+
+    // ── 1. Actualizar credenciales auth (solo si cambia email o contraseña) ──
+    // InsForge: PATCH /api/auth/profiles/current con el token del propio usuario
+    let authWarning: string | null = null;
+    if (cambioCredenciales && accessToken) {
+      const authPayload: Record<string, string> = {};
+      if (email !== emailActual) authPayload.email = email;
+      if (password) authPayload.password = password;
+
+      const authRes = await fetch(`${INSFORGE_URL}/api/auth/profiles/current`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(authPayload),
+        cache: "no-store",
+      });
+
+      if (!authRes.ok) {
+        let d: any = null;
+        try { d = await authRes.json(); } catch { }
+        authWarning = d?.message ?? d?.error ?? `HTTP ${authRes.status}`;
+      }
     }
 
-    // ── 1. Actualizar auth (email y opcionalmente contraseña) ──────────────
-    const authPayload: Record<string, string> = { email };
-    if (password) authPayload.password = password;
-
-    const { error: authError } = await insforgeAdmin(
-      `/api/auth/users/${userId}`,
-      { method: "PATCH", body: JSON.stringify(authPayload) }
+    // ── 2. Actualizar nombre + email en tabla users (siempre) ──────────────
+    const profileRes = await fetch(
+      `${INSFORGE_URL}/api/database/records/users?id=eq.${userId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-api-key": SERVICE_KEY },
+        body: JSON.stringify({ nombre, email }),
+        cache: "no-store",
+      }
     );
-    if (authError) {
-      return NextResponse.json({ error: "Error al actualizar acceso: " + authError }, { status: 400 });
-    }
 
-    // ── 2. Actualizar perfil en tabla users ────────────────────────────────
-    const { error: profileError } = await insforgeAdmin(
-      `/api/database/records/users?id=eq.${userId}`,
-      { method: "PATCH", body: JSON.stringify({ nombre, email }) }
-    );
-    if (profileError) {
+    if (!profileRes.ok) {
+      let d: any = null;
+      try { d = await profileRes.json(); } catch { }
       return NextResponse.json(
-        { error: "Acceso actualizado pero falló el perfil: " + profileError },
+        { error: "Error al guardar el perfil: " + (d?.message ?? d?.error ?? `HTTP ${profileRes.status}`) },
         { status: 400 }
       );
     }
 
+    if (authWarning) {
+      return NextResponse.json({
+        error: null,
+        warning: `Nombre actualizado. No se pudo cambiar el acceso: ${authWarning}`,
+      });
+    }
+
     return NextResponse.json({ error: null });
   } catch (err: any) {
-    console.error("[update-me] error:", err);
     return NextResponse.json({ error: err?.message ?? "Error interno" }, { status: 500 });
   }
 }
