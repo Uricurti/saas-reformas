@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import type { Notificacion } from "@/types";
-import { getNotificaciones, marcarNotificacionLeida, marcarTodasLeidas } from "@/lib/insforge/database";
+import { getNotificaciones, marcarNotificacionLeida, marcarTodasLeidas, eliminarNotificacion } from "@/lib/insforge/database";
 
 interface NotificacionesState {
   notificaciones: Notificacion[];
@@ -12,6 +12,7 @@ interface NotificacionesState {
   fetchNotificaciones: (userId: string) => Promise<void>;
   marcarLeida: (id: string) => Promise<void>;
   marcarTodas: (userId: string) => Promise<void>;
+  eliminar: (id: string) => Promise<void>;
   addNotificacion: (n: Notificacion) => void;
 }
 
@@ -47,6 +48,18 @@ export const useNotificacionesStore = create<NotificacionesState>((set, get) => 
       notificaciones: s.notificaciones.map((n) => ({ ...n, leida: true })),
       noLeidas: 0,
     }));
+  },
+
+  eliminar: async (id) => {
+    // Optimista: quitamos inmediatamente de la UI
+    set((s) => {
+      const notif = s.notificaciones.find((n) => n.id === id);
+      return {
+        notificaciones: s.notificaciones.filter((n) => n.id !== id),
+        noLeidas: notif && !notif.leida ? Math.max(0, s.noLeidas - 1) : s.noLeidas,
+      };
+    });
+    await eliminarNotificacion(id);
   },
 
   addNotificacion: (n) =>

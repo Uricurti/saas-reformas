@@ -463,6 +463,13 @@ export async function marcarTodasLeidas(userId: string) {
     .eq("leida", false);
 }
 
+export async function eliminarNotificacion(id: string) {
+  return insforge.database
+    .from("notificaciones")
+    .delete()
+    .eq("id", id);
+}
+
 export async function crearNotificacion(params: {
   userId: string;
   tenantId: string;
