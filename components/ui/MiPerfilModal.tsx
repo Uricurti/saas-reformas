@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, UserIcon, Mail, KeyRound, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { X, UserIcon, Mail, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import type { User } from "@/types";
 
@@ -15,62 +15,42 @@ export function MiPerfilModal({ user, onClose }: Props) {
 
   const [nombre,    setNombre]    = useState(user.nombre);
   const [email,     setEmail]     = useState(user.email);
-  const [password,  setPassword]  = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
   const [guardado,  setGuardado]  = useState(false);
 
-  const cambioEmail    = email.trim().toLowerCase() !== user.email.toLowerCase();
-  const cambioPassword = password.length > 0;
-  const hayeCambios    = nombre.trim() !== user.nombre || cambioEmail || cambioPassword;
+  const cambioEmail  = email.trim().toLowerCase() !== user.email.toLowerCase();
+  const cambioNombre = nombre.trim() !== user.nombre;
+  const hayCambios   = cambioNombre || cambioEmail;
 
   async function handleGuardar() {
     if (!nombre.trim() || !email.trim()) {
       setError("El nombre y el email son obligatorios.");
       return;
     }
-    if (password && password.length < 6) {
-      setError("La contraseña debe tener mínimo 6 caracteres.");
-      return;
-    }
     setError(null);
     setIsLoading(true);
-
-    // Recuperar el accessToken guardado en localStorage para poder actualizar
-    // las credenciales de acceso (email/contraseña) en InsForge
-    let accessToken: string | undefined;
-    try {
-      const raw = localStorage.getItem("insforge_session_v1");
-      if (raw) accessToken = JSON.parse(raw)?.accessToken;
-    } catch { /* ignorar */ }
 
     const res = await fetch("/api/auth/update-me", {
       method:  "PATCH",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({
-        userId:      user.id,
-        nombre:      nombre.trim(),
-        email:       email.trim().toLowerCase(),
-        emailActual: user.email,
-        password:    password || undefined,
-        accessToken,
+        userId: user.id,
+        nombre: nombre.trim(),
+        email:  email.trim().toLowerCase(),
       }),
     });
 
     const json = await res.json();
     setIsLoading(false);
 
-    if (json.error) {
-      setError(json.error);
-      return;
-    }
+    if (json.error) { setError(json.error); return; }
 
-    // Actualizar el store con los nuevos datos
     setUser({ ...user, nombre: nombre.trim(), email: email.trim().toLowerCase() });
     setGuardado(true);
   }
 
-  // ── Vista de confirmación ──────────────────────────────────────────────────
+  // ── Confirmación ────────────────────────────────────────────────────────────
   if (guardado) {
     return (
       <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -84,41 +64,20 @@ export function MiPerfilModal({ user, onClose }: Props) {
             </div>
             <button onClick={onClose} className="btn-ghost p-2"><X className="w-4 h-4" /></button>
           </div>
-
           <div className="p-5 space-y-4">
             <p className="text-sm text-content-secondary">
-              Tus datos han sido actualizados correctamente. A partir de ahora usa:
+              Tus datos han sido actualizados correctamente.
             </p>
-
-            <div className="bg-gray-50 rounded-xl p-4 space-y-3 border border-border">
-              <div className="flex items-center gap-3">
-                <Mail className="w-4 h-4 text-content-muted flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-content-muted uppercase font-semibold tracking-wide">Email</p>
-                  <p className="font-mono text-sm font-semibold text-content-primary">{email.trim().toLowerCase()}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <KeyRound className="w-4 h-4 text-content-muted flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-content-muted uppercase font-semibold tracking-wide">Contraseña</p>
-                  <p className="font-mono text-sm font-semibold text-content-primary">
-                    {cambioPassword
-                      ? password
-                      : <span className="text-content-muted font-sans font-normal">Sin cambios</span>}
-                  </p>
-                </div>
-              </div>
-            </div>
-
             {cambioEmail && (
-              <div className="flex items-start gap-2 bg-warning-light rounded-lg px-3 py-2.5 text-sm text-warning-foreground">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <p>La próxima vez que entres a la app tendrás que usar el nuevo email.</p>
+              <div className="bg-primary-light border border-primary/20 rounded-xl px-4 py-3 text-sm">
+                <p className="font-semibold text-primary mb-1">Nuevo email de acceso</p>
+                <p className="font-mono text-content-primary">{email.trim().toLowerCase()}</p>
+                <p className="text-xs text-content-muted mt-1">
+                  La próxima vez que entres usa este email.
+                </p>
               </div>
             )}
           </div>
-
           <div className="p-5 border-t border-border flex justify-end">
             <button onClick={onClose} className="btn-primary px-8">Cerrar</button>
           </div>
@@ -127,10 +86,11 @@ export function MiPerfilModal({ user, onClose }: Props) {
     );
   }
 
-  // ── Formulario de edición ──────────────────────────────────────────────────
+  // ── Formulario ───────────────────────────────────────────────────────────────
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-panel max-h-[90vh] flex flex-col">
+
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div className="flex items-center gap-3">
@@ -150,7 +110,7 @@ export function MiPerfilModal({ user, onClose }: Props) {
 
         {/* Body */}
         <div className="overflow-y-auto flex-1 p-5 space-y-5">
-          {/* Nombre */}
+
           <div>
             <label className="label flex items-center gap-1.5">
               <UserIcon className="w-3.5 h-3.5 text-content-muted" /> Nombre completo
@@ -163,7 +123,6 @@ export function MiPerfilModal({ user, onClose }: Props) {
             />
           </div>
 
-          {/* Email */}
           <div>
             <label className="label flex items-center gap-1.5">
               <Mail className="w-3.5 h-3.5 text-content-muted" /> Email de acceso
@@ -177,33 +136,16 @@ export function MiPerfilModal({ user, onClose }: Props) {
             />
             {cambioEmail && (
               <p className="text-xs text-warning-foreground bg-warning-light rounded-lg px-3 py-2 mt-2">
-                ⚠️ Cuando cambies el email, la próxima vez tendrás que entrar con el nuevo.
+                Cuando cambies el email, la próxima vez tendrás que entrar con el nuevo.
               </p>
             )}
           </div>
 
-          {/* Contraseña */}
-          <div>
-            <label className="label flex items-center gap-1.5">
-              <KeyRound className="w-3.5 h-3.5 text-content-muted" /> Nueva contraseña
-              <span className="text-content-muted font-normal text-xs ml-1">— dejar vacío para no cambiarla</span>
-            </label>
-            <input
-              className="input"
-              type="text"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(null); }}
-              placeholder="Mínimo 6 caracteres"
-            />
-          </div>
-
-          {/* Resumen cambios */}
-          {hayeCambios && !error && (
-            <div className="bg-primary-light border border-primary/20 rounded-xl px-4 py-3 text-sm text-content-primary space-y-1">
+          {hayCambios && !error && (
+            <div className="bg-primary-light border border-primary/20 rounded-xl px-4 py-3 text-sm space-y-1">
               <p className="font-semibold text-primary text-xs uppercase tracking-wide">Cambios pendientes</p>
-              {nombre.trim() !== user.nombre && <p>👤 Nombre: <strong>{nombre.trim()}</strong></p>}
-              {cambioEmail    && <p>📧 Email: <strong>{email.trim().toLowerCase()}</strong></p>}
-              {cambioPassword && <p>🔑 Contraseña: <strong>{password}</strong></p>}
+              {cambioNombre && <p>Nombre: <strong>{nombre.trim()}</strong></p>}
+              {cambioEmail  && <p>Email: <strong>{email.trim().toLowerCase()}</strong></p>}
             </div>
           )}
 
@@ -220,11 +162,11 @@ export function MiPerfilModal({ user, onClose }: Props) {
           <button onClick={onClose} className="btn-secondary">Cancelar</button>
           <button
             onClick={handleGuardar}
-            disabled={isLoading || !hayeCambios}
+            disabled={isLoading || !hayCambios}
             className="btn-primary"
           >
             {isLoading
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando…</>
               : "Guardar cambios"}
           </button>
         </div>

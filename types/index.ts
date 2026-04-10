@@ -7,6 +7,7 @@ export interface User {
   tenant_id: string;
   nombre: string;
   email: string;
+  email_auth?: string;   // email fijo de InsForge (nunca cambia); email es el de display
   rol: UserRole;
   activo: boolean;
   avatar_url?: string;

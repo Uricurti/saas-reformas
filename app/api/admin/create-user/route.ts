@@ -125,12 +125,13 @@ export async function POST(req: NextRequest) {
       {
         method: "POST",
         body: JSON.stringify({
-          id:       userId,
+          id:         userId,
           tenant_id,
           nombre,
           email,
+          email_auth: email,   // email fijo de InsForge, nunca cambia
           rol,
-          activo:   true,
+          activo:     true,
         }),
       }
     );

@@ -1,6 +1,8 @@
 /**
- * API Route: el propio usuario actualiza su nombre, email y/o contraseña.
- * Usa PATCH /api/auth/profiles/current con el token del propio usuario.
+ * El usuario actualiza su nombre y/o email de display.
+ * - email_auth (el email fijo de InsForge) NUNCA cambia.
+ * - email (display) puede cambiarse libremente; el login lo resuelve vía /api/auth/lookup-email.
+ * - Contraseña: gestionada aparte mediante el flujo de reset de InsForge.
  */
 import { NextRequest, NextResponse } from "next/server";
 
@@ -10,68 +12,42 @@ const SERVICE_KEY  = process.env.INSFORGE_SERVICE_KEY!;
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { userId, nombre, email, password, emailActual, accessToken } = body;
+    const { userId, nombre, email } = body;
 
     if (!userId || !nombre || !email) {
       return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
     }
 
-    // Hay cambio de credenciales si cambia el email (con o sin emailActual) o la contraseña
-    const emailCambiado = emailActual
-      ? email.toLowerCase() !== emailActual.toLowerCase()
-      : false; // si no viene emailActual no podemos comparar → no tocamos auth email
-    const cambioCredenciales = password || emailCambiado;
-
-    // ── 1. Actualizar credenciales auth (solo si cambia email o contraseña) ──
-    // InsForge: PATCH /api/auth/profiles/current con el token del propio usuario
-    let authWarning: string | null = null;
-    if (cambioCredenciales && accessToken) {
-      const authPayload: Record<string, string> = {};
-      if (email !== emailActual) authPayload.email = email;
-      if (password) authPayload.password = password;
-
-      const authRes = await fetch(`${INSFORGE_URL}/api/auth/profiles/current`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(authPayload),
-        cache: "no-store",
-      });
-
-      if (!authRes.ok) {
-        let d: any = null;
-        try { d = await authRes.json(); } catch { }
-        authWarning = d?.message ?? d?.error ?? `HTTP ${authRes.status}`;
+    // Comprobar que el nuevo email no lo usa ya otro usuario
+    const checkRes = await fetch(
+      `${INSFORGE_URL}/api/database/records/users?email=eq.${encodeURIComponent(email.toLowerCase().trim())}&select=id&limit=1`,
+      { headers: { "x-api-key": SERVICE_KEY }, cache: "no-store" }
+    );
+    if (checkRes.ok) {
+      const rows = await checkRes.json();
+      if (rows?.length > 0 && rows[0].id !== userId) {
+        return NextResponse.json({ error: "Ese email ya está en uso por otro usuario." }, { status: 400 });
       }
     }
 
-    // ── 2. Actualizar nombre + email en tabla users (siempre) ──────────────
-    const profileRes = await fetch(
+    // Actualizar nombre + email de display (email_auth no se toca)
+    const res = await fetch(
       `${INSFORGE_URL}/api/database/records/users?id=eq.${userId}`,
       {
-        method: "PATCH",
+        method:  "PATCH",
         headers: { "Content-Type": "application/json", "x-api-key": SERVICE_KEY },
-        body: JSON.stringify({ nombre, email }),
-        cache: "no-store",
+        body:    JSON.stringify({ nombre: nombre.trim(), email: email.toLowerCase().trim() }),
+        cache:   "no-store",
       }
     );
 
-    if (!profileRes.ok) {
+    if (!res.ok) {
       let d: any = null;
-      try { d = await profileRes.json(); } catch { }
+      try { d = await res.json(); } catch { }
       return NextResponse.json(
-        { error: "Error al guardar el perfil: " + (d?.message ?? d?.error ?? `HTTP ${profileRes.status}`) },
+        { error: "Error al guardar: " + (d?.message ?? d?.error ?? `HTTP ${res.status}`) },
         { status: 400 }
       );
-    }
-
-    if (authWarning) {
-      return NextResponse.json({
-        error: null,
-        warning: `Nombre actualizado. No se pudo cambiar el acceso: ${authWarning}`,
-      });
     }
 
     return NextResponse.json({ error: null });

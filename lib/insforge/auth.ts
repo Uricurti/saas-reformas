@@ -55,12 +55,27 @@ async function refreshTokens(refreshToken: string): Promise<StoredSession | null
 export async function signIn(email: string, password: string) {
   const url = process.env.NEXT_PUBLIC_INSFORGE_URL!;
 
+  // Resolver email_auth: el usuario puede escribir su email real (display),
+  // pero InsForge autentica siempre con el email_auth fijo.
+  let authEmail = email.toLowerCase().trim();
+  try {
+    const lookup = await fetch("/api/auth/lookup-email", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ email: authEmail }),
+    });
+    if (lookup.ok) {
+      const { emailAuth } = await lookup.json();
+      if (emailAuth) authEmail = emailAuth;
+    }
+  } catch { /* fallback: usar el email introducido */ }
+
   // Intentar login directo → devuelve accessToken + refreshToken en el body
   try {
     const res  = await fetch(`${url}/api/auth/sessions`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ email, password }),
+      body:    JSON.stringify({ email: authEmail, password }),
     });
     const data = await res.json();
 
@@ -74,7 +89,7 @@ export async function signIn(email: string, password: string) {
   } catch { /* continuar con SDK */ }
 
   // Fallback: SDK estándar (guarda sesión en cookie httpOnly)
-  const fallback = await insforge.auth.signInWithPassword({ email, password });
+  const fallback = await insforge.auth.signInWithPassword({ email: authEmail, password });
   if (fallback.data?.user) {
     // Intentar extraer tokens del SDK por si los expone
     try {
