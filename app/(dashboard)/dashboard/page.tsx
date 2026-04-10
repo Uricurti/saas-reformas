@@ -397,11 +397,9 @@ export default function DashboardPage() {
               ) : (
                 <>
                   {todosHanFichado && (
-                    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl mb-2"
-                      style={{ background: "#D1FAE5" }}>
-                      <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: "#065F46" }} />
+                    <div className="px-3 py-2.5 rounded-xl mb-2" style={{ background: "#D1FAE5" }}>
                       <p className="text-sm font-semibold" style={{ color: "#065F46" }}>
-                        ¡Todo el equipo ha fichado hoy! 🎉
+                        ¡Todo el equipo ha fichado hoy!
                       </p>
                     </div>
                   )}
