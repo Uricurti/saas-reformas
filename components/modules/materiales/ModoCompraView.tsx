@@ -162,11 +162,11 @@ function MaterialItemCompra({
 
       {/* Info: número en negro + descripción, todo en la misma línea */}
       <div className={cn("flex-1 min-w-0", marcado && "line-through opacity-60")}>
-        <p className="text-lg font-semibold text-content-primary leading-snug">
+        <p className="leading-snug">
           {material.cantidad != null && material.cantidad !== 1 && (
-            <span className="font-bold text-content-primary">{material.cantidad} </span>
+            <span className="text-xl font-bold text-content-primary">{material.cantidad} </span>
           )}
-          {material.descripcion}
+          <span className="text-lg font-light text-content-primary">{material.descripcion}</span>
         </p>
         {material.nota && (
           <p className="text-xs text-content-muted mt-0.5">{material.nota}</p>

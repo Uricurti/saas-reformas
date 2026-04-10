@@ -54,9 +54,11 @@ export function ListaMateriales({ materiales, onUpdate }: Props) {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                    <span className="font-semibold text-content-primary">
-                      {m.cantidad != null && <span className="text-primary">{m.cantidad} </span>}
-                      {m.descripcion}
+                    <span>
+                      {m.cantidad != null && (
+                        <span className="font-bold text-content-primary">{m.cantidad} </span>
+                      )}
+                      <span className="font-light text-content-primary">{m.descripcion}</span>
                     </span>
                     {m.urgencia === "urgente" && <span className="badge badge-warning">Urgente</span>}
                   </div>
