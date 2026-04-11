@@ -204,21 +204,25 @@ export async function subirVideo(
   let videoFile = file;
 
   const mb = file.size / (1024 * 1024);
-  if (mb > MAX_VIDEO_COMPRESS_MB) {
+
+  if (esIOS()) {
+    // iOS: ffmpeg.wasm no funciona (limitaciones de memoria de WebKit).
+    // validarTamanoArchivo ya rechazó los vídeos > MAX_VIDEO_IOS_MB,
+    // así que aquí siempre subimos el original directamente.
+    onProgress?.("Subiendo vídeo…", 50);
+  } else if (mb > MAX_VIDEO_COMPRESS_MB) {
+    // Desktop / Android: comprimir con ffmpeg.wasm
     try {
       videoFile = await comprimirVideo(file, onProgress);
     } catch {
-      // ffmpeg.wasm falla en iOS Safari y algunos móviles (sin SharedArrayBuffer).
-      // Fallback: subir el vídeo original sin comprimir.
       console.warn("[storage] Compresión de vídeo falló, subiendo original:", file.name);
       videoFile = file;
-      onProgress?.("Subiendo vídeo original…", 98);
     }
   }
 
   onProgress?.("Subiendo vídeo…", 98);
-  // Usar la extensión original si no se comprimió, mp4 si se comprimió con ffmpeg
-  const ext  = videoFile === file ? (file.name.split(".").pop() ?? "mp4") : "mp4";
+  // Preservar extensión original si no se comprimió; mp4 si se comprimió con ffmpeg
+  const ext  = videoFile === file ? (file.name.split(".").pop()?.toLowerCase() ?? "mp4") : "mp4";
   const path = `${tenantId}/${obraId}/${userId}/${Date.now()}.${ext}`;
   const { data, error } = await insforge.storage.from(BUCKET).upload(path, videoFile);
   if (error || !data) {
@@ -263,7 +267,8 @@ export async function subirDocumento(
 // ─── Límites de tamaño ───────────────────────────────────────────────────────
 export const MAX_DOC_MB  = 50;
 export const MAX_FOTO_MB = 10;
-export const MAX_VIDEO_MB = 500; // sin límite práctico: se comprime automáticamente si >30 MB
+export const MAX_VIDEO_MB     = 500; // límite absoluto (UI)
+export const MAX_VIDEO_IOS_MB = 100; // en iOS no hay compresión → límite más estricto
 
 export function validarDocumento(file: File): string | null {
   const mb  = file.size / (1024 * 1024);
@@ -274,12 +279,23 @@ export function validarDocumento(file: File): string | null {
   return null;
 }
 
+// Detecta iOS (todos los browsers en iPhone/iPad usan WebKit con las mismas limitaciones)
+function esIOS(): boolean {
+  if (typeof window === "undefined") return false;
+  return /iPhone|iPad|iPod/.test(navigator.userAgent);
+}
+
 export function validarTamanoArchivo(file: File): string | null {
   const mb = file.size / (1024 * 1024);
-  if (file.type.startsWith("video/") && mb > MAX_VIDEO_MB) {
-    return `El vídeo supera el límite de ${MAX_VIDEO_MB} MB`;
-  }
-  if (!file.type.startsWith("video/") && mb > MAX_FOTO_MB) {
+  if (file.type.startsWith("video/")) {
+    // En iOS no podemos comprimir → aplicar límite más estricto
+    if (esIOS() && mb > MAX_VIDEO_IOS_MB) {
+      return `El vídeo es demasiado grande (${Math.round(mb)} MB). En iPhone, graba un clip más corto o baja la calidad de la cámara en Ajustes → Cámara → Grabar vídeo (máx. ${MAX_VIDEO_IOS_MB} MB).`;
+    }
+    if (mb > MAX_VIDEO_MB) {
+      return `El vídeo supera el límite de ${MAX_VIDEO_MB} MB`;
+    }
+  } else if (mb > MAX_FOTO_MB) {
     return `La foto supera el límite de ${MAX_FOTO_MB} MB`;
   }
   return null;
