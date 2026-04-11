@@ -3,6 +3,20 @@ const nextConfig = {
   // InsForge SDK y su dependencia son pure-ESM — Next.js necesita transpilarlos
   transpilePackages: ["@insforge/sdk", "@insforge/shared-schemas"],
 
+  async headers() {
+    return [
+      {
+        // El binario WASM es inmutable (versionado) → cachear 1 año en el browser.
+        // Así el usuario lo descarga solo una vez (~31 MB) y queda cacheado.
+        source: "/ffmpeg/:path*",
+        headers: [
+          { key: "Content-Type",   value: "application/wasm" },
+          { key: "Cache-Control",  value: "public, max-age=31536000, immutable" },
+        ],
+      },
+    ];
+  },
+
   eslint: {
     ignoreDuringBuilds: true,
   },

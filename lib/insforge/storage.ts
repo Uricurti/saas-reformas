@@ -151,11 +151,15 @@ export async function comprimirVideo(
   const ffmpeg = _ffmpegInstance;
 
   if (!ffmpeg.loaded) {
-    const { toBlobURL } = await import("@ffmpeg/util");
-    const base = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm";
+    // Cargamos desde nuestro propio servidor (public/ffmpeg/) en vez del CDN.
+    // Ventajas:
+    //   - Sin problemas de CORS ni fallos de CDN → funciona en iOS Safari
+    //   - El .wasm se sirve con Content-Type correcto (application/wasm)
+    //   - Al ser mismo origen, no necesitamos toBlobURL
+    //   - Cacheado 1 año en el browser → solo se descarga una vez (~31 MB)
     await ffmpeg.load({
-      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`,   "text/javascript"),
-      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
+      coreURL: "/ffmpeg/ffmpeg-core.js",
+      wasmURL: "/ffmpeg/ffmpeg-core.wasm",
     });
   }
 
@@ -205,16 +209,13 @@ export async function subirVideo(
 
   const mb = file.size / (1024 * 1024);
 
-  if (esIOS()) {
-    // iOS: ffmpeg.wasm no funciona (limitaciones de memoria de WebKit).
-    // validarTamanoArchivo ya rechazó los vídeos > MAX_VIDEO_IOS_MB,
-    // así que aquí siempre subimos el original directamente.
-    onProgress?.("Subiendo vídeo…", 50);
-  } else if (mb > MAX_VIDEO_COMPRESS_MB) {
-    // Desktop / Android: comprimir con ffmpeg.wasm
+  if (mb > MAX_VIDEO_COMPRESS_MB) {
+    // Comprimir con ffmpeg.wasm (cargado desde /ffmpeg/ — funciona en iOS y desktop)
     try {
       videoFile = await comprimirVideo(file, onProgress);
     } catch {
+      // Fallback: si la compresión falla (dispositivo muy antiguo, poca memoria),
+      // subir el original. validarTamanoArchivo ya habrá rechazado vídeos > 100 MB en iOS.
       console.warn("[storage] Compresión de vídeo falló, subiendo original:", file.name);
       videoFile = file;
     }

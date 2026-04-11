@@ -34,3 +34,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ffmpeg WASM (generado por postinstall, ~31 MB — no subir al repo)
+/public/ffmpeg/
