@@ -208,12 +208,18 @@ export async function subirVideo(
     try {
       videoFile = await comprimirVideo(file, onProgress);
     } catch {
-      return { url: null, error: "No se pudo comprimir el vídeo. Inténtalo de nuevo.", tamano: 0 };
+      // ffmpeg.wasm falla en iOS Safari y algunos móviles (sin SharedArrayBuffer).
+      // Fallback: subir el vídeo original sin comprimir.
+      console.warn("[storage] Compresión de vídeo falló, subiendo original:", file.name);
+      videoFile = file;
+      onProgress?.("Subiendo vídeo original…", 98);
     }
   }
 
   onProgress?.("Subiendo vídeo…", 98);
-  const path = `${tenantId}/${obraId}/${userId}/${Date.now()}.mp4`;
+  // Usar la extensión original si no se comprimió, mp4 si se comprimió con ffmpeg
+  const ext  = videoFile === file ? (file.name.split(".").pop() ?? "mp4") : "mp4";
+  const path = `${tenantId}/${obraId}/${userId}/${Date.now()}.${ext}`;
   const { data, error } = await insforge.storage.from(BUCKET).upload(path, videoFile);
   if (error || !data) {
     return { url: null, error: (error as any)?.message ?? "Error al subir vídeo", tamano: 0 };
