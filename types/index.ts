@@ -108,6 +108,21 @@ export type MaterialCategoria =
   | "carpinteria"
   | "otro";
 
+// Catálogo maestro de materiales: guarda los pasillos por tienda
+export interface MaterialMaestro {
+  id: string;
+  tenant_id: string;
+  nombre: string;
+  sabadell_pasillo: number | null;
+  terrassa_pasillo: number | null;
+  otra_tienda_pasillo: number | null;
+  veces_pedido: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type TiendaCompra = "sabadell" | "terrassa" | "otra";
+
 export interface Material {
   id: string;
   obra_id: string;
@@ -122,11 +137,13 @@ export interface Material {
   nota?: string;
   created_at: string;
   comprado_at?: string;
+  material_maestro_id?: string | null;
 }
 
 export interface MaterialConDetalles extends Material {
   obra: Obra;
   solicitante: User;
+  maestro?: MaterialMaestro | null;
 }
 
 // ─── Documento (planos, PDFs, medidas, contratos…) ───────────────────────

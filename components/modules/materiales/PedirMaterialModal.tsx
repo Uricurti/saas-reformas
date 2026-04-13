@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { pedirMaterial, getObrasActivas } from "@/lib/insforge/database";
-import type { Obra } from "@/types";
+import type { Obra, MaterialMaestro } from "@/types";
 import { X, Loader2, ShoppingCart, Plus, Trash2 } from "lucide-react";
 
 interface Props {
@@ -17,11 +17,12 @@ interface LineaPedido {
   id:          number;
   cantidad:    string;
   descripcion: string;
+  maestroId:   string | null; // ID del material maestro seleccionado via autocomplete
 }
 
 let _nextId = 1;
 function nuevaLinea(): LineaPedido {
-  return { id: _nextId++, cantidad: "", descripcion: "" };
+  return { id: _nextId++, cantidad: "", descripcion: "", maestroId: null };
 }
 
 export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, onCreated }: Props) {
@@ -31,9 +32,12 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
   const [isLoading, setIsLoading] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
 
+  // Autocomplete
+  const [sugerencias, setSugerencias] = useState<{ lineaId: number; items: MaterialMaestro[] } | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Ref para el campo cantidad de la ÚLTIMA línea (para foco al añadir)
-  const lastCantidadRef = useRef<HTMLInputElement>(null);
-  // Controla si ya se ha hecho el foco inicial (no repetir en cada render)
+  const lastCantidadRef  = useRef<HTMLInputElement>(null);
   const initialFocusDone = useRef(false);
 
   useEffect(() => {
@@ -44,26 +48,62 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
     });
   }, []);
 
-  // Foco al añadir línea nueva (no en el primer render — lo hace autoFocus)
+  // Foco al añadir línea nueva
   useEffect(() => {
-    if (!initialFocusDone.current) {
-      initialFocusDone.current = true;
-      return; // primera vez: autoFocus ya se encarga
-    }
-    // Nueva línea añadida → foco en su cantidad lo antes posible
+    if (!initialFocusDone.current) { initialFocusDone.current = true; return; }
     requestAnimationFrame(() => lastCantidadRef.current?.focus());
   }, [lineas.length]);
+
+  // Cerrar sugerencias al hacer click fuera
+  useEffect(() => {
+    function handleClickOutside() { setSugerencias(null); }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Buscar sugerencias con debounce
+  const buscarSugerencias = useCallback((lineaId: number, query: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (query.trim().length < 2) { setSugerencias(null); return; }
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/materiales/maestros?tenantId=${tenantId}&q=${encodeURIComponent(query)}`
+        );
+        const items: MaterialMaestro[] = await res.json();
+        if (items.length > 0) {
+          setSugerencias({ lineaId, items });
+        } else {
+          setSugerencias(null);
+        }
+      } catch {
+        setSugerencias(null);
+      }
+    }, 320);
+  }, [tenantId]);
 
   function updateLinea(id: number, field: keyof LineaPedido, value: string) {
     setError(null);
     setLineas((prev) => prev.map((l) => l.id === id ? { ...l, [field]: value } : l));
+    // Si edita la descripción manualmente, resetear el maestroId
+    if (field === "descripcion") {
+      setLineas((prev) => prev.map((l) => l.id === id ? { ...l, descripcion: value, maestroId: null } : l));
+      buscarSugerencias(id, value);
+    }
   }
 
-  function addLinea() {
-    setLineas((prev) => [...prev, nuevaLinea()]);
+  function seleccionarSugerencia(lineaId: number, maestro: MaterialMaestro) {
+    setSugerencias(null);
+    setLineas((prev) => prev.map((l) =>
+      l.id === lineaId ? { ...l, descripcion: maestro.nombre, maestroId: maestro.id } : l
+    ));
   }
+
+  function addLinea() { setLineas((prev) => [...prev, nuevaLinea()]); }
 
   function removeLinea(id: number) {
+    setSugerencias(null);
     setLineas((prev) => prev.length > 1 ? prev.filter((l) => l.id !== id) : prev);
   }
 
@@ -75,15 +115,36 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
     setIsLoading(true);
     setError(null);
 
+    // Para cada línea: asegurar que existe el material maestro
+    const lineasConMaestro = await Promise.all(
+      validas.map(async (l) => {
+        // Si el usuario seleccionó una sugerencia ya tiene maestroId
+        if (l.maestroId) return { ...l, maestroId: l.maestroId };
+
+        // Si no, crear/encontrar el maestro por nombre
+        try {
+          const res = await fetch("/api/materiales/maestros", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tenantId, nombre: l.descripcion.trim() }),
+          });
+          const maestro: MaterialMaestro = await res.json();
+          return { ...l, maestroId: maestro?.id ?? null };
+        } catch {
+          return { ...l, maestroId: null };
+        }
+      })
+    );
+
     const resultados = await Promise.all(
-      validas.map((l) =>
+      lineasConMaestro.map((l) =>
         pedirMaterial(tenantId, obraId, userId, {
           descripcion: l.descripcion.trim(),
           categoria:   "otro",
           cantidad:    parseFloat(l.cantidad) || 1,
           unidad:      "ud",
           urgencia:    "normal",
-        })
+        }, l.maestroId)
       )
     );
 
@@ -98,13 +159,10 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
   const nValidas = lineas.filter((l) => l.descripcion.trim()).length;
 
   return (
-    // Overlay: en móvil el modal se muestra arriba (evita que el teclado lo tape)
-    // px-4 → 16 px de margen a cada lado para que no quede pegado a los bordes
     <div
       className="fixed inset-0 z-50 flex items-start sm:items-center justify-center px-4 pt-4 sm:pt-0 animate-fade-in bg-black/50 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      {/* Panel: usa modal-panel (fondo blanco sólido) + ancho máximo */}
       <div className="modal-panel w-full max-w-md flex flex-col max-h-[88vh] sm:max-h-[85vh] overflow-hidden" style={{ borderRadius: "1rem" }}>
 
         {/* Header */}
@@ -139,7 +197,7 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
               {lineas.map((linea, idx) => (
                 <div key={linea.id} className="flex items-center gap-2">
 
-                  {/* Cantidad — autoFocus en la primera línea para abrir teclado en móvil */}
+                  {/* Cantidad */}
                   <input
                     ref={idx === lineas.length - 1 ? lastCantidadRef : undefined}
                     // eslint-disable-next-line jsx-a11y/no-autofocus
@@ -154,7 +212,6 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        // Salta al campo descripción de la misma fila
                         const row  = e.currentTarget.closest(".flex") as HTMLElement | null;
                         const desc = row?.querySelectorAll("input")[1] as HTMLInputElement | null;
                         desc?.focus();
@@ -164,20 +221,58 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
                     style={{ width: 64, flexShrink: 0 }}
                   />
 
-                  {/* Descripción */}
-                  <input
-                    type="text"
-                    placeholder="cemento, cable 2.5mm…"
-                    value={linea.descripcion}
-                    onChange={(e) => updateLinea(linea.id, "descripcion", e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && idx === lineas.length - 1) {
-                        e.preventDefault();
-                        if (linea.descripcion.trim()) addLinea();
-                      }
-                    }}
-                    className="input flex-1 min-w-0"
-                  />
+                  {/* Descripción con autocomplete */}
+                  <div className="relative flex-1 min-w-0">
+                    <input
+                      type="text"
+                      placeholder="cemento, cable 2.5mm…"
+                      value={linea.descripcion}
+                      onChange={(e) => updateLinea(linea.id, "descripcion", e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") { setSugerencias(null); }
+                        if (e.key === "Enter" && idx === lineas.length - 1) {
+                          e.preventDefault();
+                          setSugerencias(null);
+                          if (linea.descripcion.trim()) addLinea();
+                        }
+                      }}
+                      onFocus={() => {
+                        if (linea.descripcion.trim().length >= 2) {
+                          buscarSugerencias(linea.id, linea.descripcion);
+                        }
+                      }}
+                      className="input w-full"
+                      autoComplete="off"
+                    />
+
+                    {/* Dropdown de sugerencias */}
+                    {sugerencias?.lineaId === linea.id && sugerencias.items.length > 0 && (
+                      <ul
+                        className="absolute left-0 right-0 top-full mt-1 bg-white border border-border rounded-xl shadow-lg z-10 overflow-hidden"
+                        onMouseDown={(e) => e.preventDefault()} // evita perder foco del input
+                      >
+                        {sugerencias.items.map((m) => (
+                          <li
+                            key={m.id}
+                            onClick={() => seleccionarSugerencia(linea.id, m)}
+                            className="flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-border/50 last:border-0"
+                          >
+                            <span className="text-sm font-medium text-content-primary capitalize">
+                              {m.nombre}
+                            </span>
+                            {/* Indica si tiene pasillos conocidos */}
+                            {(m.sabadell_pasillo || m.terrassa_pasillo) && (
+                              <span className="text-xs text-content-muted ml-2 flex-shrink-0">
+                                {m.sabadell_pasillo ? `S·${m.sabadell_pasillo}` : ""}
+                                {m.sabadell_pasillo && m.terrassa_pasillo ? " · " : ""}
+                                {m.terrassa_pasillo ? `T·${m.terrassa_pasillo}` : ""}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
 
                   {/* Borrar fila */}
                   <button

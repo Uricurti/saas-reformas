@@ -245,7 +245,7 @@ export async function registrarFichaje(params: {
 export async function getMaterialesPendientes(tenantId: string) {
   return insforge.database
     .from("materiales")
-    .select(`*, obra:obras(*), solicitante:users(*)`)
+    .select(`*, obra:obras(*), solicitante:users(*), maestro:materiales_maestros(*)`)
     .eq("tenant_id", tenantId)
     .eq("estado", "pendiente")
     .order("urgencia", { ascending: false })
@@ -260,15 +260,22 @@ export async function getMaterialesByObra(obraId: string) {
     .order("created_at", { ascending: false });
 }
 
-export async function pedirMaterial(tenantId: string, obraId: string, userId: string, data: MaterialFormData) {
+export async function pedirMaterial(
+  tenantId: string,
+  obraId: string,
+  userId: string,
+  data: MaterialFormData,
+  materialMaestroId?: string | null
+) {
   return insforge.database
     .from("materiales")
     .insert({
       ...data,
-      obra_id: obraId,
-      tenant_id: tenantId,
-      solicitado_por: userId,
-      estado: "pendiente",
+      obra_id:             obraId,
+      tenant_id:           tenantId,
+      solicitado_por:      userId,
+      estado:              "pendiente",
+      material_maestro_id: materialMaestroId ?? null,
     })
     .select()
     .single();
