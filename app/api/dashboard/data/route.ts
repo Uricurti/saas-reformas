@@ -119,7 +119,14 @@ export async function GET(req: NextRequest) {
     })
     .filter(Boolean)
     .sort((a: any, b: any) => {
+      // 1) Libres siempre al final
+      if (a.es_libre !== b.es_libre) return a.es_libre ? 1 : -1;
+      // 2) Fichados antes que los que no han fichado
       if (a.ha_fichado !== b.ha_fichado) return a.ha_fichado ? -1 : 1;
+      // 3) Entre fichados: orden cronológico (el primero en fichar, arriba)
+      if (a.fichado_at && b.fichado_at)
+        return new Date(a.fichado_at).getTime() - new Date(b.fichado_at).getTime();
+      // 4) Sin fichar: alfabético
       return a.nombre.localeCompare(b.nombre, "es");
     });
 

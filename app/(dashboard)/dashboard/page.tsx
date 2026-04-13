@@ -367,9 +367,12 @@ export default function DashboardPage() {
           ? { ...e, ha_fichado: nuevoFichado, fichado_at: nuevoFichado ? new Date().toISOString() : null }
           : e
       );
-      // Reordenar: fichados primero, sin fichar al final
+      // Reordenar: igual que el servidor
       updated.sort((a, b) => {
+        if (a.es_libre !== b.es_libre) return a.es_libre ? 1 : -1;
         if (a.ha_fichado !== b.ha_fichado) return a.ha_fichado ? -1 : 1;
+        if (a.fichado_at && b.fichado_at)
+          return new Date(a.fichado_at).getTime() - new Date(b.fichado_at).getTime();
         return a.nombre.localeCompare(b.nombre, "es");
       });
       return { ...prev, fichajeHoy: updated };
