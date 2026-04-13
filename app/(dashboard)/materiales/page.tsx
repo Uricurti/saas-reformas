@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuthStore, useIsAdmin, useTenantId } from "@/lib/stores/auth-store";
-import { getMaterialesPendientes, marcarMaterialesComprados } from "@/lib/insforge/database";
+import { getMaterialesActivos, marcarMaterialesComprados } from "@/lib/insforge/database";
 import type { MaterialConDetalles } from "@/types";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ModoCompraView } from "@/components/modules/materiales/ModoCompraView";
@@ -29,7 +29,7 @@ export default function MaterialesPage() {
 
   async function cargar() {
     setIsLoading(true);
-    const { data } = await getMaterialesPendientes(tenantId!);
+    const { data } = await getMaterialesActivos(tenantId!);
     setMateriales((data as MaterialConDetalles[]) ?? []);
     setIsLoading(false);
   }
@@ -44,7 +44,7 @@ export default function MaterialesPage() {
     return (
       <ModoCompraView
         tenantId={tenantId!}
-        materiales={materiales}
+        materiales={materiales.filter((m) => m.estado === "pendiente")}
         onFinalizar={handleCompraFinalizada}
         onCancelar={() => setModoCompra(false)}
       />
@@ -55,7 +55,10 @@ export default function MaterialesPage() {
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
       <PageHeader
         title="Materiales"
-        subtitle={`${materiales.length} ítem${materiales.length !== 1 ? "s" : ""} pendiente${materiales.length !== 1 ? "s" : ""}`}
+        subtitle={(() => {
+          const n = materiales.filter((m) => m.estado === "pendiente").length;
+          return n === 0 ? "Todo comprado" : `${n} ítem${n !== 1 ? "s" : ""} pendiente${n !== 1 ? "s" : ""}`;
+        })()}
         action={
           <div className="flex flex-wrap gap-2 justify-end">
             {isAdmin && (
@@ -66,7 +69,7 @@ export default function MaterialesPage() {
             <button onClick={() => setShowPedirModal(true)} className="btn-secondary text-sm">
               <Plus className="w-4 h-4" /> Pedir
             </button>
-            {materiales.length > 0 && (
+            {materiales.some((m) => m.estado === "pendiente") && (
               <button onClick={() => setModoCompra(true)} className="btn-primary text-sm">
                 <ShoppingBag className="w-4 h-4" /> Compra
               </button>

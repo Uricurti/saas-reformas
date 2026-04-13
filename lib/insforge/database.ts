@@ -252,6 +252,18 @@ export async function getMaterialesPendientes(tenantId: string) {
     .order("created_at", { ascending: true });
 }
 
+// Pendientes + comprados recientes (últimas 48h) para la vista de lista completa
+export async function getMaterialesActivos(tenantId: string) {
+  const hace48h = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+  return insforge.database
+    .from("materiales")
+    .select(`*, obra:obras(*), solicitante:users(*), maestro:materiales_maestros(*)`)
+    .eq("tenant_id", tenantId)
+    .or(`estado.eq.pendiente,and(estado.eq.comprado,comprado_at.gte.${hace48h})`)
+    .order("urgencia", { ascending: false })
+    .order("created_at", { ascending: true });
+}
+
 export async function getMaterialesByObra(obraId: string) {
   return insforge.database
     .from("materiales")
