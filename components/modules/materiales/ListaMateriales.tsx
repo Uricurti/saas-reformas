@@ -1,8 +1,8 @@
 "use client";
 
 import type { MaterialConDetalles } from "@/types";
-import { deleteMaterial, marcarMaterialComprado } from "@/lib/insforge/database";
-import { Trash2, Check, Building2, Clock, CheckCircle2 } from "lucide-react";
+import { deleteMaterial } from "@/lib/insforge/database";
+import { Trash2, Building2, Clock, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatRelative } from "@/lib/utils/format";
 import { useState } from "react";
@@ -18,11 +18,6 @@ export function ListaMateriales({ isAdmin, materiales, onUpdate }: Props) {
 
   const pendientes  = materiales.filter((m) => m.estado === "pendiente");
   const comprados   = materiales.filter((m) => m.estado === "comprado");
-
-  async function handleMarcarComprado(id: string) {
-    await marcarMaterialComprado(id);
-    onUpdate();
-  }
 
   async function handleEliminar(id: string) {
     if (!confirm("¿Eliminar este material?")) return;
@@ -90,24 +85,15 @@ export function ListaMateriales({ isAdmin, materiales, onUpdate }: Props) {
                       </div>
                     </div>
 
-                    {/* Acciones (solo admin) */}
+                    {/* Papelera (solo admin) */}
                     {isAdmin && (
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          onClick={() => handleMarcarComprado(m.id)}
-                          title="Marcar como comprado"
-                          className="p-2 rounded-lg text-success hover:bg-success-light transition-colors"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleEliminar(m.id)}
-                          title="Eliminar"
-                          className="p-2 rounded-lg text-content-muted hover:bg-danger-light hover:text-danger transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handleEliminar(m.id)}
+                        title="Eliminar"
+                        className="p-2 rounded-lg text-content-muted hover:bg-danger-light hover:text-danger transition-colors flex-shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     )}
                   </div>
                 ))}
