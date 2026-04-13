@@ -94,14 +94,23 @@ export function ModoCompraView({ tenantId, materiales, onFinalizar, onCancelar }
   const tiendaLabel = TIENDAS.find((t) => t.id === tienda)?.label ?? "";
 
   // Para "otra tienda": sin orden de pasillo
-  let conPasillo: MaterialConDetalles[] = [];
+  let conPasilloNumerico: MaterialConDetalles[] = [];
+  let almacenExterior: MaterialConDetalles[] = [];
   let sinPasillo: MaterialConDetalles[] = [];
 
   if (tienda !== "otra") {
-    conPasillo = pendientes
+    // Separar en 3 categorías
+    const tienePasillo = pendientes.filter((m) => {
+      const local = m.material_maestro_id ? pasillosLocales[m.material_maestro_id] : undefined;
+      return local !== undefined || getPasillo(m, tienda) !== null;
+    });
+
+    // Pasillo > 0 (ordenado descendente)
+    conPasilloNumerico = tienePasillo
       .filter((m) => {
         const local = m.material_maestro_id ? pasillosLocales[m.material_maestro_id] : undefined;
-        return local !== undefined || getPasillo(m, tienda) !== null;
+        const pasillo = local ?? getPasillo(m, tienda) ?? 0;
+        return pasillo > 0;
       })
       .sort((a, b) => {
         const pA = (a.material_maestro_id && pasillosLocales[a.material_maestro_id]) ?? getPasillo(a, tienda) ?? 0;
@@ -109,6 +118,14 @@ export function ModoCompraView({ tenantId, materiales, onFinalizar, onCancelar }
         return pB - pA; // descendente: pasillo más alto primero
       });
 
+    // Pasillo === 0 (Almacén exterior)
+    almacenExterior = tienePasillo.filter((m) => {
+      const local = m.material_maestro_id ? pasillosLocales[m.material_maestro_id] : undefined;
+      const pasillo = local ?? getPasillo(m, tienda) ?? 0;
+      return pasillo === 0;
+    });
+
+    // Sin pasillo registrado
     sinPasillo = pendientes.filter((m) => {
       const local = m.material_maestro_id ? pasillosLocales[m.material_maestro_id] : undefined;
       return local === undefined && getPasillo(m, tienda) === null;
@@ -248,15 +265,15 @@ export function ModoCompraView({ tenantId, materiales, onFinalizar, onCancelar }
           </>
         ) : (
           <>
-            {/* Sección 1: Con pasillo registrado */}
-            {conPasillo.length > 0 && (
+            {/* Sección 1: Pasillos numerados */}
+            {conPasilloNumerico.length > 0 && (
               <div className="mb-6">
                 <p className="text-xs font-bold text-content-muted uppercase tracking-wider mb-3 px-1 flex items-center gap-2">
                   <span className="inline-block w-2 h-2 rounded-full bg-success" />
-                  Con pasillo registrado
+                  Pasillos numerados
                 </p>
                 <div className="space-y-3">
-                  {conPasillo.map((m) => {
+                  {conPasilloNumerico.map((m) => {
                     const pasillo = (m.material_maestro_id && pasillosLocales[m.material_maestro_id]) ?? getPasillo(m, tienda);
                     return (
                       <MaterialItemCompra
@@ -269,7 +286,25 @@ export function ModoCompraView({ tenantId, materiales, onFinalizar, onCancelar }
               </div>
             )}
 
-            {/* Sección 2: Sin pasillo */}
+            {/* Sección 2: Almacén exterior */}
+            {almacenExterior.length > 0 && (
+              <div className="mb-6">
+                <p className="text-xs font-bold text-content-muted uppercase tracking-wider mb-3 px-1 flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
+                  Almacén exterior
+                </p>
+                <div className="space-y-3">
+                  {almacenExterior.map((m) => (
+                    <MaterialItemCompra
+                      key={m.id} material={m} marcado={false}
+                      pasillo={0} onToggle={() => handleToggle(m)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sección 3: Sin pasillo */}
             {sinPasillo.length > 0 && (
               <div className="mb-6">
                 <p className="text-xs font-bold text-content-muted uppercase tracking-wider mb-3 px-1 flex items-center gap-2">
