@@ -150,7 +150,17 @@ export function ListaMateriales({ isAdmin, materiales, onUpdate }: Props) {
                             <span>Comprado {m.comprado_at ? formatRelative(m.comprado_at) : ""}</span>
                           </div>
                         </div>
-                        {/* Sin botones de acción en los comprados */}
+
+                        {/* Papelera solo para admin */}
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleEliminar(m.id)}
+                            title="Eliminar"
+                            className="p-2 rounded-lg text-content-muted hover:bg-danger-light hover:text-danger transition-colors flex-shrink-0"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
