@@ -12,6 +12,14 @@ interface Props {
   onCancelar: () => void;
 }
 
+// Pasillo 0 = Almacén exterior
+function formatPasillo(n: number): string {
+  return n === 0 ? "Almacén ext." : `Pasillo ${n}`;
+}
+function formatPasilloCorto(n: number): string {
+  return n === 0 ? "Almacén" : String(n);
+}
+
 // Obtener el pasillo de un material para la tienda seleccionada
 function getPasillo(m: MaterialConDetalles, tienda: TiendaCompra): number | null {
   if (!m.maestro) return null;
@@ -141,7 +149,7 @@ export function ModoCompraView({ tenantId, materiales, onFinalizar, onCancelar }
 
     if (!omitir) {
       const num = parseInt(inputPasillo, 10);
-      if (!isNaN(num) && num > 0) {
+      if (!isNaN(num) && num >= 0) {
         // Obtener o crear el maestro vinculado al material
         let maestroId = pedirPasillo.material_maestro_id ?? null;
 
@@ -338,15 +346,18 @@ export function ModoCompraView({ tenantId, materiales, onFinalizar, onCancelar }
             <input
               type="number"
               inputMode="numeric"
-              min="1"
-              placeholder="Nº de pasillo"
+              min="0"
+              placeholder="Nº de pasillo (0 = Almacén ext.)"
               value={inputPasillo}
               onChange={(e) => setInputPasillo(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleConfirmarPasillo(false)}
-              className="input w-full text-center text-2xl font-bold mb-4"
+              className="input w-full text-center text-2xl font-bold mb-2"
               // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
             />
+            {inputPasillo === "0" && (
+              <p className="text-xs text-center text-content-muted mb-3">Almacén exterior</p>
+            )}
 
             <div className="flex gap-2">
               <button
@@ -357,7 +368,7 @@ export function ModoCompraView({ tenantId, materiales, onFinalizar, onCancelar }
               </button>
               <button
                 onClick={() => handleConfirmarPasillo(false)}
-                disabled={!inputPasillo || parseInt(inputPasillo) <= 0}
+                disabled={inputPasillo === "" || isNaN(parseInt(inputPasillo)) || parseInt(inputPasillo) < 0}
                 className="btn-primary flex-1 text-sm"
               >
                 Guardar
@@ -412,10 +423,17 @@ function MaterialItemCompra({
 
       {/* Badge de pasillo */}
       {pasillo !== null && !marcado && (
-        <div className="flex-shrink-0 bg-primary/10 text-primary rounded-lg px-2.5 py-1 text-center min-w-[48px]">
-          <p className="text-[10px] font-medium leading-none mb-0.5">Pasillo</p>
-          <p className="text-lg font-bold leading-none">{pasillo}</p>
-        </div>
+        pasillo === 0 ? (
+          <div className="flex-shrink-0 bg-primary/10 text-primary rounded-lg px-2.5 py-1 text-center">
+            <p className="text-[10px] font-bold leading-none">Almacén</p>
+            <p className="text-[10px] leading-none">exterior</p>
+          </div>
+        ) : (
+          <div className="flex-shrink-0 bg-primary/10 text-primary rounded-lg px-2.5 py-1 text-center min-w-[48px]">
+            <p className="text-[10px] font-medium leading-none mb-0.5">Pasillo</p>
+            <p className="text-lg font-bold leading-none">{pasillo}</p>
+          </div>
+        )
       )}
     </button>
   );

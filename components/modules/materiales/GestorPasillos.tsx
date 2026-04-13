@@ -63,24 +63,17 @@ export function GestorPasillos({ tenantId, onClose }: Props) {
   async function guardarEdicion() {
     if (!editando) return;
     const num = parseInt(editando.valor, 10);
-    const pasillo = !isNaN(num) && num > 0 ? num : null;
+    // 0 es válido (Almacén exterior). null solo si el campo está vacío o no es número
+    const pasillo = !isNaN(num) && num >= 0 ? num : null;
 
     setGuardando(true);
     try {
-      if (pasillo !== null) {
-        await fetch("/api/materiales/maestros", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ maestroId: editando.maestroId, tienda: editando.tienda, pasillo }),
-        });
-      } else {
-        // Si se borra el valor → limpiar el pasillo
-        await fetch("/api/materiales/maestros", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ maestroId: editando.maestroId, tienda: editando.tienda, pasillo: null }),
-        });
-      }
+      // Tanto si es un número (incluyendo 0) como si es null (limpiar), mandamos el valor
+      await fetch("/api/materiales/maestros", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maestroId: editando.maestroId, tienda: editando.tienda, pasillo }),
+      });
 
       // Actualizar estado local
       setMateriales((prev) => prev.map((m) => {
@@ -252,7 +245,7 @@ function CeldaPasillo({
           ref={inputRef}
           type="number"
           inputMode="numeric"
-          min="1"
+          min="0"
           value={editando.valor}
           onChange={(e) => onCambiar(e.target.value)}
           onKeyDown={(e) => {
@@ -284,7 +277,9 @@ function CeldaPasillo({
     >
       {valor !== null ? (
         <>
-          <span className="text-sm font-bold text-primary">{valor}</span>
+          <span className="text-sm font-bold text-primary">
+            {valor === 0 ? "Almacén" : valor}
+          </span>
           <Pencil className="w-2.5 h-2.5 text-primary/50 opacity-0 group-hover:opacity-100 transition-opacity" />
         </>
       ) : (
