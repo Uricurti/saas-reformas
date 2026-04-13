@@ -54,11 +54,11 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
     requestAnimationFrame(() => lastCantidadRef.current?.focus());
   }, [lineas.length]);
 
-  // Cerrar sugerencias al hacer click fuera
+  // Cerrar sugerencias al tocar fuera (pointerdown cubre móvil y desktop)
   useEffect(() => {
     function handleClickOutside() { setSugerencias(null); }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("pointerdown", handleClickOutside);
+    return () => document.removeEventListener("pointerdown", handleClickOutside);
   }, []);
 
   // Buscar sugerencias con debounce
@@ -247,20 +247,21 @@ export function PedirMaterialModal({ tenantId, userId, obraIdInicial, onClose, o
 
                     {/* Dropdown de sugerencias */}
                     {sugerencias?.lineaId === linea.id && sugerencias.items.length > 0 && (
-                      <ul
-                        className="absolute left-0 right-0 top-full mt-1 bg-white border border-border rounded-xl shadow-lg z-10 overflow-hidden"
-                        onMouseDown={(e) => e.preventDefault()} // evita perder foco del input
-                      >
+                      <ul className="absolute left-0 right-0 top-full mt-1 bg-white border border-border rounded-xl shadow-lg z-10 overflow-hidden">
                         {sugerencias.items.map((m) => (
                           <li
                             key={m.id}
-                            onClick={() => seleccionarSugerencia(linea.id, m)}
-                            className="flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-border/50 last:border-0"
+                            // onPointerDown + preventDefault: evita que el input pierda el foco
+                            // antes de procesar la selección (funciona en móvil y desktop)
+                            onPointerDown={(e) => {
+                              e.preventDefault();
+                              seleccionarSugerencia(linea.id, m);
+                            }}
+                            className="flex items-center justify-between px-3 py-3 active:bg-gray-100 hover:bg-gray-50 cursor-pointer border-b border-border/50 last:border-0"
                           >
                             <span className="text-sm font-medium text-content-primary capitalize">
                               {m.nombre}
                             </span>
-                            {/* Indica si tiene pasillos conocidos */}
                             {(m.sabadell_pasillo || m.terrassa_pasillo) && (
                               <span className="text-xs text-content-muted ml-2 flex-shrink-0">
                                 {m.sabadell_pasillo ? `S·${m.sabadell_pasillo}` : ""}
