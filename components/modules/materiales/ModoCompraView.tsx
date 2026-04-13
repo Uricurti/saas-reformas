@@ -6,6 +6,7 @@ import { Check, ShoppingBag, X, ChevronDown, ChevronUp, MapPin, ArrowLeft } from
 import { cn } from "@/lib/utils";
 
 interface Props {
+  tenantId: string;
   materiales: MaterialConDetalles[];
   onFinalizar: (idsComprados: string[]) => void;
   onCancelar: () => void;
@@ -25,7 +26,7 @@ const TIENDAS: { id: TiendaCompra; label: string; icon: string }[] = [
   { id: "otra",      label: "Otra tienda",         icon: "🏪" },
 ];
 
-export function ModoCompraView({ materiales, onFinalizar, onCancelar }: Props) {
+export function ModoCompraView({ tenantId, materiales, onFinalizar, onCancelar }: Props) {
   const [tienda, setTienda]   = useState<TiendaCompra | null>(null);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   const [mostrarCompletados, setMostrarCompletados] = useState(false);
@@ -114,22 +115,25 @@ export function ModoCompraView({ materiales, onFinalizar, onCancelar }: Props) {
       return;
     }
 
-    // "Otra tienda" o ya tiene pasillo → marcar directamente
-    const pasilloLocal  = m.material_maestro_id ? pasillosLocales[m.material_maestro_id] : undefined;
-    const pasilloMaestro = getPasillo(m, tienda);
-    if (tienda === "otra" || pasilloLocal !== undefined || pasilloMaestro !== null) {
+    // "Otra tienda" → siempre marcar directamente, sin preguntar pasillo
+    if (tienda === "otra") {
       setMarcados((prev) => new Set([...prev, m.id]));
       return;
     }
 
-    // Sin pasillo → abrir modal para pedirlo (solo si tiene maestro vinculado)
-    if (m.material_maestro_id) {
-      setPedirPasillo(m);
-      setInputPasillo("");
-    } else {
-      // Sin maestro → marcar directamente sin preguntar
+    // Verificar si ya tiene pasillo registrado para esta tienda
+    const pasilloLocal   = m.material_maestro_id ? pasillosLocales[m.material_maestro_id] : undefined;
+    const pasilloMaestro = getPasillo(m, tienda!);
+
+    if (pasilloLocal !== undefined || pasilloMaestro !== null) {
+      // Ya tiene pasillo → marcar directamente
       setMarcados((prev) => new Set([...prev, m.id]));
+      return;
     }
+
+    // Sin pasillo → SIEMPRE preguntar, independientemente de si tiene maestro o no
+    setPedirPasillo(m);
+    setInputPasillo("");
   }
 
   async function handleConfirmarPasillo(omitir: boolean) {
@@ -137,23 +141,36 @@ export function ModoCompraView({ materiales, onFinalizar, onCancelar }: Props) {
 
     if (!omitir) {
       const num = parseInt(inputPasillo, 10);
-      if (!isNaN(num) && num > 0 && pedirPasillo.material_maestro_id) {
-        // Guardar en DB (no bloqueante — si falla, la compra sigue)
-        fetch("/api/materiales/maestros", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            maestroId: pedirPasillo.material_maestro_id,
-            tienda,
-            pasillo: num,
-          }),
-        }).catch(() => {});
+      if (!isNaN(num) && num > 0) {
+        // Obtener o crear el maestro vinculado al material
+        let maestroId = pedirPasillo.material_maestro_id ?? null;
 
-        // Actualizar estado local para que la sesión actual sea coherente
-        setPasillosLocales((prev) => ({
-          ...prev,
-          [pedirPasillo.material_maestro_id!]: num,
-        }));
+        if (!maestroId) {
+          // El material no tiene maestro → buscar/crear por nombre ahora
+          try {
+            const res = await fetch("/api/materiales/maestros", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ tenantId, nombre: pedirPasillo.descripcion }),
+            });
+            const maestro = await res.json();
+            maestroId = maestro?.id ?? null;
+          } catch {
+            maestroId = null;
+          }
+        }
+
+        if (maestroId) {
+          // Guardar pasillo en DB (no bloqueante)
+          fetch("/api/materiales/maestros", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ maestroId, tienda, pasillo: num }),
+          }).catch(() => {});
+
+          // Actualizar estado local para que la sesión sea coherente
+          setPasillosLocales((prev) => ({ ...prev, [maestroId!]: num }));
+        }
       }
     }
 

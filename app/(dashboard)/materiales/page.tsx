@@ -43,6 +43,7 @@ export default function MaterialesPage() {
   if (modoCompra) {
     return (
       <ModoCompraView
+        tenantId={tenantId!}
         materiales={materiales}
         onFinalizar={handleCompraFinalizada}
         onCancelar={() => setModoCompra(false)}
