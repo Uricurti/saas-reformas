@@ -62,18 +62,20 @@ export default function MaterialesPage() {
         action={
           <div className="flex flex-wrap gap-2 justify-end">
             {isAdmin && (
-              <button onClick={() => setShowGestorPasillos(true)} className="btn-ghost text-sm">
-                <MapPin className="w-4 h-4" /> Pasillos
-              </button>
+              <>
+                <button onClick={() => setShowGestorPasillos(true)} className="btn-ghost text-sm">
+                  <MapPin className="w-4 h-4" /> Pasillos
+                </button>
+                {materiales.some((m) => m.estado === "pendiente") && (
+                  <button onClick={() => setModoCompra(true)} className="btn-primary text-sm">
+                    <ShoppingBag className="w-4 h-4" /> Compra
+                  </button>
+                )}
+              </>
             )}
             <button onClick={() => setShowPedirModal(true)} className="btn-secondary text-sm">
               <Plus className="w-4 h-4" /> Pedir
             </button>
-            {materiales.some((m) => m.estado === "pendiente") && (
-              <button onClick={() => setModoCompra(true)} className="btn-primary text-sm">
-                <ShoppingBag className="w-4 h-4" /> Compra
-              </button>
-            )}
           </div>
         }
       />
@@ -94,7 +96,7 @@ export default function MaterialesPage() {
           </button>
         </div>
       ) : (
-        <ListaMateriales materiales={materiales} onUpdate={cargar} />
+        <ListaMateriales isAdmin={isAdmin} materiales={materiales} onUpdate={cargar} />
       )}
 
       {showPedirModal && (

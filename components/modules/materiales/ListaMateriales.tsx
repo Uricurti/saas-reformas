@@ -8,11 +8,12 @@ import { formatRelative } from "@/lib/utils/format";
 import { useState } from "react";
 
 interface Props {
+  isAdmin: boolean;
   materiales: MaterialConDetalles[];
   onUpdate: () => void;
 }
 
-export function ListaMateriales({ materiales, onUpdate }: Props) {
+export function ListaMateriales({ isAdmin, materiales, onUpdate }: Props) {
   const [mostrarComprados, setMostrarComprados] = useState(false);
 
   const pendientes  = materiales.filter((m) => m.estado === "pendiente");
@@ -89,23 +90,25 @@ export function ListaMateriales({ materiales, onUpdate }: Props) {
                       </div>
                     </div>
 
-                    {/* Acciones */}
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => handleMarcarComprado(m.id)}
-                        title="Marcar como comprado"
-                        className="p-2 rounded-lg text-success hover:bg-success-light transition-colors"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleEliminar(m.id)}
-                        title="Eliminar"
-                        className="p-2 rounded-lg text-content-muted hover:bg-danger-light hover:text-danger transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {/* Acciones (solo admin) */}
+                    {isAdmin && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => handleMarcarComprado(m.id)}
+                          title="Marcar como comprado"
+                          className="p-2 rounded-lg text-success hover:bg-success-light transition-colors"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleEliminar(m.id)}
+                          title="Eliminar"
+                          className="p-2 rounded-lg text-content-muted hover:bg-danger-light hover:text-danger transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
