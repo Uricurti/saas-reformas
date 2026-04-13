@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     const maestro = existentes[0];
     // Incrementar veces_pedido
     await mutate(
-      `/api/database/records/materiales_maestros/${maestro.id}`,
+      `/api/database/records/materiales_maestros?id=eq.${maestro.id}`,
       "PATCH",
       { veces_pedido: maestro.veces_pedido + 1, updated_at: new Date().toISOString() }
     );
@@ -122,7 +122,7 @@ export async function PATCH(req: NextRequest) {
 
   // pasillo puede ser null (limpiar) o un número (guardar)
   await mutate(
-    `/api/database/records/materiales_maestros/${maestroId}`,
+    `/api/database/records/materiales_maestros?id=eq.${maestroId}`,
     "PATCH",
     { [campo]: pasillo ?? null, updated_at: new Date().toISOString() }
   );
@@ -135,7 +135,7 @@ export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
 
-  const res = await fetch(`${BASE}/api/database/records/materiales_maestros/${id}`, {
+  const res = await fetch(`${BASE}/api/database/records/materiales_maestros?id=eq.${id}`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json", "x-api-key": KEY },
     cache: "no-store",
