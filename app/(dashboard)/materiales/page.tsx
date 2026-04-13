@@ -8,7 +8,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ModoCompraView } from "@/components/modules/materiales/ModoCompraView";
 import { ListaMateriales } from "@/components/modules/materiales/ListaMateriales";
 import { PedirMaterialModal } from "@/components/modules/materiales/PedirMaterialModal";
-import { ShoppingCart, Plus, ShoppingBag } from "lucide-react";
+import { GestorPasillos } from "@/components/modules/materiales/GestorPasillos";
+import { ShoppingCart, Plus, ShoppingBag, MapPin } from "lucide-react";
 
 export default function MaterialesPage() {
   const user = useAuthStore((s) => s.user);
@@ -19,6 +20,7 @@ export default function MaterialesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [modoCompra, setModoCompra] = useState(false);
   const [showPedirModal, setShowPedirModal] = useState(false);
+  const [showGestorPasillos, setShowGestorPasillos] = useState(false);
   const [obraIdPedido, setObraIdPedido] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,6 +57,11 @@ export default function MaterialesPage() {
         subtitle={`${materiales.length} ítem${materiales.length !== 1 ? "s" : ""} pendiente${materiales.length !== 1 ? "s" : ""}`}
         action={
           <div className="flex flex-wrap gap-2 justify-end">
+            {isAdmin && (
+              <button onClick={() => setShowGestorPasillos(true)} className="btn-ghost text-sm">
+                <MapPin className="w-4 h-4" /> Pasillos
+              </button>
+            )}
             <button onClick={() => setShowPedirModal(true)} className="btn-secondary text-sm">
               <Plus className="w-4 h-4" /> Pedir
             </button>
@@ -93,6 +100,13 @@ export default function MaterialesPage() {
           obraIdInicial={obraIdPedido}
           onClose={() => { setShowPedirModal(false); setObraIdPedido(null); }}
           onCreated={() => { setShowPedirModal(false); setObraIdPedido(null); cargar(); }}
+        />
+      )}
+
+      {showGestorPasillos && isAdmin && (
+        <GestorPasillos
+          tenantId={tenantId!}
+          onClose={() => setShowGestorPasillos(false)}
         />
       )}
     </div>

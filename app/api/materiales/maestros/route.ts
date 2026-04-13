@@ -2,9 +2,10 @@
  * API routes para materiales_maestros (catálogo compartido con pasillos por tienda).
  * Usa SERVICE_KEY para bypass de RLS — solo accesible desde el servidor Next.js.
  *
- * GET  ?tenantId=xxx&q=tubo          → buscar por nombre (autocomplete)
- * POST body: { tenantId, nombre }     → crear o encontrar maestro por nombre
- * PATCH body: { maestroId, tienda, pasillo } → guardar pasillo en una tienda
+ * GET    ?tenantId=xxx&q=tubo              → buscar por nombre (autocomplete)
+ * POST   body: { tenantId, nombre }        → crear o encontrar maestro por nombre
+ * PATCH  body: { maestroId, tienda, pasillo } → guardar/limpiar pasillo (pasillo=null para limpiar)
+ * DELETE ?id=xxx                           → eliminar del catálogo (solo admin)
  */
 import { NextRequest, NextResponse } from "next/server";
 
@@ -102,11 +103,12 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(Array.isArray(nuevo) ? nuevo[0] : nuevo);
 }
 
-// ── PATCH: guardar pasillo de una tienda ──────────────────────────────────
+// ── PATCH: guardar o limpiar pasillo de una tienda ────────────────────────
+// pasillo puede ser un número (guardar) o null (limpiar)
 export async function PATCH(req: NextRequest) {
   const { maestroId, tienda, pasillo } = await req.json();
-  if (!maestroId || !tienda || pasillo == null) {
-    return NextResponse.json({ error: "maestroId, tienda y pasillo requeridos" }, { status: 400 });
+  if (!maestroId || !tienda) {
+    return NextResponse.json({ error: "maestroId y tienda requeridos" }, { status: 400 });
   }
 
   const campoTienda: Record<string, string> = {
@@ -118,11 +120,27 @@ export async function PATCH(req: NextRequest) {
   const campo = campoTienda[tienda];
   if (!campo) return NextResponse.json({ error: "Tienda no válida" }, { status: 400 });
 
+  // pasillo puede ser null (limpiar) o un número (guardar)
   await mutate(
     `/api/database/records/materiales_maestros/${maestroId}`,
     "PATCH",
-    { [campo]: pasillo, updated_at: new Date().toISOString() }
+    { [campo]: pasillo ?? null, updated_at: new Date().toISOString() }
   );
 
+  return NextResponse.json({ ok: true });
+}
+
+// ── DELETE: eliminar material del catálogo ─────────────────────────────────
+export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
+
+  const res = await fetch(`${BASE}/api/database/records/materiales_maestros/${id}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", "x-api-key": KEY },
+    cache: "no-store",
+  });
+
+  if (!res.ok) return NextResponse.json({ error: "No se pudo eliminar" }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
