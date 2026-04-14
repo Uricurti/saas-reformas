@@ -14,11 +14,13 @@ interface Props {
 export function ObraCard({ obra, onUpdate }: Props) {
   const numAsignados = obra.asignaciones?.length ?? 0;
 
-  const estadoColor = {
-    activa:    "badge-success",
-    pausada:   "badge-warning",
-    archivada: "badge-gray",
-  }[obra.estado];
+  const estadoConfig: Record<string, { cls: string; label: string }> = {
+    activa:    { cls: "badge-success", label: "Activa" },
+    pausada:   { cls: "badge-warning", label: "Pausada" },
+    proxima:   { cls: "badge-purple",  label: "Próxima" },
+    archivada: { cls: "badge-gray",    label: "Archivada" },
+  };
+  const { cls: estadoColor, label: estadoLabel } = estadoConfig[obra.estado] ?? { cls: "badge-gray", label: obra.estado };
 
   return (
     <Link
@@ -34,7 +36,7 @@ export function ObraCard({ obra, onUpdate }: Props) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
           <h3 className="font-semibold text-content-primary">{obra.nombre}</h3>
-          <span className={cn("badge", estadoColor)}>{obra.estado}</span>
+          <span className={cn("badge", estadoColor)}>{estadoLabel}</span>
         </div>
 
         <div className="flex items-center gap-1 text-sm text-content-secondary mb-3">

@@ -16,7 +16,7 @@ export async function getObrasActivas(tenantId: string) {
     .from("obras")
     .select(`*, asignaciones(*, user:users(*))`)
     .eq("tenant_id", tenantId)
-    .in("estado", ["activa", "pausada"])
+    .in("estado", ["activa", "pausada", "proxima"])
     .order("created_at", { ascending: false });
 }
 
@@ -37,10 +37,10 @@ export async function getObrasArchivadas(tenantId: string) {
     .order("created_at", { ascending: false });
 }
 
-export async function createObra(tenantId: string, createdBy: string, data: ObraFormData) {
+export async function createObra(tenantId: string, createdBy: string, data: ObraFormData, estado: "activa" | "proxima" = "activa") {
   return insforge.database
     .from("obras")
-    .insert({ ...data, tenant_id: tenantId, created_by: createdBy, estado: "activa" })
+    .insert({ ...data, tenant_id: tenantId, created_by: createdBy, estado })
     .select()
     .single();
 }
@@ -58,6 +58,36 @@ export async function archivarObra(id: string) {
   return insforge.database
     .from("obras")
     .update({ estado: "archivada" })
+    .eq("id", id)
+    .select()
+    .single();
+}
+
+/** Pasa una obra de "proxima" → "activa" (iniciar obra) */
+export async function iniciarObra(id: string) {
+  return insforge.database
+    .from("obras")
+    .update({ estado: "activa" })
+    .eq("id", id)
+    .select()
+    .single();
+}
+
+/** Pausa una obra activa → "pausada" */
+export async function pausarObra(id: string) {
+  return insforge.database
+    .from("obras")
+    .update({ estado: "pausada" })
+    .eq("id", id)
+    .select()
+    .single();
+}
+
+/** Reanuda una obra pausada → "activa" */
+export async function reanudarObra(id: string) {
+  return insforge.database
+    .from("obras")
+    .update({ estado: "activa" })
     .eq("id", id)
     .select()
     .single();

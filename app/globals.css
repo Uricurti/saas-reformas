@@ -148,6 +148,7 @@
   .badge-warning { @apply badge; background:#FEF3C7; color:#92400E; }
   .badge-primary { @apply badge; background:#EEF2F8; color:#1c3879; }
   .badge-gray    { @apply badge; background:#F3F4F6; color:#4A5568; }
+  .badge-purple  { @apply badge; background:#EDE9FE; color:#5B21B6; }
 
   /* Icon container */
   .icon-container {

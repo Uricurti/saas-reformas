@@ -2,8 +2,8 @@
 
 import { useState, FormEvent } from "react";
 import { createObra } from "@/lib/insforge/database";
-import type { ObraFormData } from "@/types";
-import { X, Loader2, Building2, User, MapPin, CreditCard, Phone } from "lucide-react";
+import type { ObraFormData, ObraEstado } from "@/types";
+import { X, Loader2, Building2, User, MapPin, Clock } from "lucide-react";
 import { DireccionInput } from "@/components/ui/DireccionInput";
 
 interface Props {
@@ -16,6 +16,7 @@ interface Props {
 export function CrearObraModal({ tenantId, userId, onClose, onCreated }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [esProxima, setEsProxima] = useState(false);
   const [form, setForm] = useState<ObraFormData>({
     nombre: "",
     direccion: "",
@@ -55,7 +56,7 @@ export function CrearObraModal({ tenantId, userId, onClose, onCreated }: Props) 
       poblacion:           form.poblacion || undefined,
       fecha_fin_estimada:  form.fecha_fin_estimada || undefined,
       notas_internas:      form.notas_internas || undefined,
-    });
+    }, esProxima ? "proxima" : "activa");
     setIsLoading(false);
     if (error) {
       setError((error as any)?.message ?? "Error al crear la obra");
@@ -196,6 +197,57 @@ export function CrearObraModal({ tenantId, userId, onClose, onCreated }: Props) 
               onChange={(e) => set("notas_internas", e.target.value)}
             />
           </div>
+
+          {/* ── Tipo de obra ── */}
+          <SectionHeader icon={Clock} label="Tipo de obra" />
+
+          <button
+            type="button"
+            onClick={() => setEsProxima((v) => !v)}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              width: "100%", padding: "14px 16px",
+              borderRadius: 12, cursor: "pointer",
+              border: `2px solid ${esProxima ? "#7c3aed" : "#e5e7eb"}`,
+              background: esProxima ? "#EDE9FE" : "#f9fafb",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                background: esProxima ? "#7c3aed" : "#e5e7eb",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "background 0.15s ease",
+              }}>
+                <Clock style={{ width: 18, height: 18, color: esProxima ? "#fff" : "#9ca3af" }} />
+              </div>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: esProxima ? "#5B21B6" : "#374151" }}>
+                  {esProxima ? "Obra próxima" : "Obra activa"}
+                </div>
+                <div style={{ fontSize: 12, color: esProxima ? "#7c3aed" : "#6b7280", marginTop: 1 }}>
+                  {esProxima
+                    ? "Pendiente de iniciar — visible en calendario para planificación"
+                    : "La obra ya está en marcha — puede ficharse"}
+                </div>
+              </div>
+            </div>
+            {/* Toggle pill */}
+            <div style={{
+              width: 44, height: 24, borderRadius: 12, flexShrink: 0,
+              background: esProxima ? "#7c3aed" : "#d1d5db",
+              position: "relative", transition: "background 0.15s ease",
+            }}>
+              <div style={{
+                position: "absolute", top: 3,
+                left: esProxima ? 23 : 3,
+                width: 18, height: 18, borderRadius: "50%", background: "#fff",
+                transition: "left 0.15s ease",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+              }} />
+            </div>
+          </button>
 
           {error && (
             <div className="bg-danger-light text-danger-foreground text-sm rounded-lg px-4 py-3 flex items-center gap-2">

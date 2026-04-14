@@ -30,7 +30,7 @@ export interface Tenant {
 }
 
 // ─── Obra ─────────────────────────────────────────────────────────────────
-export type ObraEstado = "activa" | "pausada" | "archivada";
+export type ObraEstado = "activa" | "pausada" | "proxima" | "archivada";
 
 export interface Obra {
   id: string;

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const url =
     `${INSFORGE_URL}/api/database/records/obras` +
     `?tenant_id=eq.${tenantId}` +
-    `&estado=in.(activa,pausada)` +
+    `&estado=in.(activa,pausada,proxima)` +
     `&order=created_at.desc` +
     `&select=*,asignaciones(*,user:users(*))`;
 

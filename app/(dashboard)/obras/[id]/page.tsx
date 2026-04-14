@@ -7,6 +7,9 @@ import {
   getObraById,
   updateObra,
   archivarObra,
+  iniciarObra,
+  pausarObra,
+  reanudarObra,
   createAsignacion,
   deleteAsignacion,
   getUsuariosByTenant,
@@ -20,6 +23,7 @@ import {
   ArrowLeft, Building2, MapPin, Calendar, Phone, Users,
   Plus, Trash2, Archive, Edit3, Check, X, Package,
   Image, ChevronRight, ChevronDown, Loader2, UserPlus, FileText,
+  Play, Pause, RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -132,6 +136,24 @@ export default function ObraDetallePage() {
     router.replace("/obras");
   }
 
+  async function handleIniciarObra() {
+    if (!obra) return;
+    await iniciarObra(obra.id);
+    cargar();
+  }
+
+  async function handlePausarObra() {
+    if (!obra) return;
+    await pausarObra(obra.id);
+    cargar();
+  }
+
+  async function handleReanudarObra() {
+    if (!obra) return;
+    await reanudarObra(obra.id);
+    cargar();
+  }
+
   async function handleQuitarAsignacion(asignacionId: string) {
     await deleteAsignacion(asignacionId);
     cargar();
@@ -144,7 +166,13 @@ export default function ObraDetallePage() {
   const asignadosIds = new Set(asignados.map((a) => a.user_id));
   const empleadosDisponibles = usuarios.filter((u) => u.rol === "empleado" && !asignadosIds.has(u.id));
   const matsPendientes = materiales.filter((m) => m.estado === "pendiente").length;
-  const estadoColor = { activa: "badge-success", pausada: "badge-warning", archivada: "badge-gray" }[obra.estado];
+  const estadoConfig: Record<string, { cls: string; label: string }> = {
+    activa:    { cls: "badge-success", label: "Activa" },
+    pausada:   { cls: "badge-warning", label: "Pausada" },
+    proxima:   { cls: "badge-purple",  label: "Próxima" },
+    archivada: { cls: "badge-gray",    label: "Archivada" },
+  };
+  const { cls: estadoColor, label: estadoLabel } = estadoConfig[obra.estado] ?? { cls: "badge-gray", label: obra.estado };
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
@@ -163,7 +191,7 @@ export default function ObraDetallePage() {
         ) : (
           <h1 className="text-lg sm:text-xl font-bold text-content-primary flex-1 min-w-0 truncate">{obra.nombre}</h1>
         )}
-        <span className={cn("badge flex-shrink-0", estadoColor)}>{obra.estado}</span>
+        <span className={cn("badge flex-shrink-0", estadoColor)}>{estadoLabel}</span>
       </div>
 
       {/* Info principal — acordeón */}
@@ -435,11 +463,70 @@ export default function ObraDetallePage() {
         </div>
       )}
 
-      {/* Archivar obra */}
+      {/* Acciones de estado — solo admin */}
       {isAdmin && obra.estado !== "archivada" && (
-        <button onClick={handleArchivar} className="w-full btn-ghost text-warning-foreground border border-warning/30 py-3 gap-2 justify-center">
-          <Archive className="w-4 h-4" /> Archivar esta obra
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+
+          {/* Próxima → Iniciar */}
+          {obra.estado === "proxima" && (
+            <button
+              onClick={handleIniciarObra}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                gap: 8, padding: "13px 0", borderRadius: 12, border: "none", cursor: "pointer",
+                background: "#D1FAE5", color: "#065F46", fontSize: 14, fontWeight: 700,
+              }}
+            >
+              <Play style={{ width: 16, height: 16 }} />
+              Iniciar obra
+            </button>
+          )}
+
+          {/* Activa → Pausar */}
+          {obra.estado === "activa" && (
+            <button
+              onClick={handlePausarObra}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                gap: 8, padding: "13px 0", borderRadius: 12, cursor: "pointer",
+                background: "transparent", color: "#92400E", fontSize: 14, fontWeight: 600,
+                border: "1.5px solid #FDE68A",
+              }}
+            >
+              <Pause style={{ width: 16, height: 16 }} />
+              Pausar obra
+            </button>
+          )}
+
+          {/* Pausada → Reanudar */}
+          {obra.estado === "pausada" && (
+            <button
+              onClick={handleReanudarObra}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                gap: 8, padding: "13px 0", borderRadius: 12, border: "none", cursor: "pointer",
+                background: "#EEF2F8", color: "#1c3879", fontSize: 14, fontWeight: 700,
+              }}
+            >
+              <RotateCcw style={{ width: 16, height: 16 }} />
+              Reanudar obra
+            </button>
+          )}
+
+          {/* Archivar — siempre disponible si no archivada */}
+          <button
+            onClick={handleArchivar}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+              gap: 8, padding: "13px 0", borderRadius: 12, cursor: "pointer",
+              background: "transparent", color: "#6b7280", fontSize: 14, fontWeight: 600,
+              border: "1.5px solid #e5e7eb",
+            }}
+          >
+            <Archive style={{ width: 16, height: 16 }} />
+            Archivar esta obra
+          </button>
+        </div>
       )}
 
       {/* Modal asignar trabajador */}

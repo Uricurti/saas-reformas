@@ -3,44 +3,44 @@
 import { useEffect, useState } from "react";
 import { useRefreshOnFocus } from "@/lib/hooks/useRefreshOnFocus";
 import { useAuthStore, useIsAdmin, useTenantId } from "@/lib/stores/auth-store";
-import { getObrasActivas } from "@/lib/insforge/database";
+import { getObrasActivas, getObrasArchivadas } from "@/lib/insforge/database";
 import { getAsignacionHoyByUser } from "@/lib/insforge/database";
 import type { ObraConAsignados, Obra } from "@/types";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ObraCard } from "@/components/modules/obras/ObraCard";
 import { ObraEmpleadoCard } from "@/components/modules/obras/ObraEmpleadoCard";
 import { CrearObraModal } from "@/components/modules/obras/CrearObraModal";
-import { Building2, Plus, Archive } from "lucide-react";
-import Link from "next/link";
+import { Building2, Plus, Archive, Clock, ChevronDown, ChevronUp } from "lucide-react";
 
 export default function ObrasPage() {
-  const user = useAuthStore((s) => s.user);
-  const isAdmin = useIsAdmin();
-  const tenantId = useTenantId();
+  const user      = useAuthStore((s) => s.user);
+  const isAdmin   = useIsAdmin();
+  const tenantId  = useTenantId();
 
-  const [obras, setObras] = useState<ObraConAsignados[]>([]);
-  const [obraHoy, setObraHoy] = useState<Obra | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showCrearModal, setShowCrearModal] = useState(false);
+  const [obras,         setObras]         = useState<ObraConAsignados[]>([]);
+  const [archivadas,    setArchivadas]    = useState<ObraConAsignados[]>([]);
+  const [obraHoy,       setObraHoy]       = useState<Obra | null>(null);
+  const [isLoading,     setIsLoading]     = useState(true);
+  const [showCrearModal,setShowCrearModal]= useState(false);
 
-  useEffect(() => {
-    if (tenantId) cargar();
-  }, [tenantId]);
+  // Collapsibles
+  const [proximasOpen,  setProximasOpen]  = useState(true);
+  const [archivadasOpen,setArchivadasOpen]= useState(false);
 
-  // Recargar datos cuando el usuario vuelve a la pestaña
+  useEffect(() => { if (tenantId) cargar(); }, [tenantId]);
   useRefreshOnFocus(() => { if (tenantId) cargar(); });
 
   async function cargar() {
     setIsLoading(true);
     try {
       if (isAdmin) {
-        // Admin usa el cliente directo (RLS no restringe al admin)
-        const { data, error } = await getObrasActivas(tenantId!);
-        if (error) console.error("[obras] Error cargando obras:", error);
-        setObras((data as ObraConAsignados[]) ?? []);
+        const [activasRes, archRes] = await Promise.all([
+          getObrasActivas(tenantId!),
+          getObrasArchivadas(tenantId!),
+        ]);
+        setObras((activasRes.data as ObraConAsignados[]) ?? []);
+        setArchivadas((archRes.data as ObraConAsignados[]) ?? []);
       } else {
-        // Empleado: usa la API route con SERVICE_KEY para saltar el RLS
-        // y poder ver todas las obras del tenant
         const [obrasRes, obraHoyRes] = await Promise.all([
           fetch(`/api/obras/activas?tenantId=${tenantId}`).then((r) => r.json()).catch(() => []),
           getAsignacionHoyByUser(user!.id).catch(() => null),
@@ -57,11 +57,20 @@ export default function ObrasPage() {
 
   if (isLoading) return <LoadingSkeleton />;
 
+  // Separar por estado
+  const activas  = obras.filter((o) => o.estado === "activa" || o.estado === "pausada");
+  const proximas = obras.filter((o) => o.estado === "proxima");
+
+  const totalActivas = activas.length;
+  const subtitle = totalActivas === 0
+    ? "Sin obras activas"
+    : `${totalActivas} obra${totalActivas !== 1 ? "s" : ""} activa${totalActivas !== 1 ? "s" : ""}`;
+
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
       <PageHeader
         title="Obras"
-        subtitle={`${obras.length} obra${obras.length !== 1 ? "s" : ""} activa${obras.length !== 1 ? "s" : ""}`}
+        subtitle={subtitle}
         action={isAdmin ? (
           <button onClick={() => setShowCrearModal(true)} className="btn-primary">
             <Plus className="w-4 h-4" /> Nueva obra
@@ -86,8 +95,8 @@ export default function ObrasPage() {
         </div>
       )}
 
-      {/* Lista de obras — visible para todos */}
-      {obras.length === 0 ? (
+      {/* ── Obras activas / pausadas ───────────────────────────── */}
+      {activas.length === 0 && proximas.length === 0 ? (
         <div className="card p-10 flex flex-col items-center text-center gap-4">
           <div className="icon-container w-14 h-14">
             <Building2 className="w-7 h-7" />
@@ -106,20 +115,104 @@ export default function ObrasPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {obras.map((obra) => (
+          {activas.map((obra) => (
             <ObraCard key={obra.id} obra={obra} onUpdate={cargar} />
           ))}
         </div>
       )}
 
-      {/* Link al archivo — solo admin */}
-      {isAdmin && (
-        <div className="mt-6 text-center">
-          <Link href="/obras/archivo" className="btn-ghost text-content-secondary">
-            <Archive className="w-4 h-4" /> Ver obras archivadas
-          </Link>
+      {/* ── Próximas obras — collapsible morado ───────────────── */}
+      {proximas.length > 0 && (
+        <div className="mt-5">
+          <button
+            onClick={() => setProximasOpen((v) => !v)}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "10px 14px", borderRadius: 12, cursor: "pointer", border: "none",
+              background: "#EDE9FE", marginBottom: proximasOpen ? 10 : 0,
+              transition: "border-radius 0.15s ease",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Clock style={{ width: 16, height: 16, color: "#7c3aed" }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#5B21B6" }}>
+                Próximas obras
+              </span>
+              <span style={{
+                background: "#7c3aed", color: "#fff",
+                borderRadius: 20, fontSize: 11, fontWeight: 700,
+                padding: "1px 8px", lineHeight: "18px",
+              }}>
+                {proximas.length}
+              </span>
+            </div>
+            {proximasOpen
+              ? <ChevronUp style={{ width: 16, height: 16, color: "#7c3aed" }} />
+              : <ChevronDown style={{ width: 16, height: 16, color: "#7c3aed" }} />
+            }
+          </button>
+
+          {proximasOpen && (
+            <div className="space-y-3">
+              {proximas.map((obra) => (
+                <ObraCard key={obra.id} obra={obra} onUpdate={cargar} />
+              ))}
+            </div>
+          )}
         </div>
       )}
+
+      {/* ── Obras archivadas — collapsible gris (solo admin) ──── */}
+      {isAdmin && (
+        <div className="mt-5">
+          <button
+            onClick={() => setArchivadasOpen((v) => !v)}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "10px 14px", borderRadius: 12, cursor: "pointer", border: "none",
+              background: "#F3F4F6", marginBottom: archivadasOpen ? 10 : 0,
+              transition: "border-radius 0.15s ease",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Archive style={{ width: 16, height: 16, color: "#6b7280" }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#4A5568" }}>
+                Obras archivadas
+              </span>
+              {archivadas.length > 0 && (
+                <span style={{
+                  background: "#9ca3af", color: "#fff",
+                  borderRadius: 20, fontSize: 11, fontWeight: 700,
+                  padding: "1px 8px", lineHeight: "18px",
+                }}>
+                  {archivadas.length}
+                </span>
+              )}
+            </div>
+            {archivadasOpen
+              ? <ChevronUp style={{ width: 16, height: 16, color: "#6b7280" }} />
+              : <ChevronDown style={{ width: 16, height: 16, color: "#6b7280" }} />
+            }
+          </button>
+
+          {archivadasOpen && (
+            archivadas.length === 0 ? (
+              <div className="card p-6 text-center">
+                <p className="text-sm text-content-secondary">No hay obras archivadas.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {archivadas.map((obra) => (
+                  <ObraCard key={obra.id} obra={obra} onUpdate={cargar} />
+                ))}
+              </div>
+            )
+          )}
+        </div>
+      )}
+
+      {/* Espacio inferior para la bottom nav */}
+      <div className="h-6" />
 
       {showCrearModal && (
         <CrearObraModal
