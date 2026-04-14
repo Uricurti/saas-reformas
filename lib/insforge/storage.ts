@@ -111,6 +111,25 @@ async function comprimirFoto(file: File): Promise<File> {
   }
 }
 
+// ─── Upload via proxy server-side (evita problemas de auth/CORS/Content-Type) ─
+async function uploadViaProxy(
+  file: File,
+  path: string
+): Promise<{ storedPath: string | null; error: string | null }> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("path", path);
+
+  const res = await fetch("/api/media/upload", { method: "POST", body: form });
+  const json = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    return { storedPath: null, error: json?.error ?? `Upload error ${res.status}` };
+  }
+  // El proxy puede normalizar la extensión (ej. .mov → .mp4)
+  return { storedPath: json.path ?? path, error: null };
+}
+
 // ─── Subir foto ──────────────────────────────────────────────────────────────
 export async function subirFoto(
   file: File,
@@ -119,17 +138,12 @@ export async function subirFoto(
   userId: string
 ): Promise<{ url: string | null; error: string | null; tamano: number }> {
   const comprimido = await comprimirFoto(file);
-  const ext    = "webp";
-  const path   = `${tenantId}/${obraId}/${userId}/${Date.now()}.${ext}`;
+  const path = `${tenantId}/${obraId}/${userId}/${Date.now()}.webp`;
 
-  const { data, error } = await insforge.storage.from(BUCKET).upload(path, comprimido);
-  if (error || !data) {
-    return { url: null, error: (error as any)?.message ?? "Error al subir", tamano: 0 };
+  const { storedPath, error } = await uploadViaProxy(comprimido, path);
+  if (error || !storedPath) {
+    return { url: null, error: error ?? "Error al subir", tamano: 0 };
   }
-
-  // La doc de InsForge dice: usa siempre el "key" que devuelve el upload
-  // (no el path que enviaste — puede haberse renombrado si había duplicado)
-  const storedPath = (data as any).key ?? (data as any).path ?? path;
   return { url: storedPath, error: null, tamano: comprimido.size };
 }
 
@@ -222,15 +236,13 @@ export async function subirVideo(
   }
 
   onProgress?.("Subiendo vídeo…", 98);
-  // Preservar extensión original si no se comprimió; mp4 si se comprimió con ffmpeg
-  const ext  = videoFile === file ? (file.name.split(".").pop()?.toLowerCase() ?? "mp4") : "mp4";
-  const path = `${tenantId}/${obraId}/${userId}/${Date.now()}.${ext}`;
-  const { data, error } = await insforge.storage.from(BUCKET).upload(path, videoFile);
-  if (error || !data) {
-    return { url: null, error: (error as any)?.message ?? "Error al subir vídeo", tamano: 0 };
-  }
+  // Siempre usamos .mp4 como extensión — el proxy normaliza el Content-Type
+  const path = `${tenantId}/${obraId}/${userId}/${Date.now()}.mp4`;
 
-  const storedPath = (data as any).key ?? (data as any).path ?? path;
+  const { storedPath, error } = await uploadViaProxy(videoFile, path);
+  if (error || !storedPath) {
+    return { url: null, error: error ?? "Error al subir vídeo", tamano: 0 };
+  }
   return { url: storedPath, error: null, tamano: videoFile.size };
 }
 
@@ -255,13 +267,10 @@ export async function subirDocumento(
   const nombreSeguro = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const path = `docs/${tenantId}/${obraId}/${userId}/${Date.now()}_${nombreSeguro}`;
 
-  const { data, error } = await insforge.storage.from(BUCKET).upload(path, file);
-  if (error || !data) {
-    return { url: null, error: (error as any)?.message ?? "Error al subir documento", tamano: 0 };
+  const { storedPath, error } = await uploadViaProxy(file, path);
+  if (error || !storedPath) {
+    return { url: null, error: error ?? "Error al subir documento", tamano: 0 };
   }
-
-  // Guardar el key que devuelve InsForge (puede diferir del path enviado si hay duplicado)
-  const storedPath = (data as any).key ?? (data as any).path ?? path;
   return { url: storedPath, error: null, tamano: file.size };
 }
 

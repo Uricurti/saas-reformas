@@ -3,6 +3,13 @@ const nextConfig = {
   // InsForge SDK y su dependencia son pure-ESM — Next.js necesita transpilarlos
   transpilePackages: ["@insforge/sdk", "@insforge/shared-schemas"],
 
+  // Aumentar el límite de body para el proxy de upload de vídeos (hasta 512 MB)
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "512mb",
+    },
+  },
+
   async headers() {
     return [
       {
