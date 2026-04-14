@@ -28,10 +28,10 @@ function getPasillo(m: MaterialConDetalles, tienda: TiendaCompra): number | null
   return null; // "otra" no usa pasillos
 }
 
-const TIENDAS: { id: TiendaCompra; label: string; icon: string }[] = [
-  { id: "sabadell",  label: "Obramat Sabadell",  icon: "🟠" },
-  { id: "terrassa",  label: "Obramat Terrassa",   icon: "🟠" },
-  { id: "otra",      label: "Otra tienda",         icon: "🏪" },
+const TIENDAS: { id: TiendaCompra; label: string }[] = [
+  { id: "sabadell",  label: "Obramat Sabadell" },
+  { id: "terrassa",  label: "Obramat Terrassa" },
+  { id: "otra",      label: "Otra tienda"      },
 ];
 
 export function ModoCompraView({ tenantId, materiales, onFinalizar, onCancelar }: Props) {
@@ -78,7 +78,6 @@ export function ModoCompraView({ tenantId, materiales, onFinalizar, onCancelar }
                 onClick={() => setTienda(t.id)}
                 className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-border bg-white hover:border-primary hover:bg-primary/5 transition-all active:scale-[0.98] text-left"
               >
-                <span className="text-2xl">{t.icon}</span>
                 <span className="font-semibold text-content-primary text-base">{t.label}</span>
               </button>
             ))}
