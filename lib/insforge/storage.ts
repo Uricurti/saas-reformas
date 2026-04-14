@@ -201,11 +201,14 @@ export async function comprimirVideo(
   file: File,
   onProgress?: (etapa: string, pct: number) => void
 ): Promise<File> {
-  // Detección temprana: si SharedArrayBuffer no está disponible (iOS Safari sin
-  // cross-origin isolation), ffmpeg.wasm no puede arrancar. Fallamos rápido con
-  // un error claro en vez de cargar 31 MB de WASM para nada.
+  // Detección temprana: si SharedArrayBuffer no está disponible significa que las
+  // cabeceras de aislamiento cross-origin (COOP/COEP) no se están aplicando correctamente
+  // → ffmpeg.wasm no puede arrancar. Fallamos rápido con error descriptivo.
   if (typeof SharedArrayBuffer === "undefined") {
-    throw new Error("SharedArrayBuffer no disponible: compresión de vídeo no soportada en este dispositivo/navegador");
+    throw new Error(
+      "SharedArrayBuffer no disponible — las cabeceras COOP/COEP no están activas. " +
+      "Comprueba que next.config.mjs envía Cross-Origin-Opener-Policy y Cross-Origin-Embedder-Policy."
+    );
   }
 
   onProgress?.("Cargando compresor…", 0);

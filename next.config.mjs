@@ -13,12 +13,28 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // Cross-Origin Isolation — necesario para que SharedArrayBuffer esté disponible
+        // en iOS Safari (15.2+). Sin esto, ffmpeg.wasm no puede arrancar en iPhone/iPad.
+        //
+        // COOP: same-origin  → aísla la ventana de cross-origin openers (no rompe nada)
+        // COEP: credentialless → permite cargar recursos cross-origin (imágenes de InsForge,
+        //   etc.) sin credenciales; no requiere que InsForge añada CORP headers propios.
+        //   Más seguro que 'require-corp' para evitar romper el storage de InsForge.
+        source: "/(.*)",
+        headers: [
+          { key: "Cross-Origin-Opener-Policy",   value: "same-origin" },
+          { key: "Cross-Origin-Embedder-Policy",  value: "credentialless" },
+        ],
+      },
+      {
         // El binario WASM es inmutable (versionado) → cachear 1 año en el browser.
         // Así el usuario lo descarga solo una vez (~31 MB) y queda cacheado.
         source: "/ffmpeg/:path*",
         headers: [
           { key: "Content-Type",   value: "application/wasm" },
           { key: "Cache-Control",  value: "public, max-age=31536000, immutable" },
+          // Necesario para que el WASM se cargue bajo COEP credentialless
+          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
         ],
       },
     ];
