@@ -111,23 +111,66 @@ async function comprimirFoto(file: File): Promise<File> {
   }
 }
 
-// ─── Upload via proxy server-side (evita problemas de auth/CORS/Content-Type) ─
-async function uploadViaProxy(
+// ─── Upload via presigned URL (el archivo va directo a S3/R2, sin pasar por Vercel) ─
+// Flujo:
+//   1. /api/media/upload devuelve la estrategia de InsForge (presigned URL + campos)
+//   2. El cliente sube directamente a esa URL → sin límite de 4.5MB de Vercel
+//   3. Si InsForge lo requiere, /api/media/confirm finaliza el upload
+async function uploadViaPresigned(
   file: File,
-  path: string
+  path: string,
+  contentType: string
 ): Promise<{ storedPath: string | null; error: string | null }> {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("path", path);
+  // 1. Obtener estrategia de upload del servidor (con SERVICE_KEY)
+  const strategyRes = await fetch("/api/media/upload", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, contentType, size: file.size }),
+  });
+  const strategy = await strategyRes.json().catch(() => ({}));
 
-  const res = await fetch("/api/media/upload", { method: "POST", body: form });
-  const json = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    return { storedPath: null, error: json?.error ?? `Upload error ${res.status}` };
+  if (!strategyRes.ok) {
+    return { storedPath: null, error: strategy?.error ?? `Strategy error ${strategyRes.status}` };
   }
-  // El proxy puede normalizar la extensión (ej. .mov → .mp4)
-  return { storedPath: json.path ?? path, error: null };
+
+  // 2. Subir directamente a la URL de S3/R2 (no pasa por Vercel)
+  const form = new FormData();
+  if (strategy.fields && typeof strategy.fields === "object") {
+    Object.entries(strategy.fields as Record<string, string>).forEach(([k, v]) => {
+      form.append(k, v);
+    });
+  }
+  // Crear Blob con el Content-Type correcto
+  const blob = new Blob([await file.arrayBuffer()], { type: contentType });
+  form.append("file", blob, path.split("/").pop() ?? "file");
+
+  const uploadRes = await fetch(strategy.uploadUrl, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!uploadRes.ok) {
+    const text = await uploadRes.text().catch(() => uploadRes.statusText);
+    return { storedPath: null, error: `Upload error ${uploadRes.status}: ${text}` };
+  }
+
+  // 3. Confirmar si InsForge lo requiere
+  if (strategy.confirmRequired && strategy.confirmUrl) {
+    const confirmRes = await fetch("/api/media/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmUrl: strategy.confirmUrl, size: file.size, contentType }),
+    });
+    if (!confirmRes.ok) {
+      const j = await confirmRes.json().catch(() => ({}));
+      return { storedPath: null, error: j?.error ?? "Confirm error" };
+    }
+    const confirmed = await confirmRes.json().catch(() => ({}));
+    const storedPath = confirmed?.key ?? strategy.key ?? path;
+    return { storedPath, error: null };
+  }
+
+  return { storedPath: strategy.key ?? path, error: null };
 }
 
 // ─── Subir foto ──────────────────────────────────────────────────────────────
@@ -140,7 +183,7 @@ export async function subirFoto(
   const comprimido = await comprimirFoto(file);
   const path = `${tenantId}/${obraId}/${userId}/${Date.now()}.webp`;
 
-  const { storedPath, error } = await uploadViaProxy(comprimido, path);
+  const { storedPath, error } = await uploadViaPresigned(comprimido, path, "image/webp");
   if (error || !storedPath) {
     return { url: null, error: error ?? "Error al subir", tamano: 0 };
   }
@@ -236,10 +279,10 @@ export async function subirVideo(
   }
 
   onProgress?.("Subiendo vídeo…", 98);
-  // Siempre usamos .mp4 como extensión — el proxy normaliza el Content-Type
+  // Siempre .mp4 — el cliente crea un Blob con type video/mp4
   const path = `${tenantId}/${obraId}/${userId}/${Date.now()}.mp4`;
 
-  const { storedPath, error } = await uploadViaProxy(videoFile, path);
+  const { storedPath, error } = await uploadViaPresigned(videoFile, path, "video/mp4");
   if (error || !storedPath) {
     return { url: null, error: error ?? "Error al subir vídeo", tamano: 0 };
   }
@@ -267,7 +310,8 @@ export async function subirDocumento(
   const nombreSeguro = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const path = `docs/${tenantId}/${obraId}/${userId}/${Date.now()}_${nombreSeguro}`;
 
-  const { storedPath, error } = await uploadViaProxy(file, path);
+  const contentType = file.type || "application/octet-stream";
+  const { storedPath, error } = await uploadViaPresigned(file, path, contentType);
   if (error || !storedPath) {
     return { url: null, error: error ?? "Error al subir documento", tamano: 0 };
   }

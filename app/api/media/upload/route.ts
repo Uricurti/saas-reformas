@@ -1,9 +1,14 @@
 /**
  * POST /api/media/upload
- * Proxy de upload a InsForge Storage usando SERVICE_KEY.
- * Recibe el archivo como FormData y lo sube al bucket "obras-media".
- * Necesario porque el SDK de cliente falla con ciertos Content-Types
- * (ej. video/quicktime de iOS) y porque el bucket requiere SERVICE_KEY para escritura.
+ * Obtiene la estrategia de upload de InsForge usando SERVICE_KEY
+ * y la devuelve al cliente para que suba DIRECTAMENTE a S3/R2 sin pasar por Vercel.
+ *
+ * Flujo:
+ *   1. Cliente llama aquí con { path, contentType, size }
+ *   2. Este endpoint llama a InsForge con SERVICE_KEY para obtener la presigned URL
+ *   3. Devuelve { uploadUrl, fields, confirmUrl, confirmRequired, key }
+ *   4. El cliente sube el archivo directamente a uploadUrl (no pasa por Vercel → sin límite 4.5MB)
+ *   5. Si confirmRequired, el cliente llama /api/media/confirm con { confirmUrl, size, contentType }
  */
 import { NextRequest, NextResponse } from "next/server";
 
@@ -13,70 +18,48 @@ const BUCKET       = "obras-media";
 
 export async function POST(req: NextRequest) {
   try {
-    const form = await req.formData();
-    const file        = form.get("file") as File | null;
-    const storagePath = form.get("path") as string | null;
+    const body = await req.json();
+    const { path, contentType, size } = body as {
+      path: string;
+      contentType: string;
+      size: number;
+    };
 
-    if (!file || !storagePath) {
-      return NextResponse.json({ error: "file y path son obligatorios" }, { status: 400 });
+    if (!path || !contentType || size === undefined) {
+      return NextResponse.json(
+        { error: "path, contentType y size son obligatorios" },
+        { status: 400 }
+      );
     }
 
-    // Normalizar el Content-Type: forzar mp4 para cualquier vídeo
-    const rawType    = file.type || "application/octet-stream";
-    const isVideo    = rawType.startsWith("video/") || storagePath.match(/\.(mov|mp4|avi|mkv|webm)$/i);
-    const contentType = isVideo ? "video/mp4" : rawType;
-
-    // Normalizar la extensión del path para que coincida con el Content-Type
-    const normalizedPath = isVideo
-      ? storagePath.replace(/\.[^.]+$/, ".mp4")
-      : storagePath;
-
-    // Construir la URL de InsForge Storage
-    // Endpoint: PUT /api/storage/buckets/{bucket}/objects/{encodedPath}
-    const encodedPath = normalizedPath.split("/").map(encodeURIComponent).join("/");
-    const url = `${INSFORGE_URL}/api/storage/buckets/${BUCKET}/objects/${encodedPath}`;
-
-    // Convertir el File a ArrayBuffer para enviarlo raw
-    const buffer = await file.arrayBuffer();
-
-    const upstream = await fetch(url, {
-      method: "PUT",
-      headers: {
-        "Content-Type": contentType,
-        "x-api-key":    SERVICE_KEY,
-        "x-upsert":     "false",
-      },
-      body: buffer,
-    });
-
-    if (!upstream.ok) {
-      const text = await upstream.text().catch(() => upstream.statusText);
-      // Si ya existe el objeto (409), intentar con upsert
-      if (upstream.status === 409) {
-        const upsertRes = await fetch(url, {
-          method: "PUT",
-          headers: {
-            "Content-Type": contentType,
-            "x-api-key":    SERVICE_KEY,
-            "x-upsert":     "true",
-          },
-          body: buffer,
-        });
-        if (!upsertRes.ok) {
-          const upsertText = await upsertRes.text().catch(() => upsertRes.statusText);
-          return NextResponse.json({ error: `Storage error: ${upsertText}` }, { status: upsertRes.status });
-        }
-        return NextResponse.json({ path: normalizedPath });
+    // Pedir la estrategia de upload a InsForge con SERVICE_KEY
+    const strategyRes = await fetch(
+      `${INSFORGE_URL}/api/storage/buckets/${BUCKET}/upload-strategy`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": SERVICE_KEY,
+        },
+        body: JSON.stringify({ filename: path, contentType, size }),
       }
-      return NextResponse.json({ error: `Storage error: ${text}` }, { status: upstream.status });
+    );
+
+    if (!strategyRes.ok) {
+      const text = await strategyRes.text().catch(() => strategyRes.statusText);
+      console.error("[media/upload] InsForge strategy error:", strategyRes.status, text);
+      return NextResponse.json(
+        { error: `InsForge error: ${text}` },
+        { status: strategyRes.status }
+      );
     }
 
-    return NextResponse.json({ path: normalizedPath });
+    const strategy = await strategyRes.json();
+    // strategy: { method, uploadUrl, fields, key, confirmUrl, confirmRequired, ... }
+
+    return NextResponse.json(strategy);
   } catch (err: any) {
     console.error("[media/upload] Error:", err);
     return NextResponse.json({ error: err?.message ?? "Error interno" }, { status: 500 });
   }
 }
-
-// Necesario para que Next.js acepte bodies grandes (vídeos)
-export const maxDuration = 60; // segundos máx por request en Vercel
