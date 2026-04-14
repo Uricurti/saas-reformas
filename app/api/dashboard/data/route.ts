@@ -185,10 +185,12 @@ export async function GET(req: NextRequest) {
         created_at:  m.created_at,
       });
     } else if (m.estado === "comprado" && m.comprado_at && new Date(m.comprado_at) >= new Date(hace48h)) {
+      // Mostrar quien compró (comprado_por) si existe; si no, el que lo pidió como fallback
+      const compradorId = (m as any).comprado_por ?? m.solicitado_por;
       actividad.push({
         id:          `mc-${m.id}`,
         tipo:        "material_comprado",
-        user_nombre: userMap[m.solicitado_por] ?? "—",
+        user_nombre: userMap[compradorId] ?? "—",
         obra_nombre: obraMap[m.obra_id] ?? null,
         descripcion: `marcó comprado: ${m.descripcion}`,
         created_at:  m.comprado_at,

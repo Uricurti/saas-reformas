@@ -35,7 +35,7 @@ export default function MaterialesPage() {
   }
 
   async function handleCompraFinalizada(idsComprados: string[]) {
-    await marcarMaterialesComprados(idsComprados);
+    await marcarMaterialesComprados(idsComprados, user?.id);
     setModoCompra(false);
     cargar();
   }

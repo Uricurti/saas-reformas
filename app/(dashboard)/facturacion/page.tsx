@@ -166,6 +166,7 @@ export default function FinanzasPage() {
   const [dash,      setDash]     = useState<DashboardFinanzas | null>(null);
   const [alertas,   setAlertas]  = useState<PagoConContexto[]>([]);
   const [isMobile,  setIsMobile] = useState(false);
+  const [showAB,    setShowAB]   = useState(false);  // Toggle A/B view
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -213,15 +214,31 @@ export default function FinanzasPage() {
     : null;
   const deltaStr = deltaRaw !== null ? `${deltaRaw >= 0 ? "+" : ""}${deltaRaw.toFixed(1)}% vs mes anterior` : "Sin datos anterior";
 
-  // Chart data
-  const chartData = d.porMes.map((m, i) => ({
-    mes: String(i + 1).padStart(2, "0"),
-    "Facturado":    m.facturado,
-    "Cobrado":      m.cobrado,
-    "Coste emp.":   m.costeEmpleados,
-    "Coste mat.":   m.costeMateriales,
-    "Año anterior": m.anioAnterior,
-  }));
+  // Chart data (adapta según el modo A/B)
+  const chartData = d.porMes.map((m, i) => {
+    const base = {
+      mes: String(i + 1).padStart(2, "0"),
+      "Coste emp.": m.costeEmpleados,
+      "Coste mat.": m.costeMateriales,
+      "Año anterior": m.anioAnterior,
+    };
+
+    if (!showAB) {
+      return {
+        ...base,
+        "Facturado": m.facturado,
+        "Cobrado": m.cobrado,
+      };
+    } else {
+      return {
+        ...base,
+        "Fact. Track A": m.facturadoA,
+        "Fact. Track B": m.facturadoB,
+        "Cobrado A": m.cobradoA,
+        "Cobrado B": m.cobradoB,
+      };
+    }
+  });
 
   // Donut
   const donutData = [
@@ -275,23 +292,90 @@ export default function FinanzasPage() {
           </div>
         )}
 
-        {/* ── KPIs principales ───────────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 10 : 12, marginBottom: isMobile ? 14 : 20 }}>
-          <KpiCard label="Total facturado" value={fmtEuro(d.totalFacturado)}
-            sub={`año ${anio}`} subUp={null} accent={P}
-            icon={Euro} iconBg={PL} iconColor={P} />
-          <KpiCard label="Total cobrado" value={fmtEuro(d.totalCobrado)}
-            sub={d.totalFacturado > 0 ? `${Math.round((d.totalCobrado / d.totalFacturado) * 100)}% del total` : undefined}
-            subUp={null} accent="#10b981"
-            icon={CheckCircle2} iconBg="#f0fdf4" iconColor="#16a34a" />
-          <KpiCard label="Pendiente cobro" value={fmtEuro(d.pendienteCobro)}
-            sub={d.pendienteCobro > 0 ? "Por cobrar" : "¡Todo cobrado! 🎉"}
-            subUp={d.pendienteCobro === 0 ? true : false} accent="#F59E0B"
-            icon={Clock} iconBg="#fffbeb" iconColor="#d97706" />
-          <KpiCard label="Este mes" value={fmtEuro(d.facturadoEsteMes)}
-            sub={deltaStr} subUp={deltaRaw !== null ? deltaRaw >= 0 : null} accent="#7c3aed"
-            icon={TrendingUp} iconBg="#faf5ff" iconColor="#7c3aed" />
+        {/* ── KPIs principales + Toggle A/B ──────────────────────── */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#1A1A2E" }}>Resumen facturación</h2>
+          <button onClick={() => setShowAB(!showAB)}
+            style={{
+              background: showAB ? "#e0f2fe" : "#f3f4f6",
+              color: showAB ? "#0369a1" : "#6b7280",
+              border: `1.5px solid ${showAB ? "#bae6fd" : "#e5e7eb"}`,
+              borderRadius: 10, padding: "6px 12px",
+              fontSize: 12, fontWeight: 600,
+              cursor: "pointer", transition: "all 0.2s"
+            }}>
+            {showAB ? "Desglose A/B" : "Vista total"}
+          </button>
         </div>
+
+        {!showAB ? (
+          /* Vista de totales */
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 10 : 12, marginBottom: isMobile ? 14 : 20 }}>
+            <KpiCard label="Total facturado" value={fmtEuro(d.totalFacturado)}
+              sub={`año ${anio}`} subUp={null} accent={P}
+              icon={Euro} iconBg={PL} iconColor={P} />
+            <KpiCard label="Total cobrado" value={fmtEuro(d.totalCobrado)}
+              sub={d.totalFacturado > 0 ? `${Math.round((d.totalCobrado / d.totalFacturado) * 100)}% del total` : undefined}
+              subUp={null} accent="#10b981"
+              icon={CheckCircle2} iconBg="#f0fdf4" iconColor="#16a34a" />
+            <KpiCard label="Pendiente cobro" value={fmtEuro(d.pendienteCobro)}
+              sub={d.pendienteCobro > 0 ? "Por cobrar" : "¡Todo cobrado! 🎉"}
+              subUp={d.pendienteCobro === 0 ? true : false} accent="#F59E0B"
+              icon={Clock} iconBg="#fffbeb" iconColor="#d97706" />
+            <KpiCard label="Este mes" value={fmtEuro(d.facturadoEsteMes)}
+              sub={deltaStr} subUp={deltaRaw !== null ? deltaRaw >= 0 : null} accent="#7c3aed"
+              icon={TrendingUp} iconBg="#faf5ff" iconColor="#7c3aed" />
+          </div>
+        ) : (
+          /* Vista A/B Split */
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 12, marginBottom: isMobile ? 14 : 20 }}>
+            {/* Track A */}
+            <div style={{ background: "#fff", borderRadius: 14, padding: "14px 16px", boxShadow: "0 1px 3px rgba(96,126,170,0.08)", borderTop: "3px solid #2563eb" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: "#4A5568", fontWeight: 500 }}>Track A — Facturado (con IVA)</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#1A1A2E", marginTop: 6 }}>{fmtEuro(d.totalFacturadoA)}</div>
+                </div>
+                <div style={{ width: 34, height: 34, borderRadius: 9, background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                  🧾
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: "#94A3B8", paddingTop: 8, borderTop: "1px solid #f1f5f9" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+                  <span>Cobrado:</span>
+                  <strong>{fmtEuro(d.totalCobradoA)}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Pendiente:</span>
+                  <strong>{fmtEuro(d.pendienteCobrosA)}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Track B */}
+            <div style={{ background: "#fff", borderRadius: 14, padding: "14px 16px", boxShadow: "0 1px 3px rgba(96,126,170,0.08)", borderTop: "3px solid #f59e0b" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: "#4A5568", fontWeight: 500 }}>Track B — Efectivo (sin IVA)</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#1A1A2E", marginTop: 6 }}>{fmtEuro(d.totalFacturadoB)}</div>
+                </div>
+                <div style={{ width: 34, height: 34, borderRadius: 9, background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                  💵
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: "#94A3B8", paddingTop: 8, borderTop: "1px solid #f1f5f9" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+                  <span>Cobrado:</span>
+                  <strong>{fmtEuro(d.totalCobradoB)}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Pendiente:</span>
+                  <strong>{fmtEuro(d.pendienteCobrosB)}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── KPIs costes y margen ───────────────────────────── */}
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 10 : 12, marginBottom: isMobile ? 14 : 20 }}>
@@ -318,15 +402,21 @@ export default function FinanzasPage() {
 
         {/* ── Gráfico evolución + Top obras ──────────────────── */}
         <div style={{ display: "grid", gridTemplateColumns: (isMobile || d.porObra.length === 0) ? "1fr" : "1fr 300px", gap: 16, marginBottom: 16 }}>
-          <Section title="Evolución mensual" sub={`Facturado, cobrado y costes · ${anio} vs ${anio - 1}`} compact={isMobile}>
+          <Section title="Evolución mensual" sub={showAB ? `Track A/B · ${anio} vs ${anio - 1}` : `Facturado, cobrado y costes · ${anio} vs ${anio - 1}`} compact={isMobile}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
-              {[
+              {(!showAB ? [
                 { color: P,        label: `Facturado ${anio}` },
                 { color: "#10b981",label: "Cobrado" },
-                { color: P + "70", label: `${anio - 1}`, dashed: true },
+                { color: P + "70", label: `${anio - 1}`, dashed: true as true },
                 { color: "#F59E0B",label: "Coste emp." },
                 { color: ACC,      label: "Coste mat." },
-              ].map(l => (
+              ] : [
+                { color: "#2563eb",label: "Fact. Track A" },
+                { color: "#f59e0b",label: "Fact. Track B" },
+                { color: "#10b981",label: "Cobrado A" },
+                { color: "#84cc16",label: "Cobrado B" },
+                { color: P + "70", label: `${anio - 1}`, dashed: true as true },
+              ]).map(l => (
                 <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                   <span style={{ width: 8, height: 8, borderRadius: l.dashed ? 0 : "50%", background: l.color, flexShrink: 0, borderBottom: l.dashed ? `2px dashed ${l.color}` : "none", display: "inline-block" }} />
                   <span style={{ fontSize: 11, color: "#6b7280" }}>{l.label}</span>
@@ -352,16 +442,33 @@ export default function FinanzasPage() {
                   <YAxis tickFormatter={v => `${fmt(v)}`} tick={{ fontSize: 9, fill: "#94A3B8" }}
                     axisLine={false} tickLine={false} width={isMobile ? 40 : 55} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Area type="monotone" dataKey="Año anterior" stroke={P + "55"} strokeWidth={1.5}
-                    strokeDasharray="4 4" fill="none" dot={false} />
-                  <Area type="monotone" dataKey="Facturado" stroke={P} strokeWidth={2.5}
-                    fill="url(#gFact)" dot={false} activeDot={{ r: 5, fill: P }} />
-                  <Area type="monotone" dataKey="Cobrado" stroke="#10b981" strokeWidth={2}
-                    fill="url(#gCob)" dot={false} activeDot={{ r: 5, fill: "#10b981" }} />
-                  <Area type="monotone" dataKey="Coste emp." stroke="#F59E0B" strokeWidth={1.5}
-                    fill="none" dot={false} strokeDasharray="3 3" />
-                  <Area type="monotone" dataKey="Coste mat." stroke={ACC} strokeWidth={1.5}
-                    fill="none" dot={false} strokeDasharray="3 3" />
+                  {!showAB ? (
+                    <>
+                      <Area type="monotone" dataKey="Año anterior" stroke={P + "55"} strokeWidth={1.5}
+                        strokeDasharray="4 4" fill="none" dot={false} />
+                      <Area type="monotone" dataKey="Facturado" stroke={P} strokeWidth={2.5}
+                        fill="url(#gFact)" dot={false} activeDot={{ r: 5, fill: P }} />
+                      <Area type="monotone" dataKey="Cobrado" stroke="#10b981" strokeWidth={2}
+                        fill="url(#gCob)" dot={false} activeDot={{ r: 5, fill: "#10b981" }} />
+                      <Area type="monotone" dataKey="Coste emp." stroke="#F59E0B" strokeWidth={1.5}
+                        fill="none" dot={false} strokeDasharray="3 3" />
+                      <Area type="monotone" dataKey="Coste mat." stroke={ACC} strokeWidth={1.5}
+                        fill="none" dot={false} strokeDasharray="3 3" />
+                    </>
+                  ) : (
+                    <>
+                      <Area type="monotone" dataKey="Año anterior" stroke={P + "55"} strokeWidth={1.5}
+                        strokeDasharray="4 4" fill="none" dot={false} />
+                      <Area type="monotone" dataKey="Fact. Track A" stroke="#2563eb" strokeWidth={2.5}
+                        fill="none" dot={false} activeDot={{ r: 5, fill: "#2563eb" }} />
+                      <Area type="monotone" dataKey="Fact. Track B" stroke="#f59e0b" strokeWidth={2}
+                        fill="none" dot={false} activeDot={{ r: 5, fill: "#f59e0b" }} />
+                      <Area type="monotone" dataKey="Cobrado A" stroke="#10b981" strokeWidth={1.5}
+                        fill="none" dot={false} strokeDasharray="3 3" />
+                      <Area type="monotone" dataKey="Cobrado B" stroke="#84cc16" strokeWidth={1.5}
+                        fill="none" dot={false} strokeDasharray="3 3" />
+                    </>
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>

@@ -266,6 +266,10 @@ export interface Pago {
   importe_base: number;
   importe_extra: number;
   importe_total: number;
+  // A/B Accounting: Track A (with IVA) and Track B (cash, no IVA)
+  importe_facturado_a?: number;  // Amount with IVA (official invoice)
+  importe_efectivo_b?: number;   // Amount without IVA (cash/black)
+  porcentaje_iva_a?: number;     // IVA percentage for Track A (10 or 21)
   fecha_prevista: string | null;
   fecha_cobro: string | null;
   estado: PagoEstado;

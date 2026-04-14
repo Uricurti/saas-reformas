@@ -293,19 +293,27 @@ export async function pedirMaterial(
     .single();
 }
 
-export async function marcarMaterialComprado(id: string) {
+export async function marcarMaterialComprado(id: string, compradoPor?: string) {
   return insforge.database
     .from("materiales")
-    .update({ estado: "comprado", comprado_at: new Date().toISOString() })
+    .update({
+      estado: "comprado",
+      comprado_at: new Date().toISOString(),
+      ...(compradoPor ? { comprado_por: compradoPor } : {}),
+    })
     .eq("id", id)
     .select()
     .single();
 }
 
-export async function marcarMaterialesComprados(ids: string[]) {
+export async function marcarMaterialesComprados(ids: string[], compradoPor?: string) {
   return insforge.database
     .from("materiales")
-    .update({ estado: "comprado", comprado_at: new Date().toISOString() })
+    .update({
+      estado: "comprado",
+      comprado_at: new Date().toISOString(),
+      ...(compradoPor ? { comprado_por: compradoPor } : {}),
+    })
     .in("id", ids)
     .select();
 }
@@ -723,8 +731,14 @@ export async function createFactura(params: {
   if (error || !factura) return { factura: null, error: (error as any)?.message ?? "Error al crear factura" };
 
   const f = factura as Factura;
+  const ivaPercent = params.porcentajeIva ?? 21;
+
   const pagoRows = params.pagos.map((p, i) => {
     const importe_base = Math.round((params.importeTotal * p.porcentaje) / 100 * 100) / 100;
+    // Initialize with all amount in Track A (can be edited to split with B)
+    const importe_facturado_a = importe_base;
+    const importe_efectivo_b = 0;
+
     return {
       tenant_id: params.tenantId,
       factura_id: f.id,
@@ -735,6 +749,9 @@ export async function createFactura(params: {
       importe_base,
       importe_extra: 0,
       importe_total: importe_base,
+      importe_facturado_a,
+      importe_efectivo_b,
+      porcentaje_iva_a: ivaPercent,
       fecha_prevista: p.fechaPrevista,
       estado: "pendiente_emitir" as PagoEstado,
     };
@@ -768,12 +785,15 @@ export async function deleteFactura(id: string) {
   return insforge.database.from("facturas").delete().eq("id", id);
 }
 
-/** Actualiza un pago (estado, extras, fecha, nota) */
+/** Actualiza un pago (estado, extras, fecha, nota, A/B split) */
 export async function updatePago(id: string, params: Partial<{
   concepto: string;
   porcentaje: number;
   importe_base: number;
   importe_extra: number;
+  importe_facturado_a?: number;
+  importe_efectivo_b?: number;
+  porcentaje_iva_a?: number;
   fecha_prevista: string | null;
   fecha_cobro: string | null;
   estado: PagoEstado;
@@ -782,13 +802,56 @@ export async function updatePago(id: string, params: Partial<{
 }>) {
   // Recalcular importe_total si cambia alguno de los importes
   const updates: Record<string, unknown> = { ...params };
-  if (params.importe_extra !== undefined || params.importe_base !== undefined) {
-    // necesitamos leer los valores actuales si solo llega uno
+
+  // Handle A/B split: if A or B is updated, validate that A + B = importe_total
+  if (params.importe_facturado_a !== undefined || params.importe_efectivo_b !== undefined) {
     const { data: current } = await insforge.database
-      .from("pagos").select("importe_base, importe_extra").eq("id", id).single();
+      .from("pagos")
+      .select("importe_base, importe_extra, importe_facturado_a, importe_efectivo_b, porcentaje_iva_a")
+      .eq("id", id)
+      .single();
+
     const base = params.importe_base ?? (current as any)?.importe_base ?? 0;
     const extra = params.importe_extra ?? (current as any)?.importe_extra ?? 0;
-    updates.importe_total = Math.round((base + extra) * 100) / 100;
+    const importe_total = Math.round((base + extra) * 100) / 100;
+
+    const a = params.importe_facturado_a ?? (current as any)?.importe_facturado_a ?? 0;
+    const b = params.importe_efectivo_b ?? (current as any)?.importe_efectivo_b ?? 0;
+
+    // Validate: A + B should equal importe_total
+    const sumAB = Math.round((a + b) * 100) / 100;
+    if (sumAB !== importe_total) {
+      // Auto-adjust: if only one is defined, calculate the other
+      if (params.importe_facturado_a !== undefined && params.importe_efectivo_b === undefined) {
+        updates.importe_efectivo_b = Math.round((importe_total - a) * 100) / 100;
+      } else if (params.importe_efectivo_b !== undefined && params.importe_facturado_a === undefined) {
+        updates.importe_facturado_a = Math.round((importe_total - b) * 100) / 100;
+      }
+    }
+
+    updates.importe_total = importe_total;
+  } else if (params.importe_extra !== undefined || params.importe_base !== undefined) {
+    const { data: current } = await insforge.database
+      .from("pagos")
+      .select("importe_base, importe_extra, importe_facturado_a, importe_efectivo_b")
+      .eq("id", id)
+      .single();
+    const base = params.importe_base ?? (current as any)?.importe_base ?? 0;
+    const extra = params.importe_extra ?? (current as any)?.importe_extra ?? 0;
+    const newTotal = Math.round((base + extra) * 100) / 100;
+
+    updates.importe_total = newTotal;
+
+    // If A/B were previously set, maintain their ratio relative to old total
+    const oldA = (current as any)?.importe_facturado_a ?? 0;
+    const oldB = (current as any)?.importe_efectivo_b ?? 0;
+    const oldTotal = oldA + oldB;
+
+    if (oldTotal > 0 && (oldA > 0 || oldB > 0)) {
+      const ratio_a = oldA / oldTotal;
+      updates.importe_facturado_a = Math.round(newTotal * ratio_a * 100) / 100;
+      updates.importe_efectivo_b = Math.round(newTotal * (1 - ratio_a) * 100) / 100;
+    }
   }
 
   return insforge.database
@@ -831,11 +894,18 @@ export async function getPagosPendientesYEmitidos(tenantId: string): Promise<Pag
   }
 
   return (pagos as Pago[]).map((p) => {
-    const iva = facturaIvaMap[p.factura_id] ?? 21;
+    const iva = facturaIvaMap[p.factura_id] ?? (p.porcentaje_iva_a ?? 21);
+
+    // Calculate effective amounts with IVA applied only to Track A
+    const a = p.importe_facturado_a ?? p.importe_total;
+    const b = p.importe_efectivo_b ?? 0;
+    const a_con_iva = Math.round(a * (1 + iva / 100) * 100) / 100;
+    const total_con_iva = a_con_iva + b;
+
     return {
       ...p,
-      // importe_total con IVA para que las alertas muestren lo que el cliente debe pagar
-      importe_total: Math.round(p.importe_total * (1 + iva / 100) * 100) / 100,
+      // Show total with IVA for alerts (what customer should pay)
+      importe_total: total_con_iva,
       obra_nombre: obraMap[p.obra_id] ?? "—",
       factura_concepto: facturaMap[p.factura_id] ?? "—",
     };
@@ -844,12 +914,22 @@ export async function getPagosPendientesYEmitidos(tenantId: string): Promise<Pag
 
 /** Datos del dashboard de facturación */
 export async function getFacturacionDashboard(tenantId: string): Promise<{
+  totalFacturadoA: number;
+  totalFacturadoB: number;
   totalFacturado: number;
+  totalCobradoA: number;
+  totalCobradoB: number;
   totalCobrado: number;
+  pendienteA: number;
+  pendienteB: number;
   pendiente: number;
+  facturadoEsteMesA: number;
+  facturadoEsteMesB: number;
   facturadoEsteMes: number;
+  facturadoMesAnteriorA: number;
+  facturadoMesAnteriorB: number;
   facturadoMesAnterior: number;
-  porMes: { mes: string; facturado: number; cobrado: number; anioAnterior: number }[];
+  porMes: { mes: string; facturadoA: number; facturadoB: number; facturado: number; cobradoA: number; cobradoB: number; cobrado: number; anioAnteriorA: number; anioAnteriorB: number; anioAnterior: number }[];
 }> {
   const ahora   = new Date();
   const anio    = ahora.getFullYear();
@@ -875,18 +955,47 @@ export async function getFacturacionDashboard(tenantId: string): Promise<{
   const actual   = (pagosActual.data   ?? []) as Pago[];
   const anterior = (pagosAnterior.data ?? []) as Pago[];
 
-  const totalFacturado = actual.reduce((s, p) => s + p.importe_total, 0);
-  const totalCobrado   = actual.filter((p) => p.estado === "cobrada").reduce((s, p) => s + p.importe_total, 0);
-  const pendiente      = totalFacturado - totalCobrado;
+  // Helper function to extract A/B values from a pago
+  const getAB = (p: Pago): [number, number] => {
+    const a = p.importe_facturado_a ?? p.importe_total;
+    const b = p.importe_efectivo_b ?? 0;
+    return [a, b];
+  };
+
+  // Totals with A/B split
+  let totalFacturadoA = 0, totalFacturadoB = 0;
+  for (const p of actual) {
+    const [a, b] = getAB(p);
+    totalFacturadoA += a;
+    totalFacturadoB += b;
+  }
+  const totalFacturado = totalFacturadoA + totalFacturadoB;
+
+  let totalCobradoA = 0, totalCobradoB = 0;
+  for (const p of actual.filter((p) => p.estado === "cobrada")) {
+    const [a, b] = getAB(p);
+    totalCobradoA += a;
+    totalCobradoB += b;
+  }
+  const totalCobrado = totalCobradoA + totalCobradoB;
+
+  const pendienteA = totalFacturadoA - totalCobradoA;
+  const pendienteB = totalFacturadoB - totalCobradoB;
+  const pendiente = pendienteA + pendienteB;
 
   const mesStr = (m: number) => String(m).padStart(2, "0");
 
   const primerDiaMes  = `${anio}-${mesStr(mes)}-01`;
   const ultimoDiaMes  = new Date(anio, mes, 0).getDate();
   const ultimoDiaMesStr = `${anio}-${mesStr(mes)}-${ultimoDiaMes}`;
-  const facturadoEsteMes = actual
-    .filter((p) => p.created_at >= primerDiaMes && p.created_at <= ultimoDiaMesStr + "T23:59:59")
-    .reduce((s, p) => s + p.importe_total, 0);
+
+  let facturadoEsteMesA = 0, facturadoEsteMesB = 0;
+  for (const p of actual.filter((p) => p.created_at >= primerDiaMes && p.created_at <= ultimoDiaMesStr + "T23:59:59")) {
+    const [a, b] = getAB(p);
+    facturadoEsteMesA += a;
+    facturadoEsteMesB += b;
+  }
+  const facturadoEsteMes = facturadoEsteMesA + facturadoEsteMesB;
 
   const mesPasado = mes === 1 ? 12 : mes - 1;
   const anioMesPasado = mes === 1 ? anio - 1 : anio;
@@ -894,9 +1003,14 @@ export async function getFacturacionDashboard(tenantId: string): Promise<{
   const ultimoDiaMesPasado = new Date(anioMesPasado, mesPasado, 0).getDate();
   const ultimoDiaMesPasadoStr = `${anioMesPasado}-${mesStr(mesPasado)}-${ultimoDiaMesPasado}`;
   const sourceAnterior = mes === 1 ? anterior : actual;
-  const facturadoMesAnterior = sourceAnterior
-    .filter((p) => p.created_at >= primerDiaMesPasado && p.created_at <= ultimoDiaMesPasadoStr + "T23:59:59")
-    .reduce((s, p) => s + p.importe_total, 0);
+
+  let facturadoMesAnteriorA = 0, facturadoMesAnteriorB = 0;
+  for (const p of sourceAnterior.filter((p) => p.created_at >= primerDiaMesPasado && p.created_at <= ultimoDiaMesPasadoStr + "T23:59:59")) {
+    const [a, b] = getAB(p);
+    facturadoMesAnteriorA += a;
+    facturadoMesAnteriorB += b;
+  }
+  const facturadoMesAnterior = facturadoMesAnteriorA + facturadoMesAnteriorB;
 
   // Construir array de 12 meses del año actual con comparativa
   const porMes = Array.from({ length: 12 }, (_, i) => {
@@ -907,14 +1021,41 @@ export async function getFacturacionDashboard(tenantId: string): Promise<{
     const iniAnt = `${anio - 1}-${mStr}-01`;
     const finAnt = `${anio - 1}-${mStr}-${new Date(anio - 1, m, 0).getDate()}T23:59:59`;
 
-    const facturado  = actual.filter((p) => p.created_at >= ini && p.created_at <= fin).reduce((s, p) => s + p.importe_total, 0);
-    const cobrado    = actual.filter((p) => p.estado === "cobrada" && p.fecha_cobro && p.fecha_cobro >= ini && p.fecha_cobro <= fin).reduce((s, p) => s + p.importe_total, 0);
-    const anioAnterior = anterior.filter((p) => p.created_at >= iniAnt && p.created_at <= finAnt).reduce((s, p) => s + p.importe_total, 0);
+    let facturadoA = 0, facturadoB = 0;
+    for (const p of actual.filter((p) => p.created_at >= ini && p.created_at <= fin)) {
+      const [a, b] = getAB(p);
+      facturadoA += a;
+      facturadoB += b;
+    }
+    const facturado = facturadoA + facturadoB;
 
-    return { mes: mStr, facturado, cobrado, anioAnterior };
+    let cobradoA = 0, cobradoB = 0;
+    for (const p of actual.filter((p) => p.estado === "cobrada" && p.fecha_cobro && p.fecha_cobro >= ini && p.fecha_cobro <= fin)) {
+      const [a, b] = getAB(p);
+      cobradoA += a;
+      cobradoB += b;
+    }
+    const cobrado = cobradoA + cobradoB;
+
+    let anioAnteriorA = 0, anioAnteriorB = 0;
+    for (const p of anterior.filter((p) => p.created_at >= iniAnt && p.created_at <= finAnt)) {
+      const [a, b] = getAB(p);
+      anioAnteriorA += a;
+      anioAnteriorB += b;
+    }
+    const anioAnterior = anioAnteriorA + anioAnteriorB;
+
+    return { mes: mStr, facturadoA, facturadoB, facturado, cobradoA, cobradoB, cobrado, anioAnteriorA, anioAnteriorB, anioAnterior };
   });
 
-  return { totalFacturado, totalCobrado, pendiente, facturadoEsteMes, facturadoMesAnterior, porMes };
+  return {
+    totalFacturadoA, totalFacturadoB, totalFacturado,
+    totalCobradoA, totalCobradoB, totalCobrado,
+    pendienteA, pendienteB, pendiente,
+    facturadoEsteMesA, facturadoEsteMesB, facturadoEsteMes,
+    facturadoMesAnteriorA, facturadoMesAnteriorB, facturadoMesAnterior,
+    porMes,
+  };
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -926,8 +1067,20 @@ export interface DashboardFinanzas {
   totalFacturado: number;
   totalCobrado: number;
   pendienteCobro: number;
+  // A/B split
+  totalFacturadoA: number;  // with IVA
+  totalFacturadoB: number;  // no IVA
+  totalCobradoA: number;
+  totalCobradoB: number;
+  pendienteCobrosA: number;
+  pendienteCobrosB: number;
+  // Month view
   facturadoEsteMes: number;
   facturadoMesAnterior: number;
+  facturadoEsteMesA: number;
+  facturadoEsteMesB: number;
+  facturadoMesAnteriorA: number;
+  facturadoMesAnteriorB: number;
   // Costes
   costeEmpleados: number;   // jornales del año actual
   costeMateriales: number;  // materiales con precio del año actual
@@ -938,7 +1091,11 @@ export interface DashboardFinanzas {
   porMes: {
     mes: string; // "01"–"12"
     facturado: number;
+    facturadoA: number;
+    facturadoB: number;
     cobrado: number;
+    cobradoA: number;
+    cobradoB: number;
     costeEmpleados: number;
     costeMateriales: number;
     margen: number;
@@ -1002,10 +1159,18 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
   for (const f of ((facturasRes as any).data ?? []) as { id: string; porcentaje_iva: number }[]) {
     facturaIvaMap[f.id] = f.porcentaje_iva ?? 21;
   }
-  // Helper: importe del pago multiplicado por (1 + iva/100)
+  // Helper: devuelve [totalConIva, a, b] del pago
+  function desglosePago(p: Pago): [number, number, number] {
+    const iva = facturaIvaMap[p.factura_id] ?? (p.porcentaje_iva_a ?? 21);
+    const a = p.importe_facturado_a ?? p.importe_total;
+    const b = p.importe_efectivo_b ?? 0;
+    const aConIva = a * (1 + iva / 100);
+    const total = aConIva + b;
+    return [total, aConIva, b];
+  }
+  // Helper: importe del pago multiplicado por (1 + iva/100) - kept for compatibility
   function conIva(p: Pago) {
-    const iva = facturaIvaMap[p.factura_id] ?? 21;
-    return p.importe_total * (1 + iva / 100);
+    return desglosePago(p)[0];
   }
 
   // ── 2. Tarifas empleados ─────────────────────────────────────────
@@ -1028,9 +1193,25 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
   }
 
   // ── 4. KPIs globales (con IVA incluido) ──────────────────────────
-  const totalFacturado    = pagos.reduce((s, p) => s + conIva(p), 0);
-  const totalCobrado      = pagos.filter((p) => p.estado === "cobrada").reduce((s, p) => s + conIva(p), 0);
-  const pendienteCobro    = totalFacturado - totalCobrado;
+  let totalFacturado = 0, totalFacturadoA = 0, totalFacturadoB = 0;
+  for (const p of pagos) {
+    const [total, a, b] = desglosePago(p);
+    totalFacturado += total;
+    totalFacturadoA += a;
+    totalFacturadoB += b;
+  }
+
+  let totalCobrado = 0, totalCobradoA = 0, totalCobradoB = 0;
+  for (const p of pagos.filter((p) => p.estado === "cobrada")) {
+    const [total, a, b] = desglosePago(p);
+    totalCobrado += total;
+    totalCobradoA += a;
+    totalCobradoB += b;
+  }
+
+  const pendienteCobro = totalFacturado - totalCobrado;
+  const pendienteCobrosA = totalFacturadoA - totalCobradoA;
+  const pendienteCobrosB = totalFacturadoB - totalCobradoB;
   const costeEmpleados    = jornadas.reduce((s: number, j: any) => s + costeJornada(j), 0);
   const costeMateriales   = materiales.reduce((s: number, m: any) => s + costeMaterial(m), 0);
   const margenBruto       = totalFacturado - costeEmpleados - costeMateriales;
@@ -1039,18 +1220,28 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
   // Mes actual vs mes anterior (con IVA)
   const primerDiaMes = `${anio}-${mesStr(mes)}-01`;
   const ultimoDiaMes = `${anio}-${mesStr(mes)}-${new Date(anio, mes, 0).getDate()}T23:59:59`;
-  const facturadoEsteMes = pagos
-    .filter((p) => p.created_at >= primerDiaMes && p.created_at <= ultimoDiaMes)
-    .reduce((s, p) => s + conIva(p), 0);
+
+  let facturadoEsteMes = 0, facturadoEsteMesA = 0, facturadoEsteMesB = 0;
+  for (const p of pagos.filter((p) => p.created_at >= primerDiaMes && p.created_at <= ultimoDiaMes)) {
+    const [total, a, b] = desglosePago(p);
+    facturadoEsteMes += total;
+    facturadoEsteMesA += a;
+    facturadoEsteMesB += b;
+  }
+
   const mesPasado = mes === 1 ? 12 : mes - 1;
   const anioMesP  = mes === 1 ? anio - 1 : anio;
   const primerMP  = `${anioMesP}-${mesStr(mesPasado)}-01`;
   const ultimoMP  = `${anioMesP}-${mesStr(mesPasado)}-${new Date(anioMesP, mesPasado, 0).getDate()}T23:59:59`;
   const srcAnt    = mes === 1 ? pagosAnt : pagos;
-  // Para pagos del año anterior no tenemos el IVA exacto; usamos 21% por defecto
-  const facturadoMesAnterior = srcAnt
-    .filter((p) => p.created_at >= primerMP && p.created_at <= ultimoMP)
-    .reduce((s, p) => s + (mes === 1 ? p.importe_total * 1.21 : conIva(p)), 0);
+
+  let facturadoMesAnterior = 0, facturadoMesAnteriorA = 0, facturadoMesAnteriorB = 0;
+  for (const p of srcAnt.filter((p) => p.created_at >= primerMP && p.created_at <= ultimoMP)) {
+    const [total, a, b] = desglosePago(p);
+    facturadoMesAnterior += total;
+    facturadoMesAnteriorA += a;
+    facturadoMesAnteriorB += b;
+  }
 
   // ── 5. Series mensuales ──────────────────────────────────────────
   const porMes = Array.from({ length: 12 }, (_, i) => {
@@ -1061,11 +1252,23 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
     const iniA = `${anio - 1}-${mS}-01`;
     const finA = `${anio - 1}-${mS}-${new Date(anio - 1, m, 0).getDate()}T23:59:59`;
 
-    // Series con IVA incluido
-    const facturado = pagos.filter((p) => p.created_at >= ini && p.created_at <= fin)
-      .reduce((s, p) => s + conIva(p), 0);
-    const cobrado = pagos.filter((p) => p.estado === "cobrada" && p.fecha_cobro && p.fecha_cobro >= ini.slice(0,7) && p.fecha_cobro <= fin.slice(0,7))
-      .reduce((s, p) => s + conIva(p), 0);
+    // Series con IVA incluido + A/B split
+    let facturado = 0, facturadoA = 0, facturadoB = 0;
+    for (const p of pagos.filter((p) => p.created_at >= ini && p.created_at <= fin)) {
+      const [total, a, b] = desglosePago(p);
+      facturado += total;
+      facturadoA += a;
+      facturadoB += b;
+    }
+
+    let cobrado = 0, cobradoA = 0, cobradoB = 0;
+    for (const p of pagos.filter((p) => p.estado === "cobrada" && p.fecha_cobro && p.fecha_cobro >= ini.slice(0,7) && p.fecha_cobro <= fin.slice(0,7))) {
+      const [total, a, b] = desglosePago(p);
+      cobrado += total;
+      cobradoA += a;
+      cobradoB += b;
+    }
+
     const cemp = jornadas.filter((j: any) => j.fecha >= ini && j.fecha <= fin.slice(0, 10))
       .reduce((s: number, j: any) => s + costeJornada(j), 0);
     const cmat = materiales.filter((m2: any) => m2.created_at >= ini && m2.created_at <= fin)
@@ -1074,7 +1277,7 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
     const anioAnterior = pagosAnt.filter((p) => p.created_at >= iniA && p.created_at <= finA)
       .reduce((s, p) => s + p.importe_total * 1.21, 0);
 
-    return { mes: mS, facturado, cobrado, costeEmpleados: cemp, costeMateriales: cmat, margen: facturado - cemp - cmat, anioAnterior };
+    return { mes: mS, facturado, facturadoA, facturadoB, cobrado, cobradoA, cobradoB, costeEmpleados: cemp, costeMateriales: cmat, margen: facturado - cemp - cmat, anioAnterior };
   });
 
   // ── 6. Por obra (con IVA) ────────────────────────────────────────
@@ -1101,7 +1304,12 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
 
   return {
     totalFacturado, totalCobrado, pendienteCobro,
+    totalFacturadoA, totalFacturadoB,
+    totalCobradoA, totalCobradoB,
+    pendienteCobrosA, pendienteCobrosB,
     facturadoEsteMes, facturadoMesAnterior,
+    facturadoEsteMesA, facturadoEsteMesB,
+    facturadoMesAnteriorA, facturadoMesAnteriorB,
     costeEmpleados, costeMateriales,
     margenBruto, margenPct,
     porMes, porObra,
