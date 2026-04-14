@@ -245,7 +245,7 @@ export async function registrarFichaje(params: {
 export async function getMaterialesPendientes(tenantId: string) {
   return insforge.database
     .from("materiales")
-    .select(`*, obra:obras(*), solicitante:users(*), maestro:materiales_maestros(*)`)
+    .select(`*, obra:obras(*), solicitante:users!solicitado_por(*), maestro:materiales_maestros(*)`)
     .eq("tenant_id", tenantId)
     .eq("estado", "pendiente")
     .order("urgencia", { ascending: false })
@@ -257,7 +257,8 @@ export async function getMaterialesActivos(tenantId: string) {
   const hace48h = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
   return insforge.database
     .from("materiales")
-    .select(`*, obra:obras(*), solicitante:users(*), maestro:materiales_maestros(*)`)
+    // Especificamos la FK explícitamente porque hay dos FKs a users (solicitado_por y comprado_por)
+    .select(`*, obra:obras(*), solicitante:users!solicitado_por(*), maestro:materiales_maestros(*)`)
     .eq("tenant_id", tenantId)
     .or(`estado.eq.pendiente,and(estado.eq.comprado,comprado_at.gte.${hace48h})`)
     .order("urgencia", { ascending: false })
