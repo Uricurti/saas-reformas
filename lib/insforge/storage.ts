@@ -252,9 +252,7 @@ export async function comprimirVideo(
   return new File([data], "video_comprimido.mp4", { type: "video/mp4" });
 }
 
-// ─── Subir vídeo (comprime automáticamente si supera el límite) ──────────────
-export const MAX_VIDEO_COMPRESS_MB = 30; // por encima de esto → comprimir
-
+// ─── Subir vídeo (comprime SIEMPRE para ahorrar espacio en storage) ─────────
 export async function subirVideo(
   file: File,
   tenantId: string,
@@ -264,18 +262,13 @@ export async function subirVideo(
 ): Promise<{ url: string | null; error: string | null; tamano: number }> {
   let videoFile = file;
 
-  const mb = file.size / (1024 * 1024);
-
-  if (mb > MAX_VIDEO_COMPRESS_MB) {
-    // Comprimir con ffmpeg.wasm (cargado desde /ffmpeg/ — funciona en iOS y desktop)
-    try {
-      videoFile = await comprimirVideo(file, onProgress);
-    } catch {
-      // Fallback: si la compresión falla (dispositivo muy antiguo, poca memoria),
-      // subir el original. validarTamanoArchivo ya habrá rechazado vídeos > 100 MB en iOS.
-      console.warn("[storage] Compresión de vídeo falló, subiendo original:", file.name);
-      videoFile = file;
-    }
+  // Comprimir siempre — H.264 720p ocupa ~10x menos que el original de iPhone.
+  // Si ffmpeg falla (dispositivo antiguo, poca RAM), se sube el original como fallback.
+  try {
+    videoFile = await comprimirVideo(file, onProgress);
+  } catch {
+    console.warn("[storage] Compresión de vídeo falló, subiendo original:", file.name);
+    videoFile = file;
   }
 
   onProgress?.("Subiendo vídeo…", 98);
