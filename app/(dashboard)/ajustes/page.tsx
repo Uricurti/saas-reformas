@@ -2,83 +2,95 @@
 
 import { useState, useEffect } from "react";
 import {
-  User, Building2, Bell, BellOff, Smartphone, Mail,
-  ChevronRight, LogOut, Check, Loader2, Shield, KeyRound
+  User, Building2, Bell, BellOff, Smartphone,
+  ChevronRight, LogOut, Loader2, Shield, KeyRound, SlidersHorizontal
 } from "lucide-react";
 import { useAuthStore, useIsAdmin } from "@/lib/stores/auth-store";
 import { useRouter } from "next/navigation";
 import {
-  getTenantConfig, upsertTenantConfig, type TenantConfig,
+  getTenantConfig, type TenantConfig,
   getNotificacionConfig, upsertNotificacionConfig, type NotificacionConfig,
 } from "@/lib/insforge/database";
 import { MiPerfilModal } from "@/components/ui/MiPerfilModal";
 import { EmpresaConfigModal } from "@/components/ui/EmpresaConfigModal";
 import { initials } from "@/lib/utils/format";
 
-// ─── Definición de notificaciones disponibles ──────────────────────────────
-// Para añadir una nueva push: añade un objeto aquí y ya aparecerá en la UI
+// ─── Notificaciones disponibles ─────────────────────────────────────────────
+// Para añadir una nueva push en el futuro: añade un objeto aquí.
 const PUSH_NOTIFICATIONS = [
   {
     key: "push_fichaje",
     label: "Recordatorio de fichaje",
-    desc: "A las 9am si no has fichado todavía",
+    desc: "A las 9am si aún no has fichado",
     icon: "⏰",
   },
   {
     key: "push_asignacion",
     label: "Cambio de asignación",
-    desc: "Cuando el admin te cambia la obra",
+    desc: "Cuando te cambian la obra asignada",
     icon: "📋",
   },
 ];
 
-const EMAIL_NOTIFICATIONS = [
+const INAPP_NOTIFICATIONS = [
   {
-    key: "notif_fichaje",
+    key: "notif_fichaje" as keyof NotificacionConfig,
     label: "Recordatorio de fichaje",
-    desc: "Aviso in-app si no has fichado",
+    desc: "Aviso en la campana si no has fichado",
     icon: "⏰",
   },
   {
-    key: "notif_asignacion",
+    key: "notif_asignacion" as keyof NotificacionConfig,
     label: "Nueva asignación",
-    desc: "Cuando te asignan a una obra",
+    desc: "Cuando te asignan a una nueva obra",
     icon: "🏗️",
   },
   {
-    key: "notif_obra_manana",
+    key: "notif_obra_manana" as keyof NotificacionConfig,
     label: "Recordatorio obra de mañana",
     desc: "La tarde anterior a tu próxima obra",
     icon: "🌙",
   },
 ];
 
-// ─── Toggle component ──────────────────────────────────────────────────────
-function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+// ─── Toggle grande (fácil de pulsar en móvil) ────────────────────────────────
+function Toggle({
+  value, onChange, disabled,
+}: {
+  value: boolean; onChange: (v: boolean) => void; disabled?: boolean;
+}) {
   return (
     <button
-      onClick={() => onChange(!value)}
-      className="relative flex-shrink-0 transition-all duration-200"
+      onClick={() => !disabled && onChange(!value)}
+      disabled={disabled}
+      aria-checked={value}
+      role="switch"
       style={{
-        width: 44, height: 24, borderRadius: 99,
+        width: 52, height: 30, borderRadius: 99, padding: 0, border: "none",
         backgroundColor: value ? "#607eaa" : "#D1D5DB",
-        border: "none", cursor: "pointer", padding: 0,
+        cursor: disabled ? "default" : "pointer",
+        flexShrink: 0, position: "relative",
+        transition: "background-color 0.2s ease",
+        opacity: disabled ? 0.5 : 1,
+        // Área táctil ampliada para móvil
+        WebkitTapHighlightColor: "transparent",
       }}
     >
       <span
-        className="absolute top-0.5 transition-all duration-200"
         style={{
-          left: value ? "calc(100% - 22px)" : 2,
-          width: 20, height: 20, borderRadius: "50%",
+          position: "absolute", top: 3,
+          left: value ? "calc(100% - 27px)" : 3,
+          width: 24, height: 24, borderRadius: "50%",
           backgroundColor: "white",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+          transition: "left 0.2s ease",
         }}
       />
     </button>
   );
 }
 
-// ─── Row de notificación ───────────────────────────────────────────────────
+// ─── Fila de notificación ────────────────────────────────────────────────────
 function NotifRow({
   icon, label, desc, value, onChange, saving,
 }: {
@@ -86,14 +98,17 @@ function NotifRow({
   value: boolean; onChange: (v: boolean) => void; saving?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3 py-3">
-      <span className="text-xl flex-shrink-0">{icon}</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold" style={{ color: "#111827" }}>{label}</p>
-        <p className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>{desc}</p>
+    <div
+      className="flex items-center gap-3"
+      style={{ paddingTop: 14, paddingBottom: 14 }}
+    >
+      <span style={{ fontSize: 22, flexShrink: 0, width: 28, textAlign: "center" }}>{icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: 0 }}>{label}</p>
+        <p style={{ fontSize: 13, color: "#9CA3AF", margin: "2px 0 0" }}>{desc}</p>
       </div>
       {saving ? (
-        <Loader2 size={18} className="animate-spin flex-shrink-0" style={{ color: "#607eaa" }} />
+        <Loader2 size={20} className="animate-spin" style={{ color: "#607eaa", flexShrink: 0 }} />
       ) : (
         <Toggle value={value} onChange={onChange} />
       )}
@@ -101,100 +116,123 @@ function NotifRow({
   );
 }
 
-// ─── Section card ──────────────────────────────────────────────────────────
-function SectionCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+// ─── Card de sección ─────────────────────────────────────────────────────────
+function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className={`rounded-2xl overflow-hidden ${className}`}
-      style={{ backgroundColor: "white", border: "1.5px solid #EEF2F8", boxShadow: "0 1px 4px rgba(96,126,170,0.06)" }}
-    >
+    <div style={{
+      backgroundColor: "white",
+      borderRadius: 16,
+      border: "1.5px solid #EEF2F8",
+      boxShadow: "0 1px 6px rgba(96,126,170,0.07)",
+      overflow: "hidden",
+    }}>
       {children}
     </div>
   );
 }
 
-function SectionTitle({ icon: Icon, label }: { icon: any; label: string }) {
+function CardHeader({ icon: Icon, label }: { icon: any; label: string }) {
   return (
-    <div className="flex items-center gap-2 px-4 pt-5 pb-2">
-      <Icon size={16} style={{ color: "#607eaa" }} />
-      <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "#607eaa" }}>
+    <div style={{
+      display: "flex", alignItems: "center", gap: 8,
+      padding: "16px 16px 10px",
+      borderBottom: "1px solid #F3F4F6",
+    }}>
+      <Icon size={15} style={{ color: "#607eaa" }} />
+      <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#607eaa" }}>
         {label}
       </span>
     </div>
   );
 }
 
+// Botón de acción (>= 52px altura para toque cómodo)
 function ActionRow({
-  icon: Icon, label, sub, onClick, danger = false,
+  icon: Icon, label, sub, onClick, danger = false, last = false,
 }: {
-  icon: any; label: string; sub?: string; onClick: () => void; danger?: boolean;
+  icon: any; label: string; sub?: string; onClick: () => void; danger?: boolean; last?: boolean;
 }) {
+  const [pressed, setPressed] = useState(false);
+
   return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-3 px-4 py-3.5 transition-colors text-left"
-      style={{ backgroundColor: "transparent", border: "none", cursor: "pointer" }}
-      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.backgroundColor = "#F9FAFB")}
-      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = "transparent")}
-    >
-      <div
-        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-        style={{ backgroundColor: danger ? "#FEE2E2" : "#EEF2F8" }}
+    <>
+      <button
+        onClick={onClick}
+        onTouchStart={() => setPressed(true)}
+        onTouchEnd={() => setPressed(false)}
+        onMouseDown={() => setPressed(true)}
+        onMouseUp={() => setPressed(false)}
+        onMouseLeave={() => setPressed(false)}
+        style={{
+          width: "100%", border: "none", cursor: "pointer", textAlign: "left",
+          display: "flex", alignItems: "center", gap: 14,
+          padding: "14px 16px",
+          backgroundColor: pressed ? (danger ? "#FEF2F2" : "#F5F7FB") : "white",
+          transition: "background-color 0.1s ease",
+          WebkitTapHighlightColor: "transparent",
+          minHeight: 56,
+        }}
       >
-        <Icon size={18} style={{ color: danger ? "#EF4444" : "#607eaa" }} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold" style={{ color: danger ? "#EF4444" : "#111827" }}>{label}</p>
-        {sub && <p className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>{sub}</p>}
-      </div>
-      {!danger && <ChevronRight size={16} style={{ color: "#D1D5DB", flexShrink: 0 }} />}
-    </button>
+        <div style={{
+          width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+          backgroundColor: danger ? "#FEE2E2" : "#EEF2F8",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <Icon size={19} style={{ color: danger ? "#EF4444" : "#607eaa" }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: danger ? "#EF4444" : "#111827", margin: 0 }}>
+            {label}
+          </p>
+          {sub && (
+            <p style={{ fontSize: 13, color: "#9CA3AF", margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {sub}
+            </p>
+          )}
+        </div>
+        {!danger && (
+          <ChevronRight size={18} style={{ color: "#CBD5E1", flexShrink: 0 }} />
+        )}
+      </button>
+      {!last && <div style={{ height: 1, backgroundColor: "#F3F4F6", margin: "0 16px" }} />}
+    </>
   );
 }
 
-function Divider() {
-  return <div style={{ height: 1, backgroundColor: "#F3F4F6", margin: "0 16px" }} />;
-}
-
-// ─── Página principal ──────────────────────────────────────────────────────
+// ─── Página ──────────────────────────────────────────────────────────────────
 export default function AjustesPage() {
-  const user     = useAuthStore(s => s.user);
-  const logout   = useAuthStore(s => s.logout);
-  const isAdmin  = useIsAdmin();
-  const router   = useRouter();
+  const user    = useAuthStore(s => s.user);
+  const logout  = useAuthStore(s => s.logout);
+  const isAdmin = useIsAdmin();
+  const router  = useRouter();
 
   const [showPerfil,  setShowPerfil]  = useState(false);
   const [showEmpresa, setShowEmpresa] = useState(false);
 
-  const [tenantConfig,  setTenantConfig]  = useState<TenantConfig | null>(null);
-  const [notifConfig,   setNotifConfig]   = useState<NotificacionConfig | null>(null);
-  const [savingNotif,   setSavingNotif]   = useState<string | null>(null);
+  const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
+  const [notifConfig,  setNotifConfig]  = useState<NotificacionConfig | null>(null);
+  const [savingNotif,  setSavingNotif]  = useState<string | null>(null);
 
-  // Push prefs → localStorage (por dispositivo)
-  const [pushPrefs, setPushPrefs] = useState<Record<string, boolean>>({});
+  const [pushPrefs,  setPushPrefs]  = useState<Record<string, boolean>>({});
   const [savingPush, setSavingPush] = useState<string | null>(null);
 
-  // Cargar configuración
   useEffect(() => {
     if (!user?.tenant_id) return;
     if (isAdmin) getTenantConfig(user.tenant_id).then(setTenantConfig);
     getNotificacionConfig(user.tenant_id).then(setNotifConfig);
 
-    // Cargar prefs push desde localStorage
     try {
       const stored = localStorage.getItem(`push_prefs_${user.id}`);
       if (stored) {
         setPushPrefs(JSON.parse(stored));
       } else {
-        // Por defecto todo activado
         const defaults: Record<string, boolean> = {};
         PUSH_NOTIFICATIONS.forEach(n => { defaults[n.key] = true; });
         setPushPrefs(defaults);
       }
-    } catch { /* ignorar */ }
+    } catch { /**/ }
   }, [user?.tenant_id, user?.id, isAdmin]);
 
-  // Guardar prefs push
   async function handlePushToggle(key: string, value: boolean) {
     if (!user?.id) return;
     setSavingPush(key);
@@ -202,170 +240,188 @@ export default function AjustesPage() {
     setPushPrefs(updated);
     try {
       localStorage.setItem(`push_prefs_${user.id}`, JSON.stringify(updated));
-      // Actualizar tag en OneSignal para que el cron filtre correctamente
       if (typeof window !== "undefined" && (window as any).OneSignal) {
-        const tag = { [key]: value ? "1" : "0" };
-        await (window as any).OneSignal.User.addTags(tag);
+        await (window as any).OneSignal.User.addTags({ [key]: value ? "1" : "0" });
       }
-    } catch { /* ignorar */ }
-    await new Promise(r => setTimeout(r, 400)); // feedback visual
+    } catch { /**/ }
+    await new Promise(r => setTimeout(r, 350));
     setSavingPush(null);
   }
 
-  // Guardar notif in-app
   async function handleNotifToggle(key: keyof NotificacionConfig, value: boolean) {
     if (!user?.tenant_id || !notifConfig) return;
-    setSavingNotif(key);
-    const updated = { ...notifConfig, [key]: value };
-    setNotifConfig(updated as NotificacionConfig);
+    setSavingNotif(String(key));
+    setNotifConfig({ ...notifConfig, [key]: value } as NotificacionConfig);
     try {
       await upsertNotificacionConfig(user.tenant_id, { [key]: value } as any);
-    } catch { /* ignorar */ }
+    } catch { /**/ }
     setSavingNotif(null);
   }
 
   if (!user) return null;
 
-  const pushPermission = typeof window !== "undefined" && "Notification" in window
-    ? Notification.permission
-    : "default";
+  const pushPermission =
+    typeof window !== "undefined" && "Notification" in window
+      ? Notification.permission
+      : "default";
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-6 pb-28 space-y-5">
+    <div style={{ maxWidth: 560, margin: "0 auto", padding: "20px 16px 120px", display: "flex", flexDirection: "column", gap: 16 }}>
 
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-2">
-        <div
-          className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-          style={{ background: "linear-gradient(135deg, #1c3879 0%, #607eaa 100%)" }}
-        >
-          <span className="text-white text-xl font-bold">{initials(user.nombre)}</span>
-        </div>
-        <div>
-          <h1 className="text-xl font-bold" style={{ color: "#111827" }}>{user.nombre}</h1>
-          <p className="text-sm" style={{ color: "#9CA3AF" }}>{user.email}</p>
-          <span
-            className="text-xs font-semibold px-2 py-0.5 rounded-full"
-            style={{
-              backgroundColor: isAdmin ? "#DBEAFE" : "#F3F4F6",
-              color: isAdmin ? "#2563EB" : "#6B7280",
-            }}
-          >
-            {isAdmin ? "👑 Admin" : "👷 Empleado"}
-          </span>
-        </div>
+      {/* ── Título ─────────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+        <SlidersHorizontal size={22} style={{ color: "#607eaa" }} />
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: "#111827", margin: 0 }}>Ajustes</h1>
       </div>
 
-      {/* ── Sección: Mi cuenta ─────────────────────────────────────────── */}
-      <SectionCard>
-        <SectionTitle icon={User} label="Mi cuenta" />
+      {/* ── Header usuario ─────────────────────────────────────────────── */}
+      <Card>
+        <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16, flexShrink: 0,
+            background: "linear-gradient(135deg, #1c3879 0%, #607eaa 100%)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <span style={{ color: "white", fontSize: 20, fontWeight: 700 }}>{initials(user.nombre)}</span>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 17, fontWeight: 700, color: "#111827", margin: 0 }}>{user.nombre}</p>
+            <p style={{ fontSize: 13, color: "#9CA3AF", margin: "2px 0 6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {user.email}
+            </p>
+            <span style={{
+              fontSize: 12, fontWeight: 600, padding: "2px 10px", borderRadius: 99,
+              backgroundColor: isAdmin ? "#DBEAFE" : "#F3F4F6",
+              color: isAdmin ? "#2563EB" : "#6B7280",
+            }}>
+              {isAdmin ? "👑 Admin" : "👷 Empleado"}
+            </span>
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Mi cuenta ──────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader icon={User} label="Mi cuenta" />
         <ActionRow
           icon={User}
           label="Editar mis datos"
-          sub="Nombre, email"
+          sub="Nombre y email"
           onClick={() => setShowPerfil(true)}
         />
-        <Divider />
         <ActionRow
           icon={KeyRound}
           label="Cambiar contraseña"
           sub="Actualiza tu contraseña de acceso"
           onClick={() => setShowPerfil(true)}
+          last
         />
-      </SectionCard>
+      </Card>
 
-      {/* ── Sección: Empresa (solo admin) ──────────────────────────────── */}
+      {/* ── Empresa (solo admin) ────────────────────────────────────────── */}
       {isAdmin && (
-        <SectionCard>
-          <SectionTitle icon={Building2} label="Empresa" />
+        <Card>
+          <CardHeader icon={Building2} label="Empresa" />
           <ActionRow
             icon={Building2}
             label="Datos de empresa"
             sub={tenantConfig?.empresa_nombre ?? "CIF, IBAN, dirección fiscal…"}
             onClick={() => setShowEmpresa(true)}
+            last
           />
-        </SectionCard>
+        </Card>
       )}
 
-      {/* ── Sección: Notificaciones Push ───────────────────────────────── */}
-      <SectionCard>
-        <SectionTitle icon={Smartphone} label="Notificaciones Push" />
+      {/* ── Notificaciones Push ────────────────────────────────────────── */}
+      <Card>
+        <CardHeader icon={Smartphone} label="Notificaciones Push" />
 
-        {/* Aviso si no tiene permiso */}
+        {/* Aviso permisos */}
         {pushPermission !== "granted" && (
-          <div
-            className="mx-4 mb-3 px-3 py-2.5 rounded-xl flex items-center gap-2"
-            style={{ backgroundColor: "#FEF3C7", border: "1px solid #FCD34D" }}
-          >
-            <BellOff size={16} style={{ color: "#D97706", flexShrink: 0 }} />
-            <p className="text-xs" style={{ color: "#92400E" }}>
+          <div style={{
+            margin: "12px 16px 4px",
+            padding: "10px 12px",
+            borderRadius: 12,
+            backgroundColor: pushPermission === "denied" ? "#FEF2F2" : "#FEF9C3",
+            border: `1px solid ${pushPermission === "denied" ? "#FECACA" : "#FDE68A"}`,
+            display: "flex", alignItems: "flex-start", gap: 8,
+          }}>
+            <BellOff size={16} style={{ color: pushPermission === "denied" ? "#EF4444" : "#D97706", flexShrink: 0, marginTop: 1 }} />
+            <p style={{ fontSize: 13, color: pushPermission === "denied" ? "#991B1B" : "#92400E", margin: 0, lineHeight: 1.4 }}>
               {pushPermission === "denied"
-                ? "Las notificaciones están bloqueadas en tu navegador. Actívalas desde la configuración del navegador."
-                : "Activa los permisos de notificaciones para recibir avisos en tu móvil."}
+                ? "Notificaciones bloqueadas. Ve a los ajustes de tu navegador para activarlas."
+                : "Activa los permisos para recibir notificaciones en tu móvil."}
             </p>
           </div>
         )}
 
-        <div className="px-4 divide-y" style={{ borderColor: "#F3F4F6" }}>
-          {PUSH_NOTIFICATIONS.map(n => (
-            <NotifRow
-              key={n.key}
-              icon={n.icon}
-              label={n.label}
-              desc={n.desc}
-              value={pushPrefs[n.key] ?? true}
-              onChange={v => handlePushToggle(n.key, v)}
-              saving={savingPush === n.key}
-            />
+        <div style={{ padding: "0 16px" }}>
+          {PUSH_NOTIFICATIONS.map((n, i) => (
+            <div key={n.key}>
+              <NotifRow
+                icon={n.icon}
+                label={n.label}
+                desc={n.desc}
+                value={pushPrefs[n.key] ?? true}
+                onChange={v => handlePushToggle(n.key, v)}
+                saving={savingPush === n.key}
+              />
+              {i < PUSH_NOTIFICATIONS.length - 1 && (
+                <div style={{ height: 1, backgroundColor: "#F3F4F6" }} />
+              )}
+            </div>
           ))}
         </div>
-        <div className="px-4 pb-4 pt-1">
-          <p className="text-xs" style={{ color: "#9CA3AF" }}>
-            Las notificaciones push se reciben en el móvil aunque la app esté cerrada.
-          </p>
-        </div>
-      </SectionCard>
+        <p style={{ fontSize: 12, color: "#9CA3AF", padding: "8px 16px 14px", margin: 0 }}>
+          Se reciben en el móvil aunque la app esté cerrada.
+        </p>
+      </Card>
 
-      {/* ── Sección: Notificaciones in-app ─────────────────────────────── */}
-      <SectionCard>
-        <SectionTitle icon={Bell} label="Notificaciones en la app" />
-        <div className="px-4 divide-y" style={{ borderColor: "#F3F4F6" }}>
-          {notifConfig ? EMAIL_NOTIFICATIONS.map(n => (
-            <NotifRow
-              key={n.key}
-              icon={n.icon}
-              label={n.label}
-              desc={n.desc}
-              value={(notifConfig as any)[n.key] ?? true}
-              onChange={v => handleNotifToggle(n.key as any, v)}
-              saving={savingNotif === n.key}
-            />
-          )) : (
-            <div className="py-4 flex justify-center">
-              <Loader2 size={20} className="animate-spin" style={{ color: "#607eaa" }} />
+      {/* ── Notificaciones in-app ──────────────────────────────────────── */}
+      <Card>
+        <CardHeader icon={Bell} label="Notificaciones en la app" />
+
+        <div style={{ padding: "0 16px" }}>
+          {notifConfig ? (
+            INAPP_NOTIFICATIONS.map((n, i) => (
+              <div key={n.key as string}>
+                <NotifRow
+                  icon={n.icon}
+                  label={n.label}
+                  desc={n.desc}
+                  value={(notifConfig as any)[n.key] ?? true}
+                  onChange={v => handleNotifToggle(n.key, v)}
+                  saving={savingNotif === String(n.key)}
+                />
+                {i < INAPP_NOTIFICATIONS.length - 1 && (
+                  <div style={{ height: 1, backgroundColor: "#F3F4F6" }} />
+                )}
+              </div>
+            ))
+          ) : (
+            <div style={{ padding: "20px 0", display: "flex", justifyContent: "center" }}>
+              <Loader2 size={22} className="animate-spin" style={{ color: "#607eaa" }} />
             </div>
           )}
         </div>
-        <div className="px-4 pb-4 pt-1">
-          <p className="text-xs" style={{ color: "#9CA3AF" }}>
-            Estas notificaciones aparecen en la campana 🔔 dentro de la app.
-          </p>
-        </div>
-      </SectionCard>
+        <p style={{ fontSize: 12, color: "#9CA3AF", padding: "8px 16px 14px", margin: 0 }}>
+          Aparecen en la campana 🔔 dentro de la app.
+        </p>
+      </Card>
 
-      {/* ── Sección: Sesión ────────────────────────────────────────────── */}
-      <SectionCard>
-        <SectionTitle icon={Shield} label="Sesión" />
+      {/* ── Sesión ─────────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader icon={Shield} label="Sesión" />
         <ActionRow
           icon={LogOut}
           label="Cerrar sesión"
           onClick={async () => { await logout(); router.replace("/login"); }}
           danger
+          last
         />
-      </SectionCard>
+      </Card>
 
-      {/* Versión */}
-      <p className="text-center text-xs pb-4" style={{ color: "#D1D5DB" }}>
+      <p style={{ textAlign: "center", fontSize: 12, color: "#D1D5DB", paddingBottom: 8 }}>
         ReforLife · v1.0
       </p>
 
