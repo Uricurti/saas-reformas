@@ -29,29 +29,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // ✅ Verificar que es las 9am en Madrid (Europa/Madrid)
-    const ahora = new Date();
-    const horaEnMadrid = new Intl.DateTimeFormat("es-ES", {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "Europe/Madrid",
-      hour12: false,
-    }).format(ahora);
-
-    const [horaStr] = horaEnMadrid.split(":");
-    const horaNum = parseInt(horaStr, 10);
-
-    // Solo procesar si es las 9am (09:00-09:59) en Madrid
-    if (horaNum !== 9) {
-      return NextResponse.json({
-        success: true,
-        message: `No es hora de ejecutar (hora actual Madrid: ${horaEnMadrid})`,
-        skipped: true,
-      });
-    }
-
     // Hora actual en Madrid (para saber la fecha de hoy correcta)
-    const hoy = ahora
+    const hoy = new Date()
       .toLocaleDateString("sv-SE", { timeZone: "Europe/Madrid" }); // "2025-04-15"
 
     // 1️⃣ Empleados con jornada HOY que no han fichado aún
