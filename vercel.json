@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/send-check-in-notifications",
-      "schedule": "0 8 * * *"
+      "schedule": "0 7 * * *"
     }
   ]
 }

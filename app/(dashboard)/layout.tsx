@@ -6,7 +6,8 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { FichajeModal } from "@/components/modules/fichaje/FichajeModal";
-import { initOneSignal, identificarUsuario, pedirPermisoNotificaciones } from "@/lib/onesignal";
+import { initOneSignal, identificarUsuario } from "@/lib/onesignal";
+import { NotificationPermissionModal } from "@/components/layout/NotificationPermissionModal";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -20,15 +21,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, isInitialized, router]);
 
-  // Inicializar OneSignal y vincular usuario
+  // Inicializar OneSignal y vincular usuario (sin pedir permiso aquí — lo hace el modal)
   useEffect(() => {
     if (!user?.id) return;
+    if (typeof window === "undefined") return;
 
-    initOneSignal().then(() => {
-      identificarUsuario(user.id);
-      // Pedir permiso con un pequeño delay para no interrumpir la carga
-      setTimeout(() => pedirPermisoNotificaciones(), 3000);
-    });
+    // Si ya tiene permiso concedido, solo inicializar y vincular sin mostrar modal
+    if (Notification.permission === "granted") {
+      initOneSignal().then(() => identificarUsuario(user.id));
+    }
   }, [user?.id]);
 
   if (!user) return null;
@@ -52,6 +53,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Modal de fichaje bloqueante (aparece automáticamente si aplica) */}
       <FichajeModal />
+
+      {/* Modal de permisos de notificaciones (aparece si aún no ha dado permiso) */}
+      <NotificationPermissionModal userId={user.id} />
     </div>
   );
 }
