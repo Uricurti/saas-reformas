@@ -736,6 +736,8 @@ export async function createFactura(params: {
   importeTotal: number;
   numeroFactura: string;
   porcentajeIva?: number;
+  /** 0–100: qué % del total va en efectivo (Track B). 0 = todo factura, 100 = todo efectivo. */
+  porcentajeEfectivoB?: number;
   fechaEmision?: string | null;
   notas?: string | null;
   pagos: {
@@ -763,12 +765,14 @@ export async function createFactura(params: {
 
   const f = factura as Factura;
   const ivaPercent = params.porcentajeIva ?? 21;
+  // pctB: fracción [0-1] del importe de cada hito que va en efectivo
+  const pctB = Math.min(100, Math.max(0, params.porcentajeEfectivoB ?? 0)) / 100;
 
   const pagoRows = params.pagos.map((p, i) => {
     const importe_base = Math.round((params.importeTotal * p.porcentaje) / 100 * 100) / 100;
-    // Initialize with all amount in Track A (can be edited to split with B)
-    const importe_facturado_a = importe_base;
-    const importe_efectivo_b = 0;
+    // Aplicar split A/B proporcional al importe del hito
+    const importe_efectivo_b   = Math.round(importe_base * pctB * 100) / 100;
+    const importe_facturado_a  = Math.round((importe_base - importe_efectivo_b) * 100) / 100;
 
     return {
       tenant_id: params.tenantId,

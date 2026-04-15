@@ -210,30 +210,30 @@ export function CrearObraModal({ tenantId, userId, onClose, onCreated }: Props) 
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                 gap: 10, padding: "16px 12px",
                 borderRadius: 14, cursor: "pointer",
-                border: `2px solid ${!esProxima ? "#607eaa" : "#e5e7eb"}`,
-                background: !esProxima ? "#EEF2F8" : "#fafafa",
+                border: `2px solid ${!esProxima ? "#16a34a" : "#e5e7eb"}`,
+                background: !esProxima ? "#f0fdf4" : "#fafafa",
                 transition: "all 0.15s ease",
                 minHeight: 100,
               }}
             >
               <div style={{
                 width: 40, height: 40, borderRadius: 12,
-                background: !esProxima ? "#607eaa" : "#e5e7eb",
+                background: !esProxima ? "#16a34a" : "#e5e7eb",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 transition: "background 0.15s ease",
               }}>
                 <Zap style={{ width: 20, height: 20, color: !esProxima ? "#fff" : "#9ca3af" }} />
               </div>
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: !esProxima ? "#1c3879" : "#374151" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: !esProxima ? "#15803d" : "#374151" }}>
                   Activa ahora
                 </div>
-                <div style={{ fontSize: 11, color: !esProxima ? "#607eaa" : "#9ca3af", marginTop: 2, lineHeight: 1.3 }}>
+                <div style={{ fontSize: 11, color: !esProxima ? "#16a34a" : "#9ca3af", marginTop: 2, lineHeight: 1.3 }}>
                   Ya está en marcha,<br />se puede fichar
                 </div>
               </div>
               {!esProxima && (
-                <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#607eaa", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>✓</span>
                 </div>
               )}
@@ -247,30 +247,30 @@ export function CrearObraModal({ tenantId, userId, onClose, onCreated }: Props) 
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                 gap: 10, padding: "16px 12px",
                 borderRadius: 14, cursor: "pointer",
-                border: `2px solid ${esProxima ? "#7c3aed" : "#e5e7eb"}`,
-                background: esProxima ? "#EDE9FE" : "#fafafa",
+                border: `2px solid ${esProxima ? "#1D4ED8" : "#e5e7eb"}`,
+                background: esProxima ? "#DBEAFE" : "#fafafa",
                 transition: "all 0.15s ease",
                 minHeight: 100,
               }}
             >
               <div style={{
                 width: 40, height: 40, borderRadius: 12,
-                background: esProxima ? "#7c3aed" : "#e5e7eb",
+                background: esProxima ? "#1D4ED8" : "#e5e7eb",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 transition: "background 0.15s ease",
               }}>
                 <CalendarClock style={{ width: 20, height: 20, color: esProxima ? "#fff" : "#9ca3af" }} />
               </div>
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: esProxima ? "#5B21B6" : "#374151" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: esProxima ? "#1D4ED8" : "#374151" }}>
                   Próxima obra
                 </div>
-                <div style={{ fontSize: 11, color: esProxima ? "#7c3aed" : "#9ca3af", marginTop: 2, lineHeight: 1.3 }}>
+                <div style={{ fontSize: 11, color: esProxima ? "#1D4ED8" : "#9ca3af", marginTop: 2, lineHeight: 1.3 }}>
                   Aún no ha empezado,<br />para planificar
                 </div>
               </div>
               {esProxima && (
-                <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#1D4ED8", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>✓</span>
                 </div>
               )}

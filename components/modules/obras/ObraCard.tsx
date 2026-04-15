@@ -17,7 +17,7 @@ export function ObraCard({ obra, onUpdate }: Props) {
   const estadoConfig: Record<string, { cls: string; label: string }> = {
     activa:    { cls: "badge-success", label: "Activa" },
     pausada:   { cls: "badge-warning", label: "Pausada" },
-    proxima:   { cls: "badge-purple",  label: "Próxima" },
+    proxima:   { cls: "badge-blue",    label: "Próxima" },
     archivada: { cls: "badge-gray",    label: "Archivada" },
   };
   const { cls: estadoColor, label: estadoLabel } = estadoConfig[obra.estado] ?? { cls: "badge-gray", label: obra.estado };

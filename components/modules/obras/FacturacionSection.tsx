@@ -926,6 +926,8 @@ function NuevaFacturaForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  // A/B global: porcentaje del total que va en efectivo (Track B). 0 = todo factura, 100 = todo efectivo.
+  const [pctEfectivo, setPctEfectivo] = useState(0);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640);
@@ -957,6 +959,7 @@ function NuevaFacturaForm({
     const { error: err } = await createFactura({
       tenantId, obraId, concepto, importeTotal: importeNum,
       porcentajeIva: iva,
+      porcentajeEfectivoB: pctEfectivo,
       numeroFactura: numero, fechaEmision: fechaEmision || null, notas: descripcion || null,
       pagos: pagos.map((p) => ({
         concepto: p.concepto, porcentaje: parseFloat(String(p.porcentaje)), fechaPrevista: p.fechaPrevista,
@@ -1021,6 +1024,89 @@ function NuevaFacturaForm({
             style={{ width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", fontSize: 13, resize: "vertical", boxSizing: "border-box", lineHeight: 1.6 }} />
           <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 3 }}>Aparecerá en el cuerpo de cada factura</div>
         </div>
+      </div>
+
+      {/* ── Forma de cobro global ────────────────────────────────────────── */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8 }}>
+          Forma de cobro
+        </label>
+        {/* Tres opciones rápidas */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: pctEfectivo > 0 && pctEfectivo < 100 ? 12 : 0 }}>
+          {([
+            { id: 0,   label: "Con factura", emoji: "🧾", color: "#1D4ED8", bg: "#DBEAFE", border: "#93C5FD" },
+            { id: 100, label: "En efectivo",  emoji: "💵", color: "#15803d", bg: "#f0fdf4", border: "#86efac" },
+            { id: -1,  label: "Mixto",         emoji: "✂️", color: "#9333ea", bg: "#faf5ff", border: "#d8b4fe" },
+          ] as const).map(({ id, label, emoji, color, bg, border }) => {
+            const isActive = id === -1
+              ? pctEfectivo > 0 && pctEfectivo < 100
+              : pctEfectivo === id;
+            return (
+              <button key={id} type="button"
+                onClick={() => {
+                  if (id === -1) setPctEfectivo(pctEfectivo > 0 && pctEfectivo < 100 ? pctEfectivo : 50);
+                  else setPctEfectivo(id);
+                }}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                  padding: "10px 6px", borderRadius: 10, cursor: "pointer",
+                  border: `2px solid ${isActive ? border : "#e5e7eb"}`,
+                  background: isActive ? bg : "#fafafa",
+                  transition: "all 0.12s",
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{emoji}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? color : "#6b7280", textAlign: "center", lineHeight: 1.2 }}>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Slider de porcentaje — solo cuando es "Mixto" */}
+        {pctEfectivo > 0 && pctEfectivo < 100 && (
+          <div style={{ background: "#f8fafc", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e7eb" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>% en efectivo</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: "#9333ea" }}>{pctEfectivo}%</span>
+            </div>
+            <input type="range" min="0" max="100" step="5" value={pctEfectivo}
+              onChange={(e) => setPctEfectivo(parseInt(e.target.value))}
+              style={{ width: "100%", accentColor: "#9333ea", marginBottom: 10 }}
+            />
+            {importeNum > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 12 }}>
+                <div style={{ background: "#DBEAFE", borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
+                  <div style={{ color: "#1D4ED8", fontWeight: 700 }}>🧾 Con factura</div>
+                  <div style={{ color: "#1e3a8a", fontWeight: 800, fontSize: 14, marginTop: 2 }}>{fmt(importeNum * (100 - pctEfectivo) / 100)} €</div>
+                  <div style={{ color: "#3b82f6", fontSize: 11 }}>+ IVA {iva}%: {fmt(importeNum * (100 - pctEfectivo) / 100 * iva / 100)} €</div>
+                </div>
+                <div style={{ background: "#f0fdf4", borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
+                  <div style={{ color: "#15803d", fontWeight: 700 }}>💵 En efectivo</div>
+                  <div style={{ color: "#14532d", fontWeight: 800, fontSize: 14, marginTop: 2 }}>{fmt(importeNum * pctEfectivo / 100)} €</div>
+                  <div style={{ color: "#16a34a", fontSize: 11 }}>Sin IVA</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Resumen cuando hay IVA */}
+        {importeNum > 0 && pctEfectivo < 100 && (
+          <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280", display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {pctEfectivo === 0 ? (
+              <>
+                <span>IVA {iva}%: <strong style={{ color: PRIMARY }}>{fmt(ivaImporte)} €</strong></span>
+                <span>·</span>
+                <span>Total con IVA: <strong style={{ color: "#1A1A2E" }}>{fmt(totalConIva)} €</strong></span>
+              </>
+            ) : (
+              <span>
+                IVA sobre {fmt(importeNum * (100 - pctEfectivo) / 100)} € →{" "}
+                <strong style={{ color: PRIMARY }}>{fmt(importeNum * (100 - pctEfectivo) / 100 * iva / 100)} €</strong>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Hitos */}
