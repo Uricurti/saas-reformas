@@ -9,11 +9,12 @@ import { useState } from "react";
 
 interface Props {
   isAdmin: boolean;
+  userId?: string;
   materiales: MaterialConDetalles[];
   onUpdate: () => void;
 }
 
-export function ListaMateriales({ isAdmin, materiales, onUpdate }: Props) {
+export function ListaMateriales({ isAdmin, userId, materiales, onUpdate }: Props) {
   const [mostrarComprados, setMostrarComprados] = useState(false);
 
   const pendientes  = materiales.filter((m) => m.estado === "pendiente");
@@ -85,8 +86,8 @@ export function ListaMateriales({ isAdmin, materiales, onUpdate }: Props) {
                       </div>
                     </div>
 
-                    {/* Papelera (solo admin) */}
-                    {isAdmin && (
+                    {/* Papelera: admin elimina cualquiera, empleado solo los suyos pendientes */}
+                    {(isAdmin || (userId && m.solicitado_por === userId)) && (
                       <button
                         onClick={() => handleEliminar(m.id)}
                         title="Eliminar"

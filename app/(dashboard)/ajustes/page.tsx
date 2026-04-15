@@ -291,75 +291,75 @@ export default function AjustesPage() {
 
         </div>
 
-        {/* ── COLUMNA DERECHA ────────────────────────────────────────────── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* ── COLUMNA DERECHA — solo visible para admin ──────────────────── */}
+        {isAdmin && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-          {/* Notificaciones Push */}
-          <Card
-            icon={Smartphone}
-            title="Notificaciones Push"
-            footer="Se reciben en el móvil aunque la app esté cerrada."
-          >
-            {/* Aviso permisos */}
-            {pushPermission !== "granted" && (
-              <div style={{
-                margin: "10px 0 4px",
-                padding: "10px 12px", borderRadius: 10,
-                backgroundColor: pushPermission === "denied" ? "#FEF2F2" : "#FEF9C3",
-                border: `1px solid ${pushPermission === "denied" ? "#FECACA" : "#FDE68A"}`,
-                display: "flex", alignItems: "flex-start", gap: 8,
-              }}>
-                <BellOff size={15} style={{ color: pushPermission === "denied" ? "#EF4444" : "#D97706", flexShrink: 0, marginTop: 1 }} />
-                <p style={{ fontSize: 12, color: pushPermission === "denied" ? "#991B1B" : "#92400E", margin: 0, lineHeight: 1.5 }}>
-                  {pushPermission === "denied"
-                    ? "Notificaciones bloqueadas. Actívalas desde los ajustes de tu navegador."
-                    : "Activa los permisos para recibir notificaciones en tu dispositivo."}
-                </p>
-              </div>
-            )}
-            <div style={{ marginTop: 4 }}>
-              {PUSH_NOTIFICATIONS.map((n, i) => (
-                <div key={n.key}>
-                  <NotifRow
-                    icon={n.icon} label={n.label} desc={n.desc}
-                    value={pushPrefs[n.key] ?? true}
-                    onChange={v => handlePushToggle(n.key, v)}
-                    saving={savingPush === n.key}
-                  />
-                  {i < PUSH_NOTIFICATIONS.length - 1 && <div style={{ height: 1, backgroundColor: "#F3F4F6" }} />}
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* Notificaciones in-app */}
-          <Card
-            icon={Bell}
-            title="Notificaciones en la app"
-            footer="Aparecen en la campana 🔔 dentro de la app."
-          >
-            <div style={{ marginTop: 4 }}>
-              {notifConfig ? (
-                INAPP_NOTIFICATIONS.map((n, i) => (
-                  <div key={n.key as string}>
-                    <NotifRow
-                      icon={n.icon} label={n.label} desc={n.desc}
-                      value={(notifConfig as any)[n.key] ?? true}
-                      onChange={v => handleNotifToggle(n.key, v)}
-                      saving={savingNotif === String(n.key)}
-                    />
-                    {i < INAPP_NOTIFICATIONS.length - 1 && <div style={{ height: 1, backgroundColor: "#F3F4F6" }} />}
-                  </div>
-                ))
-              ) : (
-                <div style={{ padding: "20px 0", display: "flex", justifyContent: "center" }}>
-                  <Loader2 size={20} className="animate-spin" style={{ color: "#607eaa" }} />
+            {/* Notificaciones Push */}
+            <Card
+              icon={Smartphone}
+              title="Notificaciones Push"
+              footer="Se reciben en el móvil aunque la app esté cerrada."
+            >
+              {pushPermission !== "granted" && (
+                <div style={{
+                  margin: "10px 0 4px", padding: "10px 12px", borderRadius: 10,
+                  backgroundColor: pushPermission === "denied" ? "#FEF2F2" : "#FEF9C3",
+                  border: `1px solid ${pushPermission === "denied" ? "#FECACA" : "#FDE68A"}`,
+                  display: "flex", alignItems: "flex-start", gap: 8,
+                }}>
+                  <BellOff size={15} style={{ color: pushPermission === "denied" ? "#EF4444" : "#D97706", flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ fontSize: 12, color: pushPermission === "denied" ? "#991B1B" : "#92400E", margin: 0, lineHeight: 1.5 }}>
+                    {pushPermission === "denied"
+                      ? "Notificaciones bloqueadas. Actívalas desde los ajustes de tu navegador."
+                      : "Activa los permisos para recibir notificaciones en tu dispositivo."}
+                  </p>
                 </div>
               )}
-            </div>
-          </Card>
+              <div style={{ marginTop: 4 }}>
+                {PUSH_NOTIFICATIONS.map((n, i) => (
+                  <div key={n.key}>
+                    <NotifRow
+                      icon={n.icon} label={n.label} desc={n.desc}
+                      value={pushPrefs[n.key] ?? true}
+                      onChange={v => handlePushToggle(n.key, v)}
+                      saving={savingPush === n.key}
+                    />
+                    {i < PUSH_NOTIFICATIONS.length - 1 && <div style={{ height: 1, backgroundColor: "#F3F4F6" }} />}
+                  </div>
+                ))}
+              </div>
+            </Card>
 
-        </div>
+            {/* Notificaciones in-app */}
+            <Card
+              icon={Bell}
+              title="Notificaciones en la app"
+              footer="Aparecen en la campana 🔔 dentro de la app."
+            >
+              <div style={{ marginTop: 4 }}>
+                {notifConfig ? (
+                  INAPP_NOTIFICATIONS.map((n, i) => (
+                    <div key={n.key as string}>
+                      <NotifRow
+                        icon={n.icon} label={n.label} desc={n.desc}
+                        value={(notifConfig as any)[n.key] ?? true}
+                        onChange={v => handleNotifToggle(n.key, v)}
+                        saving={savingNotif === String(n.key)}
+                      />
+                      {i < INAPP_NOTIFICATIONS.length - 1 && <div style={{ height: 1, backgroundColor: "#F3F4F6" }} />}
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ padding: "20px 0", display: "flex", justifyContent: "center" }}>
+                    <Loader2 size={20} className="animate-spin" style={{ color: "#607eaa" }} />
+                  </div>
+                )}
+              </div>
+            </Card>
+
+          </div>
+        )}
       </div>
 
       <p style={{ textAlign: "center", fontSize: 12, color: "#D1D5DB", marginTop: 28 }}>

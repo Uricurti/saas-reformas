@@ -94,7 +94,7 @@ export default function MaterialesPage() {
           </button>
         </div>
       ) : (
-        <ListaMateriales isAdmin={isAdmin} materiales={materiales} onUpdate={cargar} />
+        <ListaMateriales isAdmin={isAdmin} userId={user?.id} materiales={materiales} onUpdate={cargar} />
       )}
 
       {showPedirModal && (
