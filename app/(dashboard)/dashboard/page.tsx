@@ -47,7 +47,7 @@ export interface ActividadItem {
 export interface DashboardData {
   hoy:        string;
   fichajeHoy: FichajeEmpleado[];
-  obras:      { total: number; empleados_hoy: number };
+  obras:      { total: number; pausadas: number; proximas: number; empleados_hoy: number };
   alertas:    Alerta[];
   actividad:  ActividadItem[];
 }
@@ -502,7 +502,7 @@ export default function DashboardPage() {
         {/* ── Columna derecha (2/5) ────────────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-4">
 
-          {/* OBRAS ACTIVAS — stat card con gradiente */}
+          {/* OBRAS — stat card con gradiente */}
           <Link href="/obras">
             <div
               className="rounded-2xl p-5 cursor-pointer transition-all hover:shadow-lg hover:scale-[1.01] active:scale-[0.99]"
@@ -520,10 +520,32 @@ export default function DashboardPage() {
                 </div>
                 <ChevronRight className="w-5 h-5" style={{ color: "rgba(255,255,255,0.5)" }} />
               </div>
+
+              {/* Número grande: solo activas */}
               <p className="text-4xl font-bold text-white mb-1">{data.obras.total}</p>
               <p className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>
                 obra{data.obras.total !== 1 ? "s" : ""} activa{data.obras.total !== 1 ? "s" : ""}
               </p>
+
+              {/* Próximas y pausadas — secundarias, sin protagonismo */}
+              {(data.obras.proximas > 0 || data.obras.pausadas > 0) && (
+                <div className="flex items-center gap-3 mt-2">
+                  {data.obras.proximas > 0 && (
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>
+                      {data.obras.proximas} próxima{data.obras.proximas !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                  {data.obras.proximas > 0 && data.obras.pausadas > 0 && (
+                    <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>·</span>
+                  )}
+                  {data.obras.pausadas > 0 && (
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>
+                      {data.obras.pausadas} en pausa
+                    </span>
+                  )}
+                </div>
+              )}
+
               <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.15)" }}>
                 <p className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
                   {data.obras.empleados_hoy} empleado{data.obras.empleados_hoy !== 1 ? "s" : ""} asignado{data.obras.empleados_hoy !== 1 ? "s" : ""} hoy

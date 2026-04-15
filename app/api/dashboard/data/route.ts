@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
   ] = await Promise.all([
     db(`/api/database/records/users?tenant_id=eq.${tenantId}&activo=eq.true&select=id,nombre`),
     db(`/api/database/records/jornadas?tenant_id=eq.${tenantId}&fecha=eq.${hoy}&select=id,user_id,ha_fichado,fichado_at,estado,obra_id,es_libre`),
-    db(`/api/database/records/obras?tenant_id=eq.${tenantId}&estado=in.(activa,pausada,proxima)&select=id,nombre`),
+    db(`/api/database/records/obras?tenant_id=eq.${tenantId}&estado=in.(activa,pausada,proxima)&select=id,nombre,estado`),
     db(`/api/database/records/pagos?tenant_id=eq.${tenantId}&estado=in.(pendiente_emitir,emitida)&fecha_prevista=not.is.null&select=id,importe_total,fecha_prevista,estado,obra_id,factura_id&order=fecha_prevista.asc`),
     db(`/api/database/records/jornadas?tenant_id=eq.${tenantId}&ha_fichado=eq.true&fichado_at=gte.${hace48h}&select=user_id,obra_id,fichado_at,fichado_por&order=fichado_at.desc&limit=20`),
     db(`/api/database/records/materiales?tenant_id=eq.${tenantId}&created_at=gte.${hace48h}&select=id,descripcion,cantidad,unidad,obra_id,solicitado_por,estado,created_at,comprado_at&order=created_at.desc&limit=20`),
@@ -223,7 +223,12 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     hoy,
     fichajeHoy,
-    obras:     { total: obrasActivas.length, empleados_hoy: fichajeUserIds.length },
+    obras: {
+      total:    obrasActivas.filter((o: any) => o.estado === "activa").length,
+      pausadas: obrasActivas.filter((o: any) => o.estado === "pausada").length,
+      proximas: obrasActivas.filter((o: any) => o.estado === "proxima").length,
+      empleados_hoy: fichajeUserIds.length,
+    },
     alertas,
     actividad: actividad.slice(0, 30),
   });
