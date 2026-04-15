@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2, Calendar, ShoppingCart,
-  Calculator, Users, LogOut, Bell, TrendingUp, Settings, Pencil, LayoutDashboard
+  Calculator, Users, LogOut, Bell, TrendingUp, Settings, Pencil, LayoutDashboard, SlidersHorizontal
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore, useIsAdmin } from "@/lib/stores/auth-store";
@@ -162,6 +162,14 @@ export function Sidebar() {
               {noLeidas > 99 ? "99+" : noLeidas}
             </span>
           )}
+        </Link>
+
+        <Link
+          href="/ajustes"
+          className={cn(pathname === "/ajustes" ? "nav-item-active" : "nav-item")}
+        >
+          <SlidersHorizontal className="w-4 h-4 flex-shrink-0" />
+          <span>Ajustes</span>
         </Link>
       </nav>
 
