@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Building2, Calendar, ShoppingCart,
   Calculator, Users, LogOut, Bell, TrendingUp, Settings, Pencil, LayoutDashboard, SlidersHorizontal
@@ -12,8 +12,6 @@ import { cn } from "@/lib/utils";
 import { useAuthStore, useIsAdmin } from "@/lib/stores/auth-store";
 import { useNotificacionesStore } from "@/lib/stores/notificaciones-store";
 import { initials } from "@/lib/utils/format";
-import { getTenantConfig, type TenantConfig } from "@/lib/insforge/database";
-import { EmpresaConfigModal } from "@/components/ui/EmpresaConfigModal";
 import { MiPerfilModal } from "@/components/ui/MiPerfilModal";
 
 const navItemsEmpleado = [
@@ -34,23 +32,16 @@ const navItemsAdmin = [
 
 export function Sidebar() {
   const pathname  = usePathname();
+  const router    = useRouter();
   const isAdmin   = useIsAdmin();
   const user      = useAuthStore((s) => s.user);
   const logout    = useAuthStore((s) => s.logout);
   const noLeidas  = useNotificacionesStore((s) => s.noLeidas);
 
-  const [showEmpresa, setShowEmpresa] = useState(false);
-  const [empresaConfig, setEmpresaConfig] = useState<TenantConfig | null>(null);
   const [showMiPerfil, setShowMiPerfil] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  // Cargamos la config de empresa al montar (solo admins)
-  useEffect(() => {
-    if (isAdmin && user?.tenant_id) {
-      getTenantConfig(user.tenant_id).then(setEmpresaConfig);
-    }
-  }, [isAdmin, user?.tenant_id]);
 
   const navItems = isAdmin ? navItemsAdmin : navItemsEmpleado;
 
@@ -164,13 +155,6 @@ export function Sidebar() {
           )}
         </Link>
 
-        <Link
-          href="/ajustes"
-          className={cn(pathname === "/ajustes" ? "nav-item-active" : "nav-item")}
-        >
-          <SlidersHorizontal className="w-4 h-4 flex-shrink-0" />
-          <span>Ajustes</span>
-        </Link>
       </nav>
 
       {/* Perfil */}
@@ -206,15 +190,20 @@ export function Sidebar() {
             <Pencil className="w-4 h-4" />
           </button>
 
-          {/* Datos de empresa — solo admin */}
+          {/* Ajustes — solo admin */}
           {isAdmin && (
             <button
-              onClick={() => setShowEmpresa(true)}
+              onClick={() => router.push("/ajustes")}
               className="p-1.5 rounded-lg transition-all hover:scale-110"
-              style={{ color: "#94A3B8" }}
+              style={{ color: pathname === "/ajustes" ? "#607eaa" : "#94A3B8", background: pathname === "/ajustes" ? "#EEF2F8" : "transparent" }}
               onMouseEnter={e => (e.currentTarget.style.color = "#607eaa", (e.currentTarget.style.background = "#EEF2F8"))}
-              onMouseLeave={e => (e.currentTarget.style.color = "#94A3B8", (e.currentTarget.style.background = "transparent"))}
-              title="Datos de empresa"
+              onMouseLeave={e => {
+                if (pathname !== "/ajustes") {
+                  e.currentTarget.style.color = "#94A3B8";
+                  e.currentTarget.style.background = "transparent";
+                }
+              }}
+              title="Ajustes"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -234,17 +223,7 @@ export function Sidebar() {
 
     </div>
 
-    {/* Modales fuera del sidebar para evitar el bug de backdrop-filter con position:fixed */}
-    {mounted && showEmpresa && user?.tenant_id && createPortal(
-      <EmpresaConfigModal
-        tenantId={user.tenant_id}
-        config={empresaConfig}
-        onClose={() => setShowEmpresa(false)}
-        onSaved={(c) => setEmpresaConfig(c)}
-      />,
-      document.body
-    )}
-
+    {/* Modal editar perfil */}
     {mounted && showMiPerfil && user && createPortal(
       <MiPerfilModal
         user={user}
