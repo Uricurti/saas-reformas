@@ -63,6 +63,36 @@ export async function archivarObra(id: string) {
     .single();
 }
 
+// Eliminar obra y todos sus datos relacionados en orden
+export async function deleteObra(id: string): Promise<{ error: string | null }> {
+  try {
+    // 1. Obtener las facturas de esta obra para borrar sus pagos
+    const { data: facturas } = await insforge.database
+      .from("facturas").select("id").eq("obra_id", id);
+    const facturaIds = (facturas ?? []).map((f: any) => f.id);
+
+    // 2. Borrar pagos de esas facturas
+    if (facturaIds.length > 0) {
+      await insforge.database.from("pagos").delete().in("factura_id", facturaIds);
+    }
+
+    // 3. Borrar en orden: facturas, asignaciones, jornadas, materiales, archivos, documentos, obra
+    await insforge.database.from("facturas").delete().eq("obra_id", id);
+    await insforge.database.from("asignaciones").delete().eq("obra_id", id);
+    await insforge.database.from("jornadas").delete().eq("obra_id", id);
+    await insforge.database.from("materiales").delete().eq("obra_id", id);
+    await insforge.database.from("archivos").delete().eq("obra_id", id);
+    await insforge.database.from("documentos").delete().eq("obra_id", id);
+
+    const { error } = await insforge.database.from("obras").delete().eq("id", id);
+    if (error) return { error: (error as any)?.message ?? "Error al eliminar la obra" };
+
+    return { error: null };
+  } catch (e: any) {
+    return { error: e?.message ?? "Error inesperado al eliminar la obra" };
+  }
+}
+
 /** Pasa una obra de "proxima" → "activa" (iniciar obra) */
 export async function iniciarObra(id: string) {
   return insforge.database

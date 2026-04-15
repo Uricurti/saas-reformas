@@ -7,6 +7,7 @@ import {
   getObraById,
   updateObra,
   archivarObra,
+  deleteObra,
   iniciarObra,
   pausarObra,
   reanudarObra,
@@ -69,6 +70,12 @@ export default function ObraDetallePage() {
 
   // Modal asignar
   const [showAsignarModal, setShowAsignarModal] = useState(false);
+
+  // Modal eliminar obra (doble confirmación)
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteStep,      setDeleteStep]      = useState<1 | 2>(1);
+  const [eliminando,      setEliminando]      = useState(false);
+  const [deleteError,     setDeleteError]     = useState<string | null>(null);
 
   useEffect(() => {
     if (id) cargar();
@@ -159,6 +166,16 @@ export default function ObraDetallePage() {
     cargar();
   }
 
+  async function handleEliminarObra() {
+    if (!obra) return;
+    setEliminando(true);
+    setDeleteError(null);
+    const { error } = await deleteObra(obra.id);
+    setEliminando(false);
+    if (error) { setDeleteError(error); return; }
+    router.replace("/obras");
+  }
+
   if (isLoading) return <LoadingSkeleton />;
   if (!obra) return null;
 
@@ -169,7 +186,7 @@ export default function ObraDetallePage() {
   const estadoConfig: Record<string, { cls: string; label: string }> = {
     activa:    { cls: "badge-success", label: "Activa" },
     pausada:   { cls: "badge-warning", label: "Pausada" },
-    proxima:   { cls: "badge-purple",  label: "Próxima" },
+    proxima:   { cls: "badge-blue",    label: "Próxima" },
     archivada: { cls: "badge-gray",    label: "Archivada" },
   };
   const { cls: estadoColor, label: estadoLabel } = estadoConfig[obra.estado] ?? { cls: "badge-gray", label: obra.estado };
@@ -526,6 +543,94 @@ export default function ObraDetallePage() {
             <Archive style={{ width: 16, height: 16 }} />
             Archivar esta obra
           </button>
+
+          {/* Eliminar — acción destructiva, solo admin */}
+          <button
+            onClick={() => { setDeleteStep(1); setDeleteError(null); setShowDeleteModal(true); }}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+              gap: 8, padding: "13px 0", borderRadius: 12, cursor: "pointer",
+              background: "transparent", color: "#dc2626", fontSize: 14, fontWeight: 600,
+              border: "1.5px solid #fecaca",
+            }}
+          >
+            <Trash2 style={{ width: 16, height: 16 }} />
+            Eliminar obra
+          </button>
+        </div>
+      )}
+
+      {/* Modal doble confirmación — eliminar obra */}
+      {showDeleteModal && obra && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)" }} onClick={() => !eliminando && setShowDeleteModal(false)} />
+          <div style={{ position: "relative", background: "#fff", borderRadius: 20, padding: 28, width: "100%", maxWidth: 400, boxShadow: "0 24px 64px rgba(0,0,0,0.25)" }}>
+
+            {/* Paso 1: primera advertencia */}
+            {deleteStep === 1 && (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Trash2 style={{ width: 22, height: 22, color: "#dc2626" }} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#111827" }}>Eliminar obra</h3>
+                    <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>{obra.nombre}</p>
+                  </div>
+                </div>
+                <p style={{ fontSize: 14, color: "#374151", marginBottom: 20, lineHeight: 1.5 }}>
+                  ¿Seguro que quieres eliminar esta obra? Se borrarán también sus empleados asignados, materiales, fotos y facturas.
+                </p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => setShowDeleteModal(false)}
+                    style={{ flex: 1, background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 10, padding: "11px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+                    Cancelar
+                  </button>
+                  <button onClick={() => setDeleteStep(2)}
+                    style={{ flex: 1, background: "#fee2e2", color: "#dc2626", border: "1.5px solid #fecaca", borderRadius: 10, padding: "11px 0", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                    Confirmar
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Paso 2: confirmación final irreversible */}
+            {deleteStep === 2 && (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Trash2 style={{ width: 22, height: 22, color: "#fff" }} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#dc2626" }}>Confirmación final</h3>
+                    <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>Esta acción no se puede deshacer</p>
+                  </div>
+                </div>
+                <div style={{ background: "#fff7f7", border: "1.5px solid #fecaca", borderRadius: 10, padding: "12px 14px", marginBottom: 20, fontSize: 13, color: "#7f1d1d", lineHeight: 1.5 }}>
+                  <strong>Se eliminará permanentemente:</strong>
+                  <ul style={{ margin: "6px 0 0 0", paddingLeft: 16 }}>
+                    <li>La obra <strong>"{obra.nombre}"</strong></li>
+                    <li>Todas las asignaciones de empleados</li>
+                    <li>Jornadas, materiales, fotos y documentos</li>
+                    <li>Facturas y pagos asociados</li>
+                  </ul>
+                </div>
+                {deleteError && (
+                  <p style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>⚠️ {deleteError}</p>
+                )}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => setShowDeleteModal(false)} disabled={eliminando}
+                    style={{ flex: 1, background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 10, padding: "11px 0", fontWeight: 600, fontSize: 14, cursor: eliminando ? "default" : "pointer" }}>
+                    Cancelar
+                  </button>
+                  <button onClick={handleEliminarObra} disabled={eliminando}
+                    style={{ flex: 1, background: eliminando ? "#9ca3af" : "#dc2626", color: "#fff", border: "none", borderRadius: 10, padding: "11px 0", fontWeight: 700, fontSize: 14, cursor: eliminando ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    {eliminando ? <><Loader2 style={{ width: 15, height: 15, animation: "spin 1s linear infinite" }} /> Eliminando…</> : "Confirmar y eliminar todo"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
