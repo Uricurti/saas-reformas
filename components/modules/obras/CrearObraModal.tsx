@@ -3,7 +3,7 @@
 import { useState, FormEvent } from "react";
 import { createObra } from "@/lib/insforge/database";
 import type { ObraFormData, ObraEstado } from "@/types";
-import { X, Loader2, Building2, User, MapPin, Clock } from "lucide-react";
+import { X, Loader2, Building2, User, MapPin, Clock, Zap, CalendarClock } from "lucide-react";
 import { DireccionInput } from "@/components/ui/DireccionInput";
 
 interface Props {
@@ -199,55 +199,83 @@ export function CrearObraModal({ tenantId, userId, onClose, onCreated }: Props) 
           </div>
 
           {/* ── Tipo de obra ── */}
-          <SectionHeader icon={Clock} label="Tipo de obra" />
+          <SectionHeader icon={Clock} label="¿Cuándo empieza esta obra?" />
 
-          <button
-            type="button"
-            onClick={() => setEsProxima((v) => !v)}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              width: "100%", padding: "14px 16px",
-              borderRadius: 12, cursor: "pointer",
-              border: `2px solid ${esProxima ? "#7c3aed" : "#e5e7eb"}`,
-              background: esProxima ? "#EDE9FE" : "#f9fafb",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {/* Opción: Activa ahora */}
+            <button
+              type="button"
+              onClick={() => setEsProxima(false)}
+              style={{
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                gap: 10, padding: "16px 12px",
+                borderRadius: 14, cursor: "pointer",
+                border: `2px solid ${!esProxima ? "#607eaa" : "#e5e7eb"}`,
+                background: !esProxima ? "#EEF2F8" : "#fafafa",
+                transition: "all 0.15s ease",
+                minHeight: 100,
+              }}
+            >
               <div style={{
-                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                width: 40, height: 40, borderRadius: 12,
+                background: !esProxima ? "#607eaa" : "#e5e7eb",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "background 0.15s ease",
+              }}>
+                <Zap style={{ width: 20, height: 20, color: !esProxima ? "#fff" : "#9ca3af" }} />
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: !esProxima ? "#1c3879" : "#374151" }}>
+                  Activa ahora
+                </div>
+                <div style={{ fontSize: 11, color: !esProxima ? "#607eaa" : "#9ca3af", marginTop: 2, lineHeight: 1.3 }}>
+                  Ya está en marcha,<br />se puede fichar
+                </div>
+              </div>
+              {!esProxima && (
+                <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#607eaa", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>✓</span>
+                </div>
+              )}
+            </button>
+
+            {/* Opción: Próxima */}
+            <button
+              type="button"
+              onClick={() => setEsProxima(true)}
+              style={{
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                gap: 10, padding: "16px 12px",
+                borderRadius: 14, cursor: "pointer",
+                border: `2px solid ${esProxima ? "#7c3aed" : "#e5e7eb"}`,
+                background: esProxima ? "#EDE9FE" : "#fafafa",
+                transition: "all 0.15s ease",
+                minHeight: 100,
+              }}
+            >
+              <div style={{
+                width: 40, height: 40, borderRadius: 12,
                 background: esProxima ? "#7c3aed" : "#e5e7eb",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 transition: "background 0.15s ease",
               }}>
-                <Clock style={{ width: 18, height: 18, color: esProxima ? "#fff" : "#9ca3af" }} />
+                <CalendarClock style={{ width: 20, height: 20, color: esProxima ? "#fff" : "#9ca3af" }} />
               </div>
-              <div style={{ textAlign: "left" }}>
+              <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: esProxima ? "#5B21B6" : "#374151" }}>
-                  {esProxima ? "Obra próxima" : "Obra activa"}
+                  Próxima obra
                 </div>
-                <div style={{ fontSize: 12, color: esProxima ? "#7c3aed" : "#6b7280", marginTop: 1 }}>
-                  {esProxima
-                    ? "Pendiente de iniciar — visible en calendario para planificación"
-                    : "La obra ya está en marcha — puede ficharse"}
+                <div style={{ fontSize: 11, color: esProxima ? "#7c3aed" : "#9ca3af", marginTop: 2, lineHeight: 1.3 }}>
+                  Aún no ha empezado,<br />para planificar
                 </div>
               </div>
-            </div>
-            {/* Toggle pill */}
-            <div style={{
-              width: 44, height: 24, borderRadius: 12, flexShrink: 0,
-              background: esProxima ? "#7c3aed" : "#d1d5db",
-              position: "relative", transition: "background 0.15s ease",
-            }}>
-              <div style={{
-                position: "absolute", top: 3,
-                left: esProxima ? 23 : 3,
-                width: 18, height: 18, borderRadius: "50%", background: "#fff",
-                transition: "left 0.15s ease",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-              }} />
-            </div>
-          </button>
+              {esProxima && (
+                <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>✓</span>
+                </div>
+              )}
+            </button>
+          </div>
 
           {error && (
             <div className="bg-danger-light text-danger-foreground text-sm rounded-lg px-4 py-3 flex items-center gap-2">

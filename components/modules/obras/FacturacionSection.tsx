@@ -178,8 +178,10 @@ function ModalEmitir({
   );
 }
 
-// ─── Modal A/B Split ─────────────────────────────────────────────────────────
-function ModalABSplit({
+// ─── Modal cobro en efectivo / factura ───────────────────────────────────────
+// Llamado anteriormente "Modal A/B Split". Permite repartir un hito entre
+// "con factura (IVA)" y "en efectivo (sin IVA)".
+function ModalEfectivo({
   pago, onClose, onSave,
 }: {
   pago: Pago;
@@ -191,84 +193,134 @@ function ModalABSplit({
   const currentB = pago.importe_efectivo_b ?? 0;
   const currentIva = pago.porcentaje_iva_a ?? 21;
 
+  // Modo rápido: todo en efectivo / todo con factura
+  const [modoRapido, setModoRapido] = useState<"factura" | "efectivo" | "mixto">(
+    currentB >= total - 0.01 ? "efectivo" : currentB <= 0.01 ? "factura" : "mixto"
+  );
+
   const [a, setA] = useState(fmt(currentA));
   const [b, setB] = useState(fmt(currentB));
   const [iva, setIva] = useState(String(currentIva));
   const [saving, setSaving] = useState(false);
 
+  function aplicarModo(modo: "factura" | "efectivo" | "mixto") {
+    setModoRapido(modo);
+    if (modo === "factura")   { setA(fmt(total)); setB("0,00"); }
+    if (modo === "efectivo")  { setA("0,00"); setB(fmt(total)); }
+    // "mixto": no toca los valores, el admin los edita manualmente
+  }
+
   async function handleSave() {
     const aVal = parseFloat(a.replace(",", "."));
     const bVal = parseFloat(b.replace(",", "."));
     const ivaVal = parseInt(iva, 10);
-
     if (isNaN(aVal) || isNaN(bVal) || isNaN(ivaVal)) return;
     if (Math.abs(aVal + bVal - total) > 0.01) return;
-
     setSaving(true);
     await onSave(aVal, bVal, ivaVal);
     setSaving(false);
     onClose();
   }
 
-  const sumAB = parseFloat(a.replace(",", ".")) + parseFloat(b.replace(",", "."));
-  const isValid = !isNaN(sumAB) && Math.abs(sumAB - total) < 0.01;
+  const aNum = parseFloat(a.replace(",", ".")) || 0;
+  const bNum = parseFloat(b.replace(",", ".")) || 0;
+  const sumAB = aNum + bNum;
+  const isValid = Math.abs(sumAB - total) < 0.01;
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }} onClick={onClose} />
-      <div style={{ position: "relative", background: "#fff", borderRadius: 18, padding: 28, width: "100%", maxWidth: 400, boxShadow: "0 24px 64px rgba(0,0,0,0.22)" }}>
+      <div style={{ position: "relative", background: "#fff", borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, boxShadow: "0 24px 64px rgba(0,0,0,0.22)" }}>
         <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, border: "none", background: "#f3f4f6", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <X style={{ width: 14, height: 14 }} />
         </button>
 
-        <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 700 }}>Desglose A/B</h3>
-        <p style={{ margin: "0 0 20px", fontSize: 13, color: "#6b7280" }}>{pago.concepto}</p>
+        {/* Cabecera */}
+        <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 700, color: "#111827" }}>Forma de cobro</h3>
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#6b7280" }}>
+          {pago.concepto} · <strong style={{ color: "#111827" }}>{fmt(total)} €</strong>
+        </p>
 
-        {/* Track A */}
-        <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-          Track A — Facturado con IVA (€)
-        </label>
-        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          <input
-            type="number" value={a} onChange={(e) => setA(e.target.value)}
-            placeholder="0.00" min="0" step="0.01"
-            style={{ flex: 1, border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", fontSize: 14, boxSizing: "border-box" }}
-          />
-          <select value={iva} onChange={(e) => setIva(e.target.value)}
-            style={{ width: 80, border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 6px", fontSize: 13, boxSizing: "border-box" }}>
-            <option value="10">10% IVA</option>
-            <option value="21">21% IVA</option>
-          </select>
+        {/* Selector rápido — 3 opciones */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
+          {([
+            { id: "factura",  label: "Con factura",   emoji: "🧾", color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" },
+            { id: "efectivo", label: "En efectivo",   emoji: "💵", color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" },
+            { id: "mixto",    label: "Mixto",          emoji: "✂️", color: "#9333ea", bg: "#faf5ff", border: "#e9d5ff" },
+          ] as const).map(({ id, label, emoji, color, bg, border }) => (
+            <button key={id} type="button" onClick={() => aplicarModo(id)}
+              style={{
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                padding: "10px 6px", borderRadius: 10, cursor: "pointer",
+                border: `2px solid ${modoRapido === id ? border : "#e5e7eb"}`,
+                background: modoRapido === id ? bg : "#fafafa",
+                transition: "all 0.12s ease",
+              }}
+            >
+              <span style={{ fontSize: 20 }}>{emoji}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: modoRapido === id ? color : "#6b7280", textAlign: "center", lineHeight: 1.2 }}>{label}</span>
+            </button>
+          ))}
         </div>
 
-        {/* Track B */}
-        <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-          Track B — Efectivo sin IVA (€)
-        </label>
-        <input
-          type="number" value={b} onChange={(e) => setB(e.target.value)}
-          placeholder="0.00" min="0" step="0.01"
-          style={{ width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", fontSize: 14, marginBottom: 20, boxSizing: "border-box" }}
-        />
+        {/* Campos de importe (siempre visibles, el selector rápido los rellena) */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#2563eb", marginBottom: 4 }}>
+              🧾 Con factura (€)
+            </label>
+            <input
+              type="number" value={a}
+              onChange={(e) => { setA(e.target.value); setModoRapido("mixto"); }}
+              placeholder="0.00" min="0" step="0.01"
+              style={{ width: "100%", border: "1.5px solid #bfdbfe", borderRadius: 8, padding: "8px 10px", fontSize: 14, fontWeight: 600, boxSizing: "border-box", color: "#1d4ed8" }}
+            />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#16a34a", marginBottom: 4 }}>
+              💵 En efectivo (€)
+            </label>
+            <input
+              type="number" value={b}
+              onChange={(e) => { setB(e.target.value); setModoRapido("mixto"); }}
+              placeholder="0.00" min="0" step="0.01"
+              style={{ width: "100%", border: "1.5px solid #bbf7d0", borderRadius: 8, padding: "8px 10px", fontSize: 14, fontWeight: 600, boxSizing: "border-box", color: "#15803d" }}
+            />
+          </div>
+        </div>
 
-        {/* Validación */}
-        {!isValid && (
-          <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: 8, padding: 12, marginBottom: 20, fontSize: 12, color: "#991b1b" }}>
-            A + B debe ser igual a {fmt(total)} €
+        {/* IVA (solo si hay factura) */}
+        {aNum > 0.01 && (
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#374151", marginBottom: 4 }}>IVA de la factura</label>
+            <select value={iva} onChange={(e) => setIva(e.target.value)}
+              style={{ width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 10px", fontSize: 13, boxSizing: "border-box" }}>
+              <option value="10">10%</option>
+              <option value="21">21%</option>
+            </select>
           </div>
         )}
 
-        {/* Resumen */}
-        <div style={{ background: "#f8fafc", borderRadius: 8, padding: 12, marginBottom: 20, fontSize: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-            <span>Track A (con IVA {iva}%):</span>
-            <strong>{fmt(parseFloat(a.replace(",", ".")) * (1 + parseInt(iva, 10) / 100))} €</strong>
+        {/* Validación */}
+        {!isValid && (
+          <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 12, color: "#991b1b" }}>
+            La suma debe ser {fmt(total)} € (ahora: {fmt(sumAB)} €)
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Track B (sin IVA):</span>
-            <strong>{fmt(parseFloat(b.replace(",", ".")))}</strong> €
+        )}
+
+        {/* Resumen cuando hay mezcla */}
+        {aNum > 0.01 && bNum > 0.01 && (
+          <div style={{ background: "#f8fafc", borderRadius: 8, padding: 10, marginBottom: 14, fontSize: 12, color: "#374151" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span>🧾 Factura base + IVA {iva}%:</span>
+              <strong>{fmt(aNum * (1 + parseInt(iva) / 100))} €</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>💵 Efectivo sin factura:</span>
+              <strong>{fmt(bNum)} €</strong>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Botones */}
         <div style={{ display: "flex", gap: 8 }}>
@@ -277,8 +329,8 @@ function ModalABSplit({
             Cancelar
           </button>
           <button onClick={handleSave} disabled={saving || !isValid}
-            style={{ flex: 1, background: isValid && !saving ? "#2563eb" : "#9ca3af", color: "#fff", border: "none", borderRadius: 10, padding: "11px 0", fontWeight: 600, fontSize: 14, cursor: isValid && !saving ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            {saving ? <Loader2 style={{ width: 15, height: 15, animation: "spin 1s linear infinite" }} /> : <Check style={{ width: 15, height: 15 }} />}
+            style={{ flex: 2, background: isValid && !saving ? "#111827" : "#9ca3af", color: "#fff", border: "none", borderRadius: 10, padding: "11px 0", fontWeight: 700, fontSize: 14, cursor: isValid && !saving ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            {saving ? <Loader2 style={{ width: 15, height: 15 }} /> : <Check style={{ width: 15, height: 15 }} />}
             Guardar
           </button>
         </div>
@@ -304,7 +356,7 @@ function FilaPago({
   const [fecha, setFecha]             = useState(pago.fecha_prevista ?? "");
   const [showEmitir, setShowEmitir]   = useState(false);
   const [numSugerido, setNumSugerido] = useState("");
-  const [showABSplit, setShowABSplit] = useState(false);
+  const [showEfectivo, setShowEfectivo] = useState(false);
 
   async function iniciarEmision() {
     if (pago.estado !== "pendiente_emitir") {
@@ -388,9 +440,16 @@ function FilaPago({
               + Extra
             </button>
           )}
-          <button onClick={() => setShowABSplit(true)}
-            style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 7, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-            A/B Split
+          <button onClick={() => setShowEfectivo(true)}
+            style={{
+              background: (pago.importe_efectivo_b ?? 0) > 0.01 ? "#f0fdf4" : "#f3f4f6",
+              color:      (pago.importe_efectivo_b ?? 0) > 0.01 ? "#15803d" : "#374151",
+              border:     `1px solid ${(pago.importe_efectivo_b ?? 0) > 0.01 ? "#bbf7d0" : "#e5e7eb"}`,
+              borderRadius: 7, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+            }}>
+            {(pago.importe_efectivo_b ?? 0) > 0.01
+              ? `💵 Efectivo: ${fmt(pago.importe_efectivo_b!)} €`
+              : "💵 En efectivo"}
           </button>
         </>
       )}
@@ -527,9 +586,9 @@ function FilaPago({
           <ModalEmitir pago={pago} numeroSugerido={numSugerido}
             onClose={() => setShowEmitir(false)} onConfirm={confirmarEmision} />
         )}
-        {showABSplit && (
-          <ModalABSplit pago={pago}
-            onClose={() => setShowABSplit(false)} onSave={handleABSplit} />
+        {showEfectivo && (
+          <ModalEfectivo pago={pago}
+            onClose={() => setShowEfectivo(false)} onSave={handleABSplit} />
         )}
       </>
     );
@@ -589,9 +648,9 @@ function FilaPago({
         <ModalEmitir pago={pago} numeroSugerido={numSugerido}
           onClose={() => setShowEmitir(false)} onConfirm={confirmarEmision} />
       )}
-      {showABSplit && (
-        <ModalABSplit pago={pago}
-          onClose={() => setShowABSplit(false)} onSave={handleABSplit} />
+      {showEfectivo && (
+        <ModalEfectivo pago={pago}
+          onClose={() => setShowEfectivo(false)} onSave={handleABSplit} />
       )}
     </>
   );
