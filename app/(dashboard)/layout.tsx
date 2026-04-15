@@ -6,6 +6,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { FichajeModal } from "@/components/modules/fichaje/FichajeModal";
+import { initOneSignal, identificarUsuario, pedirPermisoNotificaciones } from "@/lib/onesignal";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -18,6 +19,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.replace("/login");
     }
   }, [user, isInitialized, router]);
+
+  // Inicializar OneSignal y vincular usuario
+  useEffect(() => {
+    if (!user?.id) return;
+
+    initOneSignal().then(() => {
+      identificarUsuario(user.id);
+      // Pedir permiso con un pequeño delay para no interrumpir la carga
+      setTimeout(() => pedirPermisoNotificaciones(), 3000);
+    });
+  }, [user?.id]);
 
   if (!user) return null;
 

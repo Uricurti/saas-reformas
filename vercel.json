@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/daily-notifications",
       "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/send-check-in-notifications",
+      "schedule": "0 8 * * *"
     }
   ]
 }
