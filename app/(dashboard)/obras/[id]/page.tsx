@@ -481,8 +481,11 @@ export default function ObraDetallePage() {
       )}
 
       {/* Acciones de estado — solo admin */}
-      {isAdmin && obra.estado !== "archivada" && (
+      {isAdmin && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+
+          {/* Botones de transición — solo si no está archivada */}
+          {obra.estado !== "archivada" && <>
 
           {/* Próxima → Iniciar */}
           {obra.estado === "proxima" && (
@@ -544,7 +547,9 @@ export default function ObraDetallePage() {
             Archivar esta obra
           </button>
 
-          {/* Eliminar — acción destructiva, solo admin */}
+          </>}
+
+          {/* Eliminar — acción destructiva, visible siempre (incluso archivadas) */}
           <button
             onClick={() => { setDeleteStep(1); setDeleteError(null); setShowDeleteModal(true); }}
             style={{
