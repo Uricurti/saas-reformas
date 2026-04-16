@@ -5,7 +5,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-const SERVICE_KEY = process.env.INSFORGE_SERVICE_KEY!;
+const SERVICE_KEY  = process.env.INSFORGE_SERVICE_KEY!;
+const INSFORGE_URL = (process.env.NEXT_PUBLIC_INSFORGE_URL ?? "").replace(/\/$/, "");
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +16,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "confirmUrl es obligatorio" }, { status: 400 });
     }
 
-    const res = await fetch(confirmUrl, {
+    // InsForge a veces devuelve la confirmUrl como ruta relativa (/api/storage/...)
+    // fetch() en Node.js necesita una URL absoluta con dominio
+    const fullConfirmUrl = confirmUrl.startsWith("/")
+      ? `${INSFORGE_URL}${confirmUrl}`
+      : confirmUrl;
+
+    const res = await fetch(fullConfirmUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
