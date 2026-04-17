@@ -9,6 +9,144 @@ import {
 } from "@/lib/insforge/database";
 import type { PresupuestoTipo, CatalogoPartida } from "@/types";
 
+const CATALOGO_COCINA_DEFAULT = [
+  // BASE
+  {
+    nombre_partida: "Reforma base cocina",
+    descripcion: "Demolición de la cocina existente y retirada a la deixalleria, protección de zonas de paso y puertas con cartón ondulado, ejecución de regatas y ayudas a instalaciones, enguixado de paredes y enrajolado de suelo de la cocina.",
+    precio: 2246.00,
+    es_base: true,
+    orden: 1,
+  },
+  {
+    nombre_partida: "Instalaciones cocina",
+    descripcion: "Desconexión y desmontaje de los elementos propios de la instalación eléctrica existente, anulación de tomas de agua y gas con retirada y transporte a vertedero autorizado, y ejecución de nueva instalación de electricidad y aguas para adaptar la cocina al nuevo equipamiento.",
+    precio: 1568.00,
+    es_base: true,
+    orden: 2,
+  },
+  {
+    nombre_partida: "Sacas",
+    descripcion: "Suministro, retirada y gestión de saca de runa derivada de la obra.",
+    precio: 60.00,
+    es_base: true,
+    orden: 3,
+  },
+  // EXTRAS
+  {
+    nombre_partida: "Abrir paso entre cocina y comedor",
+    descripcion: "Derribo de pared entre cocina y comedor para generar hueco de paso, con acabado arestado según medidas previstas en proyecto.",
+    precio: 338.40,
+    es_base: false,
+    orden: 1,
+  },
+  {
+    nombre_partida: "Tapiado de puerta de paso",
+    descripcion: "Tapiado de puerta de paso mediante fábrica de ladrillo, recibido con yeso y acabado listo para pintar, incluyendo extracción del premarco existente.",
+    precio: 168.00,
+    es_base: false,
+    orden: 2,
+  },
+  {
+    nombre_partida: "Derribo de tabiques",
+    descripcion: "Derribo de tabiques de ladrillo mediante medios manuales y/o mecánicos, con carga de escombros sobre contenedor o saca.",
+    precio: 1264.80,
+    es_base: false,
+    orden: 3,
+  },
+  {
+    nombre_partida: "Tabique de pladur",
+    descripcion: "Construcción de tabique de guix laminat/pladur con doble placa y perfilería metálica, acabado a dos caras, listo para posterior terminación.",
+    precio: 445.28,
+    es_base: false,
+    orden: 4,
+  },
+  {
+    nombre_partida: "Premarcos / caset puerta",
+    descripcion: "Suministro y colocación de premarcos de madera y/o caset de puerta según la configuración de obra prevista.",
+    precio: 400.00,
+    es_base: false,
+    orden: 5,
+  },
+  {
+    nombre_partida: "Techo de pladur cocina estándar",
+    descripcion: "Creación de falso techo de pladur en cocina con placa estándar de 12,5 mm atornillada a perfilería metálica, con altura según diseño.",
+    precio: 640.00,
+    es_base: false,
+    orden: 6,
+  },
+  {
+    nombre_partida: "Techo de pladur cocina grande",
+    descripcion: "Creación de falso techo de pladur en cocina para superficies mayores, con estructura metálica y placa estándar, totalmente instalado.",
+    precio: 1036.80,
+    es_base: false,
+    orden: 7,
+  },
+  {
+    nombre_partida: "Desplazar radiador",
+    descripcion: "Desplazamiento de radiador hasta 1 metro con instalación oculta en pared, incluyendo trabajos auxiliares de albañilería.",
+    precio: 128.00,
+    es_base: false,
+    orden: 8,
+  },
+  {
+    nombre_partida: "Modificación de cajas eléctricas",
+    descripcion: "Modificación de cajas de líneas eléctricas en las paredes afectadas por la obra, sin incluir nuevas líneas no existentes ni modificación de PIAs.",
+    precio: 350.00,
+    es_base: false,
+    orden: 9,
+  },
+  {
+    nombre_partida: "Mecanismos adicionales",
+    descripcion: "Suministro e instalación de mecanismos eléctricos adicionales a los incluidos de base en la reforma de cocina.",
+    precio: 240.00,
+    es_base: false,
+    orden: 10,
+  },
+  {
+    nombre_partida: "Pintura cocina / rebedor",
+    descripcion: "Pintura de paredes vistas y techo en cocina y/o rebedor, con pintura plástica convencional y preparación básica de soporte.",
+    precio: 880.00,
+    es_base: false,
+    orden: 11,
+  },
+  {
+    nombre_partida: "Cajón / volumen de pladur decorativo",
+    descripcion: "Formación de volumen o cajón de pladur para integración de instalaciones, chimenea eléctrica, TV, cableados u otros elementos decorativos, según medidas del diseño.",
+    precio: 650.00,
+    es_base: false,
+    orden: 12,
+  },
+  {
+    nombre_partida: "Cableado y mecanismos comedor / sala",
+    descripcion: "Modificación de instalaciones eléctricas y cableado en comedor o sala de estar vinculados a la reforma de cocina o a elementos anexos.",
+    precio: 1568.00,
+    es_base: false,
+    orden: 13,
+  },
+  {
+    nombre_partida: "Techo de pladur comedor con tabica y led",
+    descripcion: "Formación de techo de pladur en comedor con tabicas reculadas para ocultación de tiras led o iluminación indirecta.",
+    precio: 958.80,
+    es_base: false,
+    orden: 14,
+  },
+  {
+    nombre_partida: "Techo pladur distribuidor",
+    descripcion: "Formación de pequeño tramo de techo de pladur en distribuidor o zona auxiliar.",
+    precio: 60.00,
+    es_base: false,
+    orden: 15,
+  },
+  {
+    nombre_partida: "Aire acondicionado canalizado",
+    descripcion: "Suministro e instalación de aire acondicionado canalizado con bomba de calor para estancias indicadas en proyecto, condicionado a la longitud de instalación prevista.",
+    precio: 4348.00,
+    es_base: false,
+    orden: 16,
+  },
+];
+
 const TABS: { key: PresupuestoTipo; label: string; emoji: string }[] = [
   { key: "bano",   label: "Baño",    emoji: "🛁" },
   { key: "cocina", label: "Cocina",  emoji: "🍳" },
@@ -162,20 +300,19 @@ export function GestorCatalogo({
     setLoading(true);
     const data = await getCatalogoPresupuesto(tenantId, tab);
     setPartidas(data as PartidaFila[]);
-    // Auto-initialize bano catalog if empty on first load
-    if (tab === "bano" && data.length === 0) {
-      await insertarBanoDefault();
-    }
+    if (tab === "bano"   && data.length === 0) await insertarDefault("bano");
+    if (tab === "cocina" && data.length === 0) await insertarDefault("cocina");
     setLoading(false);
   }
 
-  async function insertarBanoDefault() {
+  async function insertarDefault(tipo: "bano" | "cocina") {
     setInicializando(true);
+    const plantilla = tipo === "bano" ? CATALOGO_BANO_DEFAULT : CATALOGO_COCINA_DEFAULT;
     let errorCount = 0;
-    for (const p of CATALOGO_BANO_DEFAULT) {
+    for (const p of plantilla) {
       try {
         const result = await upsertCatalogoPartida(tenantId, {
-          tipo: "bano",
+          tipo,
           nombre_partida: p.nombre_partida,
           descripcion: p.descripcion,
           precio: p.precio,
@@ -190,16 +327,21 @@ export function GestorCatalogo({
       }
     }
     if (errorCount > 0) {
-      alert(`Error: ${errorCount} partidas no se pudieron guardar. Abre la consola del navegador (F12) para ver el detalle.`);
+      alert(`Error: ${errorCount} partidas no se pudieron guardar.`);
     }
-    const fresh = await getCatalogoPresupuesto(tenantId, "bano");
+    const fresh = await getCatalogoPresupuesto(tenantId, tipo);
     setPartidas(fresh as PartidaFila[]);
     setInicializando(false);
   }
 
   async function inicializarBano() {
     if (!confirm("¿Inicializar el catálogo de baño con las partidas predefinidas? Se añadirán a las existentes.")) return;
-    await insertarBanoDefault();
+    await insertarDefault("bano");
+  }
+
+  async function inicializarCocina() {
+    if (!confirm("¿Inicializar el catálogo de cocina con las partidas predefinidas? Se añadirán a las existentes.")) return;
+    await insertarDefault("cocina");
   }
 
   async function handleGuardarPrecio(id: string, precioStr: string) {
@@ -271,9 +413,9 @@ export function GestorCatalogo({
               <span>{t.emoji}</span> {t.label}
             </button>
           ))}
-          {tab === "bano" && (
+          {(tab === "bano" || tab === "cocina") && (
             <button
-              onClick={inicializarBano}
+              onClick={tab === "bano" ? inicializarBano : inicializarCocina}
               disabled={inicializando}
               className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-content-secondary hover:bg-gray-100 transition-colors"
             >
@@ -295,6 +437,11 @@ export function GestorCatalogo({
               {tab === "bano" && (
                 <button onClick={inicializarBano} className="btn-primary mt-3 text-sm">
                   Inicializar catálogo de baño
+                </button>
+              )}
+              {tab === "cocina" && (
+                <button onClick={inicializarCocina} className="btn-primary mt-3 text-sm">
+                  Inicializar catálogo de cocina
                 </button>
               )}
             </div>
