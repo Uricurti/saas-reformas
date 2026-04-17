@@ -362,3 +362,39 @@ export interface FichajePendiente {
   obra_asignada_id?: string;
   sincronizado: false;
 }
+
+// ─── Presupuestos ────────────────────────────────────────────────────────────
+export type PresupuestoEstado = "borrador" | "enviado" | "aceptado" | "rechazado";
+export type PresupuestoTipo = "bano" | "cocina" | "otros";
+
+export interface Presupuesto {
+  id: string; tenant_id: string; numero: string; version: number;
+  tipo: PresupuestoTipo; estado: PresupuestoEstado;
+  cliente_nombre: string; cliente_apellidos: string | null;
+  cliente_nif: string | null; cliente_direccion: string | null;
+  cliente_cp: string | null; cliente_ciudad: string | null;
+  cliente_email: string | null; cliente_telefono: string | null;
+  fecha_emision: string; fecha_validez: string;
+  importe_base: number; porcentaje_iva: number;
+  importe_iva: number; importe_total: number;
+  forma_pago: { concepto: string; porcentaje: number }[];
+  notas_internas: string | null; obra_id: string | null;
+  created_at: string; updated_at: string;
+}
+
+export interface LineaPresupuesto {
+  id: string; tenant_id: string; presupuesto_id: string;
+  nombre_partida: string; descripcion: string | null;
+  precio: number; orden: number; es_base: boolean; created_at: string;
+}
+
+export interface PresupuestoConLineas extends Presupuesto {
+  lineas: LineaPresupuesto[];
+}
+
+export interface CatalogoPartida {
+  id: string; tenant_id: string; tipo: PresupuestoTipo;
+  nombre_partida: string; descripcion: string | null;
+  precio: number; es_base: boolean; orden: number; activo: boolean;
+  created_at: string; updated_at: string;
+}

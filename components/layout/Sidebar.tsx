@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Building2, Calendar, ShoppingCart,
-  Calculator, Users, LogOut, Bell, TrendingUp, Settings, Pencil, LayoutDashboard, SlidersHorizontal
+  Calculator, Users, LogOut, Bell, TrendingUp, Settings, Pencil, LayoutDashboard, SlidersHorizontal, FileText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore, useIsAdmin } from "@/lib/stores/auth-store";
@@ -27,7 +27,8 @@ const navItemsAdmin = [
   { href: "/materiales", label: "Materiales", icon: ShoppingCart,    group: "operativa" },
   { href: "/jornales",   label: "Jornales",   icon: Calculator,      group: "operativa" },
   { href: "/equipo",     label: "Equipo",     icon: Users,           group: "operativa" },
-  { href: "/facturacion",label: "Finanzas",   icon: TrendingUp,      group: "finanzas"  },
+  { href: "/facturacion",    label: "Finanzas",      icon: TrendingUp, group: "finanzas" },
+  { href: "/presupuestos",   label: "Presupuestos",  icon: FileText,   group: "finanzas" },
 ];
 
 export function Sidebar() {
@@ -101,38 +102,41 @@ export function Sidebar() {
 
         {/* Sección Finanzas — solo admin */}
         {isAdmin && (() => {
-          const finItem = navItems.find((i: any) => i.group === "finanzas");
-          if (!finItem) return null;
-          const isActive = pathname.startsWith(finItem.href);
+          const finItems = navItems.filter((i: any) => i.group === "finanzas");
+          if (!finItems.length) return null;
           return (
             <div className="space-y-0.5 mb-1">
               <p className="px-3 text-[10px] font-700 uppercase tracking-widest mb-1" style={{ color: "#94A3B8" }}>
                 Finanzas
               </p>
-              <Link
-                href={finItem.href}
-                className={cn(isActive ? "nav-item-active" : "nav-item")}
-                style={{
-                  background: isActive
-                    ? "linear-gradient(135deg, #607eaa18 0%, #26bbec10 100%)"
-                    : undefined,
-                  border: isActive ? "1px solid #607eaa22" : "1px solid transparent",
-                }}
-              >
-                <div
-                  className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: isActive ? "#607eaa" : "#EEF2F8" }}
-                >
-                  <TrendingUp
-                    className="w-3.5 h-3.5"
-                    style={{ color: isActive ? "#fff" : "#607eaa" }}
-                  />
-                </div>
-                <span style={{ fontWeight: isActive ? 700 : 500 }}>{finItem.label}</span>
-                {isActive && (
-                  <span className="ml-auto w-1.5 h-1.5 rounded-full" style={{ background: "#607eaa" }} />
-                )}
-              </Link>
+              {finItems.map((item: any) => {
+                const isActive = pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(isActive ? "nav-item-active" : "nav-item")}
+                    style={{
+                      background: isActive ? "linear-gradient(135deg, #607eaa18 0%, #26bbec10 100%)" : undefined,
+                      border: isActive ? "1px solid #607eaa22" : "1px solid transparent",
+                    }}
+                  >
+                    <div
+                      className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ background: isActive ? "#607eaa" : "#EEF2F8" }}
+                    >
+                      <item.icon
+                        className="w-3.5 h-3.5"
+                        style={{ color: isActive ? "#fff" : "#607eaa" }}
+                      />
+                    </div>
+                    <span style={{ fontWeight: isActive ? 700 : 500 }}>{item.label}</span>
+                    {isActive && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full" style={{ background: "#607eaa" }} />
+                    )}
+                  </Link>
+                );
+              })}
             </div>
           );
         })()}

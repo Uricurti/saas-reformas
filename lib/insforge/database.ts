@@ -4,7 +4,9 @@ import type {
   Obra, ObraFormData, Asignacion, Fichaje, FichajeEstado,
   Material, MaterialFormData, Archivo, TarifaEmpleado,
   Notificacion, User, Documento, DocumentoCategoria, Jornada,
-  Factura, Pago, FacturaConPagos, PagoConContexto, PagoEstado
+  Factura, Pago, FacturaConPagos, PagoConContexto, PagoEstado,
+  Presupuesto, PresupuestoConLineas, LineaPresupuesto, CatalogoPartida,
+  PresupuestoEstado, PresupuestoTipo,
 } from "@/types";
 
 // ══════════════════════════════════════════════════════════════════
@@ -1443,4 +1445,377 @@ export async function upsertNotificacionConfig(
       { onConflict: "tenant_id" }
     )
     .select().single();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PRESUPUESTOS
+// ══════════════════════════════════════════════════════════════════
+
+export async function getPresupuestos(
+  tenantId: string,
+  filtros?: {
+    estado?: string;
+    tipo?: string;
+    busqueda?: string;
+    desde?: string;
+    hasta?: string;
+    minImporte?: number;
+    maxImporte?: number;
+  }
+): Promise<Presupuesto[]> {
+  try {
+    const params = new URLSearchParams({ tenantId });
+    if (filtros?.estado)  params.set("estado",  filtros.estado);
+    if (filtros?.tipo)    params.set("tipo",    filtros.tipo);
+    if (filtros?.busqueda) params.set("busqueda", filtros.busqueda);
+    if (filtros?.desde)   params.set("desde",   filtros.desde);
+    if (filtros?.hasta)   params.set("hasta",   filtros.hasta);
+    const res = await fetch(`${GESTIONAR_API}?${params.toString()}`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch { return []; }
+}
+
+export async function getPresupuestoById(id: string): Promise<PresupuestoConLineas | null> {
+  try {
+    const res = await fetch(`${GESTIONAR_API}?id=${id}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+export async function getNextNumeroPresupuesto(tenantId: string): Promise<string> {
+  try {
+    const res = await fetch(`${GESTIONAR_API}?tenantId=${tenantId}&action=nextNumero`);
+    if (!res.ok) return "PRES-001";
+    const { numero } = await res.json();
+    return numero ?? "PRES-001";
+  } catch { return "PRES-001"; }
+}
+
+const GESTIONAR_API = "/api/presupuestos/gestionar";
+
+export async function createPresupuesto(params: {
+  tenantId: string;
+  numero: string;
+  tipo: PresupuestoTipo;
+  clienteNombre: string;
+  clienteApellidos?: string;
+  clienteNif?: string;
+  clienteDireccion?: string;
+  clienteCp?: string;
+  clienteCiudad?: string;
+  clienteEmail?: string;
+  clienteTelefono?: string;
+  importeBase: number;
+  porcentajeIva: number;
+  formaPago: { concepto: string; porcentaje: number }[];
+  notasInternas?: string;
+  lineas?: { nombre_partida: string; descripcion: string | null; precio: number; orden: number; es_base: boolean }[];
+}): Promise<Presupuesto | null> {
+  try {
+    const res = await fetch(GESTIONAR_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...params }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("[createPresupuesto] error", res.status, errText);
+      return null;
+    }
+    return await res.json();
+  } catch (e) {
+    console.error("[createPresupuesto] fetch error", e);
+    return null;
+  }
+}
+
+export async function updatePresupuesto(
+  id: string,
+  params: Partial<{
+    numero: string;
+    tipo: PresupuestoTipo;
+    estado: PresupuestoEstado;
+    clienteNombre: string;
+    clienteApellidos: string | null;
+    clienteNif: string | null;
+    clienteDireccion: string | null;
+    clienteCp: string | null;
+    clienteCiudad: string | null;
+    clienteEmail: string | null;
+    clienteTelefono: string | null;
+    importeBase: number;
+    porcentajeIva: number;
+    formaPago: { concepto: string; porcentaje: number }[];
+    notasInternas: string | null;
+    obraId: string | null;
+    tenantId: string;
+    lineas: { nombre_partida: string; descripcion: string | null; precio: number; orden: number; es_base: boolean }[];
+  }>
+): Promise<Presupuesto | null> {
+  try {
+    const res = await fetch(GESTIONAR_API, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...params }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("[updatePresupuesto] error", res.status, errText);
+      return null;
+    }
+    return await res.json();
+  } catch (e) {
+    console.error("[updatePresupuesto] fetch error", e);
+    return null;
+  }
+}
+
+export async function createNuevaVersionPresupuesto(id: string): Promise<Presupuesto | null> {
+  const original = await getPresupuestoById(id);
+  if (!original) return null;
+
+  const hoy = new Date().toISOString().split("T")[0];
+  const validez = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+  // Build a raw row with exact DB column names — POST to gestionar but pass raw fields
+  const body = {
+    tenantId:          original.tenant_id,
+    numero:            original.numero,
+    _version:          original.version + 1,  // handled specially below
+    tipo:              original.tipo,
+    clienteNombre:     original.cliente_nombre,
+    clienteApellidos:  original.cliente_apellidos,
+    clienteNif:        original.cliente_nif,
+    clienteDireccion:  original.cliente_direccion,
+    clienteCp:         original.cliente_cp,
+    clienteCiudad:     original.cliente_ciudad,
+    clienteEmail:      original.cliente_email,
+    clienteTelefono:   original.cliente_telefono,
+    importeBase:       original.importe_base,
+    porcentajeIva:     original.porcentaje_iva,
+    formaPago:         original.forma_pago,
+    notasInternas:     original.notas_internas,
+    lineas:            original.lineas.map((l) => ({
+      nombre_partida: l.nombre_partida,
+      descripcion:    l.descripcion,
+      precio:         l.precio,
+      orden:          l.orden,
+      es_base:        l.es_base,
+    })),
+    // pass hoy/validez overrides via hidden fields (server ignores them — we handle via raw insert)
+    _fecha_emision: hoy,
+    _fecha_validez: validez,
+  };
+
+  // Use the gestionar route but we need to set version manually.
+  // Since the route always sets version=1, we patch afterwards.
+  try {
+    const resCreate = await fetch(GESTIONAR_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!resCreate.ok) {
+      console.error("[createNuevaVersionPresupuesto] POST error", resCreate.status, await resCreate.text());
+      return null;
+    }
+    const nuevo = await resCreate.json();
+    if (!nuevo?.id) return null;
+
+    // Patch version to the correct number
+    const resPatch = await fetch(GESTIONAR_API, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: nuevo.id, version: original.version + 1 }),
+    });
+    if (!resPatch.ok) {
+      console.error("[createNuevaVersionPresupuesto] PATCH version error", resPatch.status);
+    }
+    return nuevo as Presupuesto;
+  } catch (e) {
+    console.error("[createNuevaVersionPresupuesto] fetch error", e);
+    return null;
+  }
+}
+
+export async function deletePresupuesto(id: string): Promise<void> {
+  try {
+    await fetch(`${GESTIONAR_API}?id=${id}`, { method: "DELETE" });
+  } catch (e) {
+    console.error("[deletePresupuesto] fetch error", e);
+    // Fallback to direct SDK
+    await insforge.database.from("lineas_presupuesto").delete().eq("presupuesto_id", id);
+    await insforge.database.from("presupuestos").delete().eq("id", id);
+  }
+}
+
+export async function duplicarPresupuesto(id: string, tenantId: string): Promise<Presupuesto | null> {
+  const original = await getPresupuestoById(id);
+  if (!original) return null;
+
+  const nuevoNumero = await getNextNumeroPresupuesto(tenantId);
+
+  try {
+    const res = await fetch(GESTIONAR_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenantId,
+        numero:           nuevoNumero,
+        tipo:             original.tipo,
+        clienteNombre:    original.cliente_nombre,
+        clienteApellidos: original.cliente_apellidos,
+        clienteNif:       original.cliente_nif,
+        clienteDireccion: original.cliente_direccion,
+        clienteCp:        original.cliente_cp,
+        clienteCiudad:    original.cliente_ciudad,
+        clienteEmail:     original.cliente_email,
+        clienteTelefono:  original.cliente_telefono,
+        importeBase:      original.importe_base,
+        porcentajeIva:    original.porcentaje_iva,
+        formaPago:        original.forma_pago,
+        notasInternas:    original.notas_internas,
+        lineas:           original.lineas.map((l) => ({
+          nombre_partida: l.nombre_partida,
+          descripcion:    l.descripcion,
+          precio:         l.precio,
+          orden:          l.orden,
+          es_base:        l.es_base,
+        })),
+      }),
+    });
+    if (!res.ok) {
+      console.error("[duplicarPresupuesto] error", res.status, await res.text());
+      return null;
+    }
+    return await res.json();
+  } catch (e) {
+    console.error("[duplicarPresupuesto] fetch error", e);
+    return null;
+  }
+}
+
+export async function upsertLineasPresupuesto(
+  presupuestoId: string,
+  tenantId: string,
+  lineas: Omit<LineaPresupuesto, "id" | "created_at" | "tenant_id" | "presupuesto_id">[]
+): Promise<void> {
+  try {
+    const res = await fetch(GESTIONAR_API, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: presupuestoId, tenantId, lineas }),
+    });
+    if (!res.ok) {
+      console.error("[upsertLineasPresupuesto] error", res.status, await res.text());
+    }
+  } catch (e) {
+    console.error("[upsertLineasPresupuesto] fetch error", e);
+  }
+}
+
+// ── Catálogo — usa API route server-side para bypasear RLS ──────────────────
+const CATALOGO_API = "/api/presupuestos/catalogo";
+
+export async function getCatalogoPresupuesto(
+  tenantId: string,
+  tipo?: PresupuestoTipo
+): Promise<CatalogoPartida[]> {
+  const params = new URLSearchParams({ tenantId });
+  if (tipo) params.set("tipo", tipo);
+  try {
+    const res = await fetch(`${CATALOGO_API}?${params.toString()}`);
+    if (!res.ok) { console.error("[getCatalogoPresupuesto] error", res.status); return []; }
+    return await res.json();
+  } catch (e) {
+    console.error("[getCatalogoPresupuesto] fetch error", e);
+    return [];
+  }
+}
+
+export async function upsertCatalogoPartida(
+  tenantId: string,
+  params: Omit<CatalogoPartida, "id" | "tenant_id" | "created_at" | "updated_at"> & { id?: string }
+): Promise<CatalogoPartida | null> {
+  try {
+    if (params.id) {
+      const res = await fetch(CATALOGO_API, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: params.id, ...params }),
+      });
+      if (!res.ok) { console.error("[upsertCatalogoPartida] PATCH error", res.status, await res.text()); return null; }
+      return await res.json();
+    }
+    const res = await fetch(CATALOGO_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId, ...params }),
+    });
+    if (!res.ok) { console.error("[upsertCatalogoPartida] POST error", res.status, await res.text()); return null; }
+    return await res.json();
+  } catch (e) {
+    console.error("[upsertCatalogoPartida] fetch error", e);
+    return null;
+  }
+}
+
+export async function deleteCatalogoPartida(id: string): Promise<void> {
+  try {
+    await fetch(`${CATALOGO_API}?id=${id}`, { method: "DELETE" });
+  } catch (e) {
+    console.error("[deleteCatalogoPartida] error", e);
+  }
+}
+
+
+// ── Conversión presupuesto → obra ─────────────────────────────────────────────
+export async function convertirPresupuestoAObra(
+  presupuestoId: string,
+  tenantId: string,
+  userId: string,
+  nombreObra: string
+): Promise<{ obra_id: string; factura_id: string } | null> {
+  const pres = await getPresupuestoById(presupuestoId);
+  if (!pres) return null;
+
+  const clienteCompleto = [pres.cliente_nombre, pres.cliente_apellidos].filter(Boolean).join(" ");
+  const direccionCompleta = [pres.cliente_direccion, pres.cliente_cp, pres.cliente_ciudad].filter(Boolean).join(", ") || null;
+
+  const { data: obra } = await insforge.database
+    .from("obras")
+    .insert({
+      tenant_id: tenantId, nombre: nombreObra,
+      direccion: direccionCompleta,
+      cliente_nombre: clienteCompleto,
+      cliente_dni_nie_cif: pres.cliente_nif ?? null,
+      cliente_telefono: pres.cliente_telefono ?? null,
+      estado: "activa", created_by: userId,
+      fecha_inicio: new Date().toISOString().split("T")[0],
+    })
+    .select().single();
+
+  if (!obra) return null;
+  const obraId = (obra as any).id;
+
+  const nextNum = await getNextNumeroFactura(tenantId);
+  const tipoLabel: Record<string, string> = { bano: "Reforma de baño", cocina: "Reforma de cocina", otros: "Reforma integral" };
+  const concepto = `${tipoLabel[pres.tipo] ?? pres.tipo} — ${pres.numero}`;
+
+  const { factura } = await createFactura({
+    tenantId, obraId, concepto,
+    importeTotal: pres.importe_base,
+    numeroFactura: nextNum,
+    porcentajeIva: pres.porcentaje_iva,
+    fechaEmision: null, notas: null,
+    pagos: pres.forma_pago.map((fp) => ({
+      concepto: fp.concepto, porcentaje: fp.porcentaje, fechaPrevista: null,
+    })),
+  });
+
+  if (!factura) return null;
+  await updatePresupuesto(presupuestoId, { estado: "aceptado", obraId });
+  return { obra_id: obraId, factura_id: factura.id };
 }
