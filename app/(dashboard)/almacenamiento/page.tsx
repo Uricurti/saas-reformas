@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import PageHeader from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { HardDrive, RefreshCw, AlertCircle } from "lucide-react";
+import { useTenantId } from "@/lib/stores/auth-store";
 
 interface StorageStats {
   totalBytes: number;
@@ -17,18 +18,20 @@ interface StorageStats {
 }
 
 export default function AlmacenamientoPage() {
-  const [stats, setStats] = useState<StorageStats | null>(null);
+  const tenantId = useTenantId();
+  const [stats, setStats]   = useState<StorageStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]   = useState<string | null>(null);
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    if (tenantId) fetchStats();
+  }, [tenantId]);
 
   const fetchStats = async () => {
+    if (!tenantId) return;
     try {
       setLoading(true);
-      const res = await fetch("/api/admin/storage-stats");
+      const res = await fetch(`/api/admin/storage-stats?tenantId=${tenantId}`);
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
       setStats(data);
@@ -78,7 +81,9 @@ export default function AlmacenamientoPage() {
             <HardDrive className="w-5 h-5 text-blue-500" />
           </div>
           <div className="text-3xl font-bold text-gray-900">
-            {stats.totalGB > 0 ? `${stats.totalGB.toFixed(2)} GB` : `${stats.totalMB.toFixed(1)} MB`}
+            {stats.totalGB >= 0.1
+              ? `${stats.totalGB.toFixed(2)} GB`
+              : `${stats.totalMB.toFixed(1)} MB`}
           </div>
           <div className="text-xs text-gray-500 mt-2">
             {stats.totalBytes.toLocaleString()} bytes
@@ -89,7 +94,7 @@ export default function AlmacenamientoPage() {
           <div className="text-sm text-gray-600 mb-2">Archivos (fotos/vídeos)</div>
           <div className="text-3xl font-bold text-gray-900">{stats.archivosCount}</div>
           <div className="text-xs text-gray-500 mt-2">
-            📷 {stats.fotosCount} · 🎥 {stats.videosCount}
+            📷 {stats.fotosCount} fotos · 🎥 {stats.videosCount} vídeos
           </div>
         </div>
 
@@ -97,7 +102,7 @@ export default function AlmacenamientoPage() {
           <div className="text-sm text-gray-600 mb-2">Documentos</div>
           <div className="text-3xl font-bold text-gray-900">{stats.documentosCount}</div>
           <div className="text-xs text-gray-500 mt-2">
-            PDFs, planos, imágenes
+            PDFs, planos, contratos
           </div>
         </div>
       </div>
@@ -118,7 +123,7 @@ export default function AlmacenamientoPage() {
               <div
                 className="bg-blue-500 h-2 rounded-full"
                 style={{
-                  width: stats.totalMB > 0
+                  width: stats.totalBytes > 0
                     ? `${(stats.archivosBytes / stats.totalBytes) * 100}%`
                     : "0%",
                 }}
@@ -137,7 +142,7 @@ export default function AlmacenamientoPage() {
               <div
                 className="bg-green-500 h-2 rounded-full"
                 style={{
-                  width: stats.totalMB > 0
+                  width: stats.totalBytes > 0
                     ? `${(stats.documentosBytes / stats.totalBytes) * 100}%`
                     : "0%",
                 }}
@@ -147,14 +152,14 @@ export default function AlmacenamientoPage() {
         </div>
       </div>
 
-      {/* Info sobre InsForge */}
+      {/* Info */}
       <div className="card p-4 bg-blue-50 border border-blue-200">
         <h3 className="font-semibold text-gray-900 mb-2">ℹ️ Sistema de almacenamiento</h3>
         <ul className="text-sm text-gray-700 space-y-1">
-          <li>• <strong>Proveedor</strong>: InsForge (S3/R2 compatible)</li>
-          <li>• <strong>Límite de archivo</strong>: ~50 MB máximo</li>
-          <li>• <strong>Compresión</strong>: Activa en fotos (WebP) y vídeos (720p H.264)</li>
-          <li>• <strong>Escalabilidad</strong>: Sin límites de almacenamiento total</li>
+          <li>• <strong>Proveedor</strong>: InsForge (S3/R2 compatible) — sin límites predefinidos</li>
+          <li>• <strong>Compresión fotos</strong>: Automática → WebP máx. 1 MB</li>
+          <li>• <strong>Compresión vídeos</strong>: Automática → 720p H.264 (80-90% reducción)</li>
+          <li>• <strong>Escalabilidad</strong>: Crece con las necesidades, sin tope</li>
         </ul>
       </div>
 

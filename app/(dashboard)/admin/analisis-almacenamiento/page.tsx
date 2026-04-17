@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import PageHeader from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { AlertCircle, TrendingUp, BarChart3 } from "lucide-react";
 
 interface StorageAnalysis {
