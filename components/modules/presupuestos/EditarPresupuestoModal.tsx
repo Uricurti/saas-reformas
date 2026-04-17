@@ -20,7 +20,10 @@ function fmtE(n: number) {
   return n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 }
 
-type LineaLocal = Omit<LineaPresupuesto, "id" | "created_at" | "tenant_id" | "presupuesto_id">;
+type LineaLocal = Omit<LineaPresupuesto, "id" | "created_at" | "tenant_id" | "presupuesto_id"> & {
+  cantidad: number;
+  precioUnitario: number;
+};
 
 export function EditarPresupuestoModal({
   presupuestoId,
@@ -81,6 +84,8 @@ export function EditarPresupuestoModal({
         nombre_partida: l.nombre_partida,
         descripcion:    l.descripcion,
         precio:         l.precio,
+        precioUnitario: l.precio,
+        cantidad:       1,
         orden:          l.orden,
         es_base:        l.es_base,
       })));
@@ -115,13 +120,26 @@ export function EditarPresupuestoModal({
     } else {
       setLineas((prev) => [
         ...prev,
-        { nombre_partida: partida.nombre_partida, descripcion: partida.descripcion, precio: partida.precio, orden: prev.length + 1, es_base: partida.es_base },
+        { nombre_partida: partida.nombre_partida, descripcion: partida.descripcion, precio: partida.precio, precioUnitario: partida.precio, cantidad: 1, orden: prev.length + 1, es_base: partida.es_base },
       ]);
     }
   }
 
-  function actualizarPrecioLinea(nombre_partida: string, precio: number) {
-    setLineas((prev) => prev.map((l) => l.nombre_partida === nombre_partida ? { ...l, precio } : l));
+  function actualizarPrecioLinea(nombre_partida: string, nuevoPrecioUnit: number) {
+    setLineas((prev) => prev.map((l) =>
+      l.nombre_partida === nombre_partida
+        ? { ...l, precioUnitario: nuevoPrecioUnit, precio: l.cantidad * nuevoPrecioUnit }
+        : l
+    ));
+  }
+
+  function actualizarCantidadLinea(nombre_partida: string, cantidad: number) {
+    if (cantidad < 1) return;
+    setLineas((prev) => prev.map((l) =>
+      l.nombre_partida === nombre_partida
+        ? { ...l, cantidad, precio: cantidad * l.precioUnitario }
+        : l
+    ));
   }
 
   function eliminarLinea(nombre_partida: string) {
@@ -136,6 +154,8 @@ export function EditarPresupuestoModal({
       nombre_partida: nuevaLinea.nombre.trim(),
       descripcion: nuevaLinea.desc.trim() || null,
       precio,
+      precioUnitario: precio,
+      cantidad: 1,
       orden: prev.length + 1,
       es_base: nuevaLinea.es_base,
     }]);
@@ -380,9 +400,10 @@ export function EditarPresupuestoModal({
                             return (
                               <CatalogoItem
                                 key={c.id} partida={c} seleccionada={sel}
-                                precio={linea?.precio ?? c.precio}
+                                linea={linea}
                                 onToggle={() => toggleCatalogo(c)}
                                 onPrecioChange={(p) => actualizarPrecioLinea(c.nombre_partida, p)}
+                                onCantidadChange={(q) => actualizarCantidadLinea(c.nombre_partida, q)}
                               />
                             );
                           })}
@@ -399,9 +420,10 @@ export function EditarPresupuestoModal({
                             return (
                               <CatalogoItem
                                 key={c.id} partida={c} seleccionada={sel}
-                                precio={linea?.precio ?? c.precio}
+                                linea={linea}
                                 onToggle={() => toggleCatalogo(c)}
                                 onPrecioChange={(p) => actualizarPrecioLinea(c.nombre_partida, p)}
+                                onCantidadChange={(q) => actualizarCantidadLinea(c.nombre_partida, q)}
                               />
                             );
                           })}
@@ -427,9 +449,11 @@ export function EditarPresupuestoModal({
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-content-primary truncate">{l.nombre_partida}</p>
                           </div>
-                          <PrecioInline
-                            valor={l.precio}
-                            onChange={(p) => actualizarPrecioLinea(l.nombre_partida, p)}
+                          <CantidadPrecioInline
+                            cantidad={l.cantidad}
+                            precioUnitario={l.precioUnitario}
+                            onCantidadChange={(c) => actualizarCantidadLinea(l.nombre_partida, c)}
+                            onPrecioChange={(p) => actualizarPrecioLinea(l.nombre_partida, p)}
                           />
                           <button onClick={() => eliminarLinea(l.nombre_partida)} className="p-1 rounded hover:bg-danger-light hover:text-danger transition-colors">
                             <Trash2 className="w-3.5 h-3.5" />
@@ -520,13 +544,14 @@ export function EditarPresupuestoModal({
 }
 
 function CatalogoItem({
-  partida, seleccionada, precio, onToggle, onPrecioChange,
+  partida, seleccionada, linea, onToggle, onPrecioChange, onCantidadChange,
 }: {
   partida: CatalogoPartida;
   seleccionada: boolean;
-  precio: number;
+  linea?: { cantidad: number; precioUnitario: number };
   onToggle: () => void;
   onPrecioChange: (p: number) => void;
+  onCantidadChange: (c: number) => void;
 }) {
   return (
     <div
@@ -544,8 +569,13 @@ function CatalogoItem({
         <p className="text-sm font-semibold text-content-primary">{partida.nombre_partida}</p>
         {partida.descripcion && <p className="text-xs text-content-muted mt-0.5 line-clamp-2">{partida.descripcion}</p>}
       </div>
-      {seleccionada ? (
-        <PrecioInline valor={precio} onChange={onPrecioChange} />
+      {seleccionada && linea ? (
+        <CantidadPrecioInline
+          cantidad={linea.cantidad}
+          precioUnitario={linea.precioUnitario}
+          onCantidadChange={onCantidadChange}
+          onPrecioChange={onPrecioChange}
+        />
       ) : (
         <span className="text-sm font-bold text-content-secondary whitespace-nowrap">
           {fmtE(partida.precio)}
@@ -555,39 +585,58 @@ function CatalogoItem({
   );
 }
 
-function PrecioInline({ valor, onChange }: { valor: number; onChange: (p: number) => void }) {
-  const [editando, setEditando] = useState(false);
-  const [temp, setTemp] = useState(String(valor));
+function CantidadPrecioInline({
+  cantidad, precioUnitario, onCantidadChange, onPrecioChange,
+}: {
+  cantidad: number; precioUnitario: number;
+  onCantidadChange: (c: number) => void; onPrecioChange: (p: number) => void;
+}) {
+  const [editandoPrecio, setEditandoPrecio] = useState(false);
+  const [tempPrecio, setTempPrecio]         = useState(String(precioUnitario));
 
-  function confirmar() {
-    const p = parseFloat(temp.replace(",", "."));
-    if (!isNaN(p) && p >= 0) onChange(p);
-    setEditando(false);
+  function confirmarPrecio() {
+    const p = parseFloat(tempPrecio.replace(",", "."));
+    if (!isNaN(p) && p >= 0) onPrecioChange(p);
+    setEditandoPrecio(false);
   }
 
-  if (editando) {
-    return (
-      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+  const total = cantidad * precioUnitario;
+
+  return (
+    <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+      <input
+        type="number"
+        min={1}
+        value={cantidad}
+        onChange={(e) => onCantidadChange(Math.max(1, parseInt(e.target.value) || 1))}
+        className="input w-12 py-1 text-sm text-center"
+        title="Cantidad"
+      />
+      <span className="text-xs text-content-muted">×</span>
+      {editandoPrecio ? (
         <input
           className="input w-20 py-1 text-sm text-right"
           type="number"
-          value={temp}
-          onChange={(e) => setTemp(e.target.value)}
-          onBlur={confirmar}
-          onKeyDown={(e) => { if (e.key === "Enter") confirmar(); if (e.key === "Escape") setEditando(false); }}
+          value={tempPrecio}
+          onChange={(e) => setTempPrecio(e.target.value)}
+          onBlur={confirmarPrecio}
+          onKeyDown={(e) => { if (e.key === "Enter") confirmarPrecio(); if (e.key === "Escape") setEditandoPrecio(false); }}
           autoFocus
         />
-        <span className="text-xs text-content-muted">€</span>
-      </div>
-    );
-  }
-  return (
-    <button
-      onClick={(e) => { e.stopPropagation(); setTemp(String(valor)); setEditando(true); }}
-      className="text-sm font-bold text-primary hover:underline whitespace-nowrap"
-      title="Clic para editar precio"
-    >
-      {fmtE(valor)}
-    </button>
+      ) : (
+        <button
+          onClick={() => { setTempPrecio(String(precioUnitario)); setEditandoPrecio(true); }}
+          className="text-sm font-semibold text-primary hover:underline whitespace-nowrap"
+          title="Clic para editar precio unitario"
+        >
+          {fmtE(precioUnitario)}
+        </button>
+      )}
+      {cantidad > 1 && (
+        <span className="text-xs font-bold text-content-primary whitespace-nowrap">
+          = {fmtE(total)}
+        </span>
+      )}
+    </div>
   );
 }
