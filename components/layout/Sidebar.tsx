@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Building2, Calendar, ShoppingCart,
-  Calculator, Users, LogOut, Bell, TrendingUp, Settings, Pencil, LayoutDashboard, SlidersHorizontal, FileText
+  Calculator, Users, LogOut, Bell, TrendingUp, Settings, Pencil, LayoutDashboard, SlidersHorizontal, FileText, HardDrive
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore, useIsAdmin } from "@/lib/stores/auth-store";
@@ -28,6 +28,7 @@ const navItemsAdmin = [
   { href: "/jornales",   label: "Jornales",   icon: Calculator,      group: "operativa" },
   { href: "/equipo",     label: "Equipo",     icon: Users,           group: "operativa" },
   { href: "/presupuestos",   label: "Presupuestos",  icon: FileText,        group: "operativa" },
+  { href: "/almacenamiento", label: "Almacenamiento", icon: HardDrive,       group: "operativa" },
   { href: "/facturacion",    label: "Finanzas",      icon: TrendingUp,      group: "finanzas"  },
 ];
 
