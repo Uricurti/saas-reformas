@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { HardDrive, RefreshCw, AlertCircle } from "lucide-react";
+import { HardDrive, RefreshCw, Image, FileVideo, FileText, AlertCircle } from "lucide-react";
 import { useTenantId } from "@/lib/stores/auth-store";
 
 interface StorageStats {
@@ -17,20 +17,111 @@ interface StorageStats {
   documentosBytes: number;
 }
 
+const PRIMARY    = "#607eaa";
+const PRIMARY_BG = "#EEF2F8";
+const BG_APP     = "#F5F4F1";
+const BORDER     = "#EBEBEF";
+
+function StatCard({
+  icon, label, value, sub, color = PRIMARY, bgColor = PRIMARY_BG,
+}: {
+  icon: React.ReactNode; label: string; value: string; sub?: string;
+  color?: string; bgColor?: string;
+}) {
+  return (
+    <div
+      style={{
+        background: "#fff", borderRadius: 16, border: `1px solid ${BORDER}`,
+        boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)",
+        padding: "20px 24px",
+        display: "flex", alignItems: "flex-start", gap: 16,
+      }}
+    >
+      <div
+        style={{
+          width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+          background: bgColor, display: "flex", alignItems: "center",
+          justifyContent: "center", color,
+        }}
+      >
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+          {label}
+        </p>
+        <p style={{ fontSize: 26, fontWeight: 700, color: "#1A1A2E", lineHeight: 1.1 }}>
+          {value}
+        </p>
+        {sub && (
+          <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>{sub}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProgressBar({ label, bytes, totalBytes, color, icon }: {
+  label: string; bytes: number; totalBytes: number; color: string; icon: React.ReactNode;
+}) {
+  const mb  = bytes / (1024 * 1024);
+  const pct = totalBytes > 0 ? (bytes / totalBytes) * 100 : 0;
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center", color }}>
+            {icon}
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 500, color: "#1A1A2E" }}>{label}</span>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#1A1A2E" }}>
+            {mb >= 1000 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`}
+          </span>
+          <span style={{ fontSize: 12, color: "#94A3B8", marginLeft: 6 }}>
+            ({pct.toFixed(1)}%)
+          </span>
+        </div>
+      </div>
+      <div style={{ width: "100%", background: "#F0F0F4", borderRadius: 99, height: 8, overflow: "hidden" }}>
+        <div
+          style={{
+            height: "100%", borderRadius: 99, width: `${pct}%`,
+            background: `linear-gradient(90deg, ${color}CC, ${color})`,
+            transition: "width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${BORDER}` }}>
+      <span style={{ fontSize: 13, color: "#64748B" }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}>{value}</span>
+    </div>
+  );
+}
+
 export default function AlmacenamientoPage() {
   const tenantId = useTenantId();
-  const [stats, setStats]   = useState<StorageStats | null>(null);
+  const [stats,   setStats]   = useState<StorageStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState<string | null>(null);
+  const [error,   setError]   = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (tenantId) fetchStats();
   }, [tenantId]);
 
-  const fetchStats = async () => {
+  const fetchStats = async (manual = false) => {
     if (!tenantId) return;
+    if (manual) setRefreshing(true); else setLoading(true);
     try {
-      setLoading(true);
       const res = await fetch(`/api/admin/storage-stats?tenantId=${tenantId}`);
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
@@ -40,15 +131,16 @@ export default function AlmacenamientoPage() {
       setError(e?.message ?? "Error al cargar estadísticas");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div style={{ padding: 24 }}>
         <PageHeader title="Almacenamiento" />
-        <div className="flex items-center justify-center h-64">
-          <div className="text-gray-500">Cargando estadísticas...</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, color: "#94A3B8" }}>
+          Cargando estadísticas...
         </div>
       </div>
     );
@@ -56,120 +148,127 @@ export default function AlmacenamientoPage() {
 
   if (error || !stats) {
     return (
-      <div className="p-6">
+      <div style={{ padding: 24 }}>
         <PageHeader title="Almacenamiento" />
-        <div className="alert alert-error">
-          <AlertCircle className="w-5 h-5" />
-          <span>{error ?? "Error al cargar datos"}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#FEE2E2", border: "1px solid #FECACA", borderRadius: 12, padding: "12px 16px", color: "#991B1B" }}>
+          <AlertCircle size={16} />
+          <span style={{ fontSize: 14 }}>{error ?? "Error al cargar datos"}</span>
         </div>
       </div>
     );
   }
 
+  const totalLabel = stats.totalGB >= 0.1
+    ? `${stats.totalGB.toFixed(2)} GB`
+    : `${stats.totalMB.toFixed(1)} MB`;
+
   return (
-    <div className="p-6 max-w-4xl">
-      <PageHeader
-        title="Almacenamiento"
-        subtitle="Estadísticas de uso actual del sistema"
-      />
+    <div style={{ padding: "24px 28px", maxWidth: 900 }}>
 
-      {/* Cards principales */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="card">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-600">Total usado</span>
-            <HardDrive className="w-5 h-5 text-blue-500" />
-          </div>
-          <div className="text-3xl font-bold text-gray-900">
-            {stats.totalGB >= 0.1
-              ? `${stats.totalGB.toFixed(2)} GB`
-              : `${stats.totalMB.toFixed(1)} MB`}
-          </div>
-          <div className="text-xs text-gray-500 mt-2">
-            {stats.totalBytes.toLocaleString()} bytes
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="text-sm text-gray-600 mb-2">Archivos (fotos/vídeos)</div>
-          <div className="text-3xl font-bold text-gray-900">{stats.archivosCount}</div>
-          <div className="text-xs text-gray-500 mt-2">
-            📷 {stats.fotosCount} fotos · 🎥 {stats.videosCount} vídeos
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="text-sm text-gray-600 mb-2">Documentos</div>
-          <div className="text-3xl font-bold text-gray-900">{stats.documentosCount}</div>
-          <div className="text-xs text-gray-500 mt-2">
-            PDFs, planos, contratos
-          </div>
-        </div>
+      {/* Header */}
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: "#1A1A2E", margin: 0 }}>Almacenamiento</h1>
+        <p style={{ fontSize: 14, color: "#94A3B8", margin: "4px 0 0" }}>Estadísticas de uso actual del sistema</p>
       </div>
 
-      {/* Desglose */}
-      <div className="card mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Desglose por tipo</h3>
-
-        <div className="space-y-4">
-          <div>
-            <div className="flex justify-between mb-2">
-              <span className="text-gray-700">Archivos (fotos/vídeos)</span>
-              <span className="font-semibold text-gray-900">
-                {(stats.archivosBytes / (1024 * 1024)).toFixed(1)} MB
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-blue-500 h-2 rounded-full"
-                style={{
-                  width: stats.totalBytes > 0
-                    ? `${(stats.archivosBytes / stats.totalBytes) * 100}%`
-                    : "0%",
-                }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between mb-2">
-              <span className="text-gray-700">Documentos</span>
-              <span className="font-semibold text-gray-900">
-                {(stats.documentosBytes / (1024 * 1024)).toFixed(1)} MB
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-green-500 h-2 rounded-full"
-                style={{
-                  width: stats.totalBytes > 0
-                    ? `${(stats.documentosBytes / stats.totalBytes) * 100}%`
-                    : "0%",
-                }}
-              />
-            </div>
-          </div>
-        </div>
+      {/* Stat cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
+        <StatCard
+          icon={<HardDrive size={20} />}
+          label="Total usado"
+          value={totalLabel}
+          sub={`${stats.totalBytes.toLocaleString("es-ES")} bytes`}
+          color={PRIMARY}
+          bgColor={PRIMARY_BG}
+        />
+        <StatCard
+          icon={<Image size={20} />}
+          label="Fotos y vídeos"
+          value={String(stats.archivosCount)}
+          sub={`📷 ${stats.fotosCount} fotos · 🎥 ${stats.videosCount} vídeos`}
+          color="#10B981"
+          bgColor="#D1FAE5"
+        />
+        <StatCard
+          icon={<FileText size={20} />}
+          label="Documentos"
+          value={String(stats.documentosCount)}
+          sub="PDFs, planos, contratos"
+          color="#F59E0B"
+          bgColor="#FEF3C7"
+        />
       </div>
 
-      {/* Info */}
-      <div className="card p-4 bg-blue-50 border border-blue-200">
-        <h3 className="font-semibold text-gray-900 mb-2">ℹ️ Sistema de almacenamiento</h3>
-        <ul className="text-sm text-gray-700 space-y-1">
-          <li>• <strong>Proveedor</strong>: InsForge (S3/R2 compatible) — sin límites predefinidos</li>
-          <li>• <strong>Compresión fotos</strong>: Automática → WebP máx. 1 MB</li>
-          <li>• <strong>Compresión vídeos</strong>: Automática → 720p H.264 (80-90% reducción)</li>
-          <li>• <strong>Escalabilidad</strong>: Crece con las necesidades, sin tope</li>
-        </ul>
-      </div>
-
-      <button
-        onClick={fetchStats}
-        className="btn btn-secondary mt-6 flex items-center gap-2"
+      {/* Desglose visual */}
+      <div
+        style={{
+          background: "#fff", borderRadius: 16, border: `1px solid ${BORDER}`,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.06)", padding: "20px 24px", marginBottom: 20,
+        }}
       >
-        <RefreshCw className="w-4 h-4" />
-        Actualizar
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: "#1A1A2E", margin: "0 0 20px" }}>
+          Desglose por tipo
+        </h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <ProgressBar
+            label="Archivos (fotos y vídeos)"
+            bytes={stats.archivosBytes}
+            totalBytes={stats.totalBytes}
+            color={PRIMARY}
+            icon={<FileVideo size={14} />}
+          />
+          <ProgressBar
+            label="Documentos"
+            bytes={stats.documentosBytes}
+            totalBytes={stats.totalBytes}
+            color="#10B981"
+            icon={<FileText size={14} />}
+          />
+        </div>
+      </div>
+
+      {/* Info del sistema */}
+      <div
+        style={{
+          background: "#fff", borderRadius: 16, border: `1px solid ${BORDER}`,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.06)", padding: "20px 24px", marginBottom: 24,
+        }}
+      >
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: "#1A1A2E", margin: "0 0 4px" }}>
+          Sistema de almacenamiento
+        </h2>
+        <p style={{ fontSize: 12, color: "#94A3B8", margin: "0 0 16px" }}>Configuración e información del proveedor</p>
+        <div>
+          <InfoRow label="Proveedor" value="InsForge (S3/R2 compatible)" />
+          <InfoRow label="Límite por archivo" value="~50 MB" />
+          <InfoRow label="Compresión fotos" value="Automática → WebP máx. 1 MB" />
+          <InfoRow label="Compresión vídeos" value="Automática → 720p H.264 (80-90% reducción)" />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0" }}>
+            <span style={{ fontSize: 13, color: "#64748B" }}>Capacidad total</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#10B981" }}>Sin tope — escala según uso</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Botón actualizar */}
+      <button
+        onClick={() => fetchStats(true)}
+        disabled={refreshing}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 8,
+          background: "#fff", border: `1px solid ${BORDER}`,
+          borderRadius: 10, padding: "9px 18px",
+          fontSize: 13, fontWeight: 600, color: "#4A5568",
+          cursor: refreshing ? "default" : "pointer",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+          opacity: refreshing ? 0.6 : 1, transition: "all 0.15s",
+        }}
+      >
+        <RefreshCw size={14} style={{ animation: refreshing ? "spin 0.8s linear infinite" : "none" }} />
+        {refreshing ? "Actualizando..." : "Actualizar"}
       </button>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
