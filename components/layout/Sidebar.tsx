@@ -27,8 +27,8 @@ const navItemsAdmin = [
   { href: "/materiales", label: "Materiales", icon: ShoppingCart,    group: "operativa" },
   { href: "/jornales",   label: "Jornales",   icon: Calculator,      group: "operativa" },
   { href: "/equipo",     label: "Equipo",     icon: Users,           group: "operativa" },
-  { href: "/facturacion",    label: "Finanzas",      icon: TrendingUp, group: "finanzas" },
-  { href: "/presupuestos",   label: "Presupuestos",  icon: FileText,   group: "finanzas" },
+  { href: "/presupuestos",   label: "Presupuestos",  icon: FileText,        group: "operativa" },
+  { href: "/facturacion",    label: "Finanzas",      icon: TrendingUp,      group: "finanzas"  },
 ];
 
 export function Sidebar() {
