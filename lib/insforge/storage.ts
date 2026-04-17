@@ -279,28 +279,73 @@ export async function subirVideo(
   let videoFile = file;
   let compressionFailed = false;
 
-  // Comprimir siempre — H.264 720p ocupa ~10x menos que el original de iPhone.
+  // INTENTO 1: Comprimir en cliente (rápido, funciona en desktop/Android)
   // En iOS Safari (sin SharedArrayBuffer) ffmpeg no puede arrancar y lanza error.
   try {
     videoFile = await comprimirVideo(file, onProgress);
+    console.log("[storage] Compresión cliente exitosa:", file.name);
   } catch (e) {
     compressionFailed = true;
-    console.warn("[storage] Compresión de vídeo falló, intentando subir original:", file.name, e);
-    videoFile = file;
+    console.warn("[storage] Compresión cliente falló, intentando servidor:", file.name, e);
   }
 
-  // Si la compresión falló (típicamente iOS), verificar que el archivo no supere
-  // el límite del bucket ANTES de intentar la subida para evitar el error 400 de S3.
+  // Si la compresión en cliente falló, intentar con servidor como fallback
   if (compressionFailed) {
     const mb = videoFile.size / (1024 * 1024);
+
+    // Si el vídeo ya supera 50MB sin comprimir, ir directo a servidor
+    if (mb > 50) {
+      onProgress?.("Comprimiendo en servidor…", 50);
+      console.log(`[storage] Vídeo ${mb.toFixed(1)} MB > 50MB, usando compresión servidor`);
+
+      try {
+        const form = new FormData();
+        form.append("video", file);
+        form.append("tenantId", tenantId);
+        form.append("obraId", obraId);
+        form.append("userId", userId);
+
+        const res = await fetch("/api/media/compress-and-upload", {
+          method: "POST",
+          body: form,
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.error ?? `Error ${res.status}`);
+        }
+
+        const result = await res.json();
+        onProgress?.("Finalizado…", 100);
+        return {
+          url: result.url,
+          error: null,
+          tamano: result.tamano,
+        };
+      } catch (serverError: any) {
+        const errorMsg = serverError?.message ?? "Error en compresión servidor";
+        console.error("[storage] Compresión servidor falló:", errorMsg);
+        return {
+          url: null,
+          error: `Compresión fallida: ${errorMsg}. Intenta con un vídeo más corto o baja la resolución.`,
+          tamano: 0,
+        };
+      }
+    }
+
+    // Si está entre 40-50MB sin comprimir, ofrecer opción clara
     if (mb > MAX_VIDEO_SIN_COMPRESION_MB) {
       const mbRedondeado = Math.round(mb);
       return {
         url: null,
-        error: `El vídeo pesa ${mbRedondeado} MB y no se puede comprimir en este dispositivo (iPhone/iPad). Graba un clip más corto o baja la calidad en Ajustes → Cámara → Grabar vídeo (máx. ${MAX_VIDEO_SIN_COMPRESION_MB} MB sin comprimir).`,
+        error: `El vídeo pesa ${mbRedondeado} MB sin poder comprimirse en tu dispositivo. Opciones:\n1. Graba un clip más corto\n2. Baja la calidad en Ajustes → Cámara → Grabar vídeo\n3. Usa otro dispositivo (Android, desktop)`,
         tamano: 0,
       };
     }
+
+    // Si está entre 30-40MB sin comprimir, intentar subir como está (riesgo calculado)
+    console.warn(`[storage] Subiendo vídeo sin comprimir (${mb.toFixed(1)} MB):`, file.name);
+    videoFile = file;
   }
 
   onProgress?.("Subiendo vídeo…", 98);
