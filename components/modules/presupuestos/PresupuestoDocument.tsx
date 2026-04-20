@@ -61,7 +61,7 @@ export function PresupuestoDocument({
           {/* Logo horizontal */}
           <div style={{ marginBottom: 10 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo/4.svg" alt="ReforLife" style={{ height: 44, width: "auto", display: "block" }} />
+            <img src="/logo/4.svg" alt="ReforLife" style={{ height: 44, width: 132, display: "block", objectFit: "contain", objectPosition: "left center" }} />
           </div>
           {config?.empresa_cif && (
             <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 2 }}>
@@ -281,7 +281,7 @@ export function PresupuestoDocument({
         </div>
         <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 20 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo/4.svg" alt="ReforLife" style={{ height: 26, width: "auto", display: "inline-block" }} />
+          <img src="/logo/4.svg" alt="ReforLife" style={{ height: 26, width: 78, display: "block", objectFit: "contain", objectPosition: "right center" }} />
         </div>
       </div>
     </div>
