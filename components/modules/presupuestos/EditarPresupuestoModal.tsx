@@ -224,7 +224,7 @@ export function EditarPresupuestoModal({
     const nuevaTipo: "bano" | "cocina" | "otros" =
       banoCount <= cocinaCount ? "bano" : cocinaCount === 0 ? "cocina" : "otros";
     const nuevoNombre =
-      nuevaTipo === "bano"   ? `Baño ${banoCount + 1}`
+      nuevaTipo === "bano"   ? (banoCount === 0 ? "Baño" : `Baño ${banoCount + 1}`)
       : nuevaTipo === "cocina" ? (cocinaCount === 0 ? "Cocina" : `Cocina ${cocinaCount + 1}`)
       : "Otros";
     setSecciones((prev) => [...prev, {
@@ -246,10 +246,19 @@ export function EditarPresupuestoModal({
     setSecciones((prev) => prev.map((s) => s.localId === localId ? { ...s, ...patch } : s));
   }
 
+  const SECCION_NOMBRE_LABEL: Record<string, string> = { bano: "Baño", cocina: "Cocina", otros: "Otros" };
+
   function cambiarTipoSeccion(localId: string, nuevoTipo: "bano" | "cocina" | "otros") {
-    setSecciones((prev) => prev.map((s) =>
-      s.localId === localId ? { ...s, tipo: nuevoTipo, lineas: [], expandCatalogo: true } : s
-    ));
+    setSecciones((prev) => {
+      // Count how many OTHER sections already have this tipo
+      const existentes = prev.filter((s) => s.localId !== localId && s.tipo === nuevoTipo).length;
+      const nuevoNombre = existentes === 0
+        ? SECCION_NOMBRE_LABEL[nuevoTipo]
+        : `${SECCION_NOMBRE_LABEL[nuevoTipo]} ${existentes + 1}`;
+      return prev.map((s) =>
+        s.localId === localId ? { ...s, tipo: nuevoTipo, nombre: nuevoNombre, lineas: [], expandCatalogo: true } : s
+      );
+    });
     cargarCatalogoTipo(nuevoTipo);
   }
 

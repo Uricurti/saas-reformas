@@ -189,20 +189,24 @@ export function PresupuestoDocument({
           /* ── Vista MULTI-SECCIÓN ── */
           <>
             {secciones.map((sec, secIdx) => {
-              const subtotal = sec.lineas.reduce((s, l) => s + l.precio, 0);
+              const subtotal    = sec.lineas.reduce((s, l) => s + l.precio, 0);
               const accentColor = SECCION_COLOR[sec.tipo] ?? PRIMARY;
-              const isLast = secIdx === secciones.length - 1;
+              const isLast      = secIdx === secciones.length - 1;
               return (
-                <div key={secIdx} style={{ pageBreakInside: "avoid" }}>
-                  {/* Header de sección */}
+                // SIN pageBreakInside:avoid en el wrapper → evita páginas en blanco
+                // cuando la sección es más larga que una página
+                <div key={secIdx}>
+                  {/* Header de sección — breakAfter avoid: el header no queda solo al final de página */}
                   <div style={{
                     display: "flex", justifyContent: "space-between", alignItems: "center",
-                    padding: "8px 14px",
+                    padding: "9px 14px",
                     background: `${accentColor}14`,
                     borderLeft: `3px solid ${accentColor}`,
                     borderBottom: `1px solid ${accentColor}30`,
+                    breakAfter: "avoid",
+                    pageBreakAfter: "avoid",
                   }}>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: "0.08em" }}>
                       {sec.nombre}
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: TEXT_MID }}>
@@ -210,12 +214,14 @@ export function PresupuestoDocument({
                     </div>
                   </div>
 
-                  {/* Partidas de la sección */}
+                  {/* Partidas — pageBreakInside:avoid solo en cada fila individual */}
                   {sec.lineas.map((l, i) => (
                     <div key={l.id ?? i} style={{
                       display: "flex", alignItems: "flex-start", padding: "11px 14px",
                       background: i % 2 === 0 ? "#ffffff" : "#f9fafb",
                       borderBottom: "1px solid #f0f0f5",
+                      pageBreakInside: "avoid",
+                      breakInside: "avoid",
                     }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK }}>{l.nombre_partida}</div>
@@ -229,9 +235,9 @@ export function PresupuestoDocument({
                     </div>
                   ))}
 
-                  {/* Separador entre secciones (no en la última) */}
+                  {/* Separador entre secciones */}
                   {!isLast && (
-                    <div style={{ height: 1, background: "#e5e7eb", margin: "4px 0" }} />
+                    <div style={{ height: 2, background: "#e5e7eb", margin: "6px 0" }} />
                   )}
                 </div>
               );
