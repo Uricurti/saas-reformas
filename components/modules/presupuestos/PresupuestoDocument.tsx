@@ -17,6 +17,20 @@ const TIPO_LABEL: Record<string, string> = {
   bano: "Reforma de baño",
   cocina: "Reforma de cocina",
   otros: "Reforma integral",
+  mixto: "Reforma completa",
+};
+
+/** Parsea "bano:Baño 1" → { tipo: "bano", nombre: "Baño 1" } */
+function parseSeccion(seccion: string): { tipo: string; nombre: string } {
+  const colonIdx = seccion.indexOf(":");
+  if (colonIdx === -1) return { tipo: "otros", nombre: seccion };
+  return { tipo: seccion.substring(0, colonIdx), nombre: seccion.substring(colonIdx + 1) };
+}
+
+const SECCION_COLOR: Record<string, string> = {
+  bano:   "#607eaa",
+  cocina: "#EA580C",
+  otros:  "#4B5563",
 };
 
 const PRIMARY   = "#607eaa";
@@ -37,6 +51,29 @@ export function PresupuestoDocument({
   presupuesto: PresupuestoConLineas;
   config: TenantConfig | null;
 }) {
+  // ── Determinar si es multi-sección ──────────────────────────────
+  const tieneSecciones = presupuesto.lineas.some((l) => l.seccion);
+
+  // Agrupar líneas por sección
+  const secciones: { nombre: string; tipo: string; lineas: typeof presupuesto.lineas }[] = [];
+  if (tieneSecciones) {
+    const ordenSecciones: string[] = [];
+    const mapaLineas: Record<string, typeof presupuesto.lineas> = {};
+    for (const l of presupuesto.lineas) {
+      const key = l.seccion ?? "__sin_seccion__";
+      if (!mapaLineas[key]) { mapaLineas[key] = []; ordenSecciones.push(key); }
+      mapaLineas[key].push(l);
+    }
+    for (const key of ordenSecciones) {
+      if (key === "__sin_seccion__") {
+        secciones.push({ nombre: "Otras partidas", tipo: "otros", lineas: mapaLineas[key] });
+      } else {
+        const { tipo, nombre } = parseSeccion(key);
+        secciones.push({ nombre, tipo, lineas: mapaLineas[key] });
+      }
+    }
+  }
+
   const lineasBase  = presupuesto.lineas.filter((l) => l.es_base);
   const lineasExtra = presupuesto.lineas.filter((l) => !l.es_base);
 
@@ -56,9 +93,7 @@ export function PresupuestoDocument({
     >
       {/* ══ CABECERA ═══════════════════════════════════════════════ */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32, pageBreakInside: "avoid", breakInside: "avoid" }}>
-        {/* Empresa */}
         <div style={{ maxWidth: 320 }}>
-          {/* Logo horizontal */}
           <div style={{ marginBottom: 10 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo/4.svg" alt="ReforLife" style={{ height: 44, width: 132, display: "block", objectFit: "contain", objectPosition: "left center" }} />
@@ -73,7 +108,6 @@ export function PresupuestoDocument({
           {config?.empresa_email && <div style={{ fontSize: 12, color: TEXT_SOFT }}>{config.empresa_email}</div>}
         </div>
 
-        {/* Número presupuesto */}
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: TEXT_FAINT, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>
             Presupuesto
@@ -132,7 +166,9 @@ export function PresupuestoDocument({
             {TIPO_LABEL[presupuesto.tipo] ?? presupuesto.tipo}
           </div>
           <div style={{ fontSize: 12, color: TEXT_SOFT, marginTop: 6 }}>
-            {presupuesto.lineas.length} partida{presupuesto.lineas.length !== 1 ? "s" : ""} incluida{presupuesto.lineas.length !== 1 ? "s" : ""}
+            {tieneSecciones
+              ? `${secciones.length} sección${secciones.length !== 1 ? "es" : ""} · ${presupuesto.lineas.length} partidas`
+              : `${presupuesto.lineas.length} partida${presupuesto.lineas.length !== 1 ? "s" : ""} incluida${presupuesto.lineas.length !== 1 ? "s" : ""}`}
           </div>
         </div>
       </div>
@@ -149,37 +185,62 @@ export function PresupuestoDocument({
           </div>
         </div>
 
-        {/* Partidas base */}
-        {lineasBase.map((l, i) => (
-          <div key={l.id ?? i} style={{
-            display: "flex", alignItems: "flex-start", padding: "12px 14px",
-            background: i % 2 === 0 ? "#ffffff" : "#f9fafb",
-            borderBottom: "1px solid #f0f0f5",
-            pageBreakInside: "avoid",
-          }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK }}>{l.nombre_partida}</div>
-              {l.descripcion && (
-                <div style={{ fontSize: 11, color: TEXT_SOFT, marginTop: 2, lineHeight: 1.5 }}>{l.descripcion}</div>
-              )}
-            </div>
-            <div style={{ width: 120, fontSize: 14, fontWeight: 700, color: TEXT_DARK, textAlign: "right", paddingTop: 1 }}>
-              {fmtE(l.precio)}
-            </div>
-          </div>
-        ))}
-
-        {/* Separador extras */}
-        {lineasExtra.length > 0 && (
+        {tieneSecciones ? (
+          /* ── Vista MULTI-SECCIÓN ── */
           <>
-            {lineasBase.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", padding: "8px 14px", background: BG_LIGHT }}>
-                <div style={{ flex: 1, fontSize: 10, fontWeight: 700, color: PRIMARY, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                  Extras y opcionales
+            {secciones.map((sec, secIdx) => {
+              const subtotal = sec.lineas.reduce((s, l) => s + l.precio, 0);
+              const accentColor = SECCION_COLOR[sec.tipo] ?? PRIMARY;
+              const isLast = secIdx === secciones.length - 1;
+              return (
+                <div key={secIdx} style={{ pageBreakInside: "avoid" }}>
+                  {/* Header de sección */}
+                  <div style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "8px 14px",
+                    background: `${accentColor}14`,
+                    borderLeft: `3px solid ${accentColor}`,
+                    borderBottom: `1px solid ${accentColor}30`,
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      {sec.nombre}
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: TEXT_MID }}>
+                      Subtotal: {fmtE(subtotal)}
+                    </div>
+                  </div>
+
+                  {/* Partidas de la sección */}
+                  {sec.lineas.map((l, i) => (
+                    <div key={l.id ?? i} style={{
+                      display: "flex", alignItems: "flex-start", padding: "11px 14px",
+                      background: i % 2 === 0 ? "#ffffff" : "#f9fafb",
+                      borderBottom: "1px solid #f0f0f5",
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK }}>{l.nombre_partida}</div>
+                        {l.descripcion && (
+                          <div style={{ fontSize: 11, color: TEXT_SOFT, marginTop: 2, lineHeight: 1.5 }}>{l.descripcion}</div>
+                        )}
+                      </div>
+                      <div style={{ width: 120, fontSize: 14, fontWeight: 700, color: TEXT_DARK, textAlign: "right", paddingTop: 1 }}>
+                        {fmtE(l.precio)}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Separador entre secciones (no en la última) */}
+                  {!isLast && (
+                    <div style={{ height: 1, background: "#e5e7eb", margin: "4px 0" }} />
+                  )}
                 </div>
-              </div>
-            )}
-            {lineasExtra.map((l, i) => (
+              );
+            })}
+          </>
+        ) : (
+          /* ── Vista SINGLE (comportamiento original) ── */
+          <>
+            {lineasBase.map((l, i) => (
               <div key={l.id ?? i} style={{
                 display: "flex", alignItems: "flex-start", padding: "12px 14px",
                 background: i % 2 === 0 ? "#ffffff" : "#f9fafb",
@@ -197,6 +258,36 @@ export function PresupuestoDocument({
                 </div>
               </div>
             ))}
+
+            {lineasExtra.length > 0 && (
+              <>
+                {lineasBase.length > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", padding: "8px 14px", background: BG_LIGHT }}>
+                    <div style={{ flex: 1, fontSize: 10, fontWeight: 700, color: PRIMARY, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                      Extras y opcionales
+                    </div>
+                  </div>
+                )}
+                {lineasExtra.map((l, i) => (
+                  <div key={l.id ?? i} style={{
+                    display: "flex", alignItems: "flex-start", padding: "12px 14px",
+                    background: i % 2 === 0 ? "#ffffff" : "#f9fafb",
+                    borderBottom: "1px solid #f0f0f5",
+                    pageBreakInside: "avoid",
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK }}>{l.nombre_partida}</div>
+                      {l.descripcion && (
+                        <div style={{ fontSize: 11, color: TEXT_SOFT, marginTop: 2, lineHeight: 1.5 }}>{l.descripcion}</div>
+                      )}
+                    </div>
+                    <div style={{ width: 120, fontSize: 14, fontWeight: 700, color: TEXT_DARK, textAlign: "right", paddingTop: 1 }}>
+                      {fmtE(l.precio)}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </>
         )}
 
@@ -205,7 +296,18 @@ export function PresupuestoDocument({
 
       {/* ══ TOTALES ════════════════════════════════════════════════ */}
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 28, pageBreakInside: "avoid" }}>
-        <div style={{ width: 300 }}>
+        <div style={{ width: 340 }}>
+          {/* Subtotales por sección (solo si hay secciones) */}
+          {tieneSecciones && secciones.map((sec, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid #f0f0f5" }}>
+              <span style={{ fontSize: 12, color: TEXT_SOFT }}>{sec.nombre}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>
+                {fmtE(sec.lineas.reduce((s, l) => s + l.precio, 0))}
+              </span>
+            </div>
+          ))}
+          {tieneSecciones && <div style={{ height: 8 }} />}
+
           <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #e5e7eb" }}>
             <span style={{ fontSize: 13, color: TEXT_SOFT }}>Base imponible</span>
             <span style={{ fontSize: 13, fontWeight: 600, color: TEXT_MID }}>{fmtE(presupuesto.importe_base)}</span>

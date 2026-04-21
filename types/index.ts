@@ -365,7 +365,7 @@ export interface FichajePendiente {
 
 // ─── Presupuestos ────────────────────────────────────────────────────────────
 export type PresupuestoEstado = "borrador" | "enviado" | "aceptado" | "rechazado";
-export type PresupuestoTipo = "bano" | "cocina" | "otros";
+export type PresupuestoTipo = "bano" | "cocina" | "otros" | "mixto";
 
 export interface Presupuesto {
   id: string; tenant_id: string; numero: string; version: number;
@@ -385,7 +385,9 @@ export interface Presupuesto {
 export interface LineaPresupuesto {
   id: string; tenant_id: string; presupuesto_id: string;
   nombre_partida: string; descripcion: string | null;
-  precio: number; orden: number; es_base: boolean; created_at: string;
+  precio: number; orden: number; es_base: boolean;
+  seccion: string | null;
+  created_at: string;
 }
 
 export interface PresupuestoConLineas extends Presupuesto {

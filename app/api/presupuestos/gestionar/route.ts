@@ -173,8 +173,9 @@ export async function POST(req: NextRequest) {
       nombre_partida: l.nombre_partida,
       descripcion:    l.descripcion ?? null,
       precio:         l.precio,
-      orden:          i + 1,
+      orden:          l.orden ?? i + 1,
       es_base:        l.es_base,
+      seccion:        l.seccion ?? null,
     }));
 
     const { error: lineasError } = await insforgeAdmin(
@@ -290,8 +291,9 @@ export async function PATCH(req: NextRequest) {
         nombre_partida: l.nombre_partida,
         descripcion:    l.descripcion ?? null,
         precio:         l.precio,
-        orden:          i + 1,
+        orden:          l.orden ?? i + 1,
         es_base:        l.es_base,
+        seccion:        l.seccion ?? null,
       }));
 
       await insforgeAdmin(

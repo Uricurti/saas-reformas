@@ -23,6 +23,7 @@ const TIPO_LABEL: Record<string, string> = {
   bano: "Baño",
   cocina: "Cocina",
   otros: "Otros",
+  mixto: "Reforma completa",
 };
 
 function fmtDate(d: string | null) {
@@ -75,7 +76,7 @@ export function PresupuestoCard({
       <div className="flex items-start gap-3">
         {/* Icono tipo */}
         <div className="w-10 h-10 rounded-xl bg-primary-light flex items-center justify-center flex-shrink-0 text-lg">
-          {presupuesto.tipo === "bano" ? "🛁" : presupuesto.tipo === "cocina" ? "🍳" : "🏗️"}
+          {presupuesto.tipo === "bano" ? "🛁" : presupuesto.tipo === "cocina" ? "🍳" : presupuesto.tipo === "mixto" ? "🏠" : "🏗️"}
         </div>
 
         <div className="flex-1 min-w-0">
