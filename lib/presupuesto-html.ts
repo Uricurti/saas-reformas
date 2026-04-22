@@ -105,10 +105,18 @@ function filaPartida(l: Linea, i: number): string {
 }
 
 // ── Función principal ─────────────────────────────────────────────────────────
+/**
+ * Padding extra (px) inyectado antes de cada separador entre secciones.
+ * Clave: índice del separador (0 = antes de la sección 1, 1 = antes de la 2, etc.)
+ * Calculado en la doble-pasada de Puppeteer para distribuir espacios en blanco.
+ */
+export type PaddingOverrides = Record<number, number>;
+
 export function buildPresupuestoHtml(
   presupuesto: Presupuesto,
   config: Config | null,
   logoDataUrl: string,
+  paddingOverrides: PaddingOverrides = {},
 ): string {
   const lineas         = presupuesto.lineas ?? [];
   const tieneSecciones = lineas.some((l) => l.seccion);
@@ -201,19 +209,38 @@ export function buildPresupuestoHtml(
       const subtotal    = sec.lineas.reduce((s, l) => s + l.precio, 0);
       const accentColor = SECCION_COLOR[sec.tipo] ?? PRIMARY;
       const isLast      = secIdx === secciones.length - 1;
+      const header      = `
+        <div style="display:flex;justify-content:space-between;align-items:center;
+          padding:9px 14px;background:${accentColor}22;
+          border-left:3px solid ${accentColor};
+          border-bottom:1px solid ${accentColor}44;">
+          <div style="font-size:11px;font-weight:800;color:${accentColor};text-transform:uppercase;letter-spacing:0.08em;">${esc(sec.nombre)}</div>
+          <div style="font-size:12px;font-weight:700;color:${TEXT_MID};">Subtotal: ${fmtE(subtotal)}</div>
+        </div>`;
+
+      // Secciones cortas (≤4 filas): evitar que se partan entre páginas
+      if (sec.lineas.length <= 4) {
+        return `
+          <div style="break-inside:avoid;page-break-inside:avoid;">
+            ${header}
+            ${sec.lineas.map((l, i) => filaPartida(l, i)).join("")}
+          </div>
+          ${!isLast ? `<div data-sep-idx="${secIdx}" style="height:2px;background:#e5e7eb;margin-top:${6 + (paddingOverrides[secIdx] ?? 0)}px;margin-bottom:6px;"></div>` : ""}`;
+      }
+
+      // Secciones largas: agrupar header + primeras 2 filas para que el
+      // header nunca quede solo o con solo 1 fila al final de una página
+      const filasPrimeras = sec.lineas.slice(0, 2).map((l, i) => filaPartida(l, i)).join("");
+      const filasResto    = sec.lineas.slice(2).map((l, i) => filaPartida(l, i + 2)).join("");
       return `
         <div>
-          <div style="display:flex;justify-content:space-between;align-items:center;
-            padding:9px 14px;background:${accentColor}22;
-            border-left:3px solid ${accentColor};
-            border-bottom:1px solid ${accentColor}44;
-            break-after:avoid;page-break-after:avoid;">
-            <div style="font-size:11px;font-weight:800;color:${accentColor};text-transform:uppercase;letter-spacing:0.08em;">${esc(sec.nombre)}</div>
-            <div style="font-size:12px;font-weight:700;color:${TEXT_MID};">Subtotal: ${fmtE(subtotal)}</div>
+          <div style="break-inside:avoid;page-break-inside:avoid;">
+            ${header}
+            ${filasPrimeras}
           </div>
-          ${sec.lineas.map((l, i) => filaPartida(l, i)).join("")}
-          ${!isLast ? `<div style="height:2px;background:#e5e7eb;margin:6px 0;"></div>` : ""}
-        </div>`;
+          ${filasResto}
+        </div>
+        ${!isLast ? `<div data-sep-idx="${secIdx}" style="height:2px;background:#e5e7eb;margin-top:${6 + (paddingOverrides[secIdx] ?? 0)}px;margin-bottom:6px;"></div>` : ""}`;
     }).join("");
   } else {
     tablaPartidas = lineasBase.map((l, i) => filaPartida(l, i)).join("");
@@ -268,18 +295,24 @@ export function buildPresupuestoHtml(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+      font-family: system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif !important;
       -webkit-font-smoothing: antialiased;
     }
     body { background: #ffffff; }
+
+    /*
+     * @page controla los márgenes de impresión de Chrome.
+     * Primera página: sin margen superior (el contenedor ya tiene 52px de padding).
+     * Páginas 2 en adelante: 14mm arriba para que el contenido no quede pegado al borde.
+     */
+    @page          { margin: 14mm 0 10mm 0; }
+    @page :first   { margin-top: 0; margin-bottom: 10mm; }
+
     @media print {
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
