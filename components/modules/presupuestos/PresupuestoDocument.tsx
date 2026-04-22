@@ -1,5 +1,3 @@
-"use client";
-
 import type { PresupuestoConLineas } from "@/types";
 import type { TenantConfig } from "@/lib/insforge/database";
 import { format } from "date-fns";

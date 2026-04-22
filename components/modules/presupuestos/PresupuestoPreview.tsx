@@ -7,6 +7,9 @@ import type { PresupuestoConLineas } from "@/types";
 import { X, Download, Settings, Loader2 } from "lucide-react";
 import { PresupuestoDocument } from "./PresupuestoDocument";
 
+// PresupuestoDocument ya no lleva "use client" — es un componente de servidor puro.
+// Se puede renderizar tanto en cliente (para la preview) como en servidor (para el PDF).
+
 export function PresupuestoPreview({
   presupuesto,
   tenantId,
@@ -39,79 +42,27 @@ export function PresupuestoPreview({
     getTenantConfig(tenantId).then((c) => { setConfig(c); setLoadingConfig(false); });
   }, [tenantId]);
 
-  /** Convierte una URL de SVG a PNG base64 usando un canvas temporal.
-   *  html2canvas no renderiza SVGs correctamente (los gira/recorta).
-   */
-  async function svgToPngDataUrl(svgUrl: string, w = 360, h = 120): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width  = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) { reject(new Error("no ctx")); return; }
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/png"));
-      };
-      img.onerror = () => reject(new Error("svg load failed"));
-      img.src = svgUrl;
-    });
-  }
-
   async function handleDownload() {
-    const element = document.getElementById("presupuesto-doc");
-    if (!element) return;
     setDownloading(true);
     try {
-      // ── Paso 1: convertir todos los <img src="*.svg"> a PNG base64 ──────────
-      // html2canvas/html2pdf tiene un bug conocido que rota o recorta SVGs.
-      const svgImgs = Array.from(
-        element.querySelectorAll("img")
-      ).filter((img) => (img as HTMLImageElement).src.endsWith(".svg")) as HTMLImageElement[];
+      // El PDF lo genera Puppeteer en el servidor — renderizado perfecto con Chrome real.
+      const res = await fetch(
+        `/api/presupuestos/pdf?id=${presupuesto.id}&tenantId=${tenantId}`
+      );
+      if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
 
-      const origSrcs = svgImgs.map((img) => img.getAttribute("src") ?? img.src);
-
-      try {
-        const pngUrl = await svgToPngDataUrl("/logo/4.svg", 360, 120);
-        svgImgs.forEach((img) => {
-          img.src = pngUrl;
-          // Forzar dimensiones explícitas para que html2canvas las respete
-          img.style.width  = img.style.width  || "auto";
-          img.style.height = img.style.height || "auto";
-        });
-        // Dar tiempo al navegador a aplicar el cambio de src
-        await new Promise((r) => setTimeout(r, 80));
-      } catch (_) {
-        // Si falla la conversión, continuamos con el SVG original
-      }
-
-      // ── Paso 2: generar PDF ───────────────────────────────────────────────
-      const html2pdf = (await import("html2pdf.js" as any)).default;
-      await html2pdf()
-        .set({
-          margin: 0,
-          filename: `Presupuesto-${docTitle}.pdf`,
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: {
-            scale: 2,
-            useCORS: true,
-            allowTaint: false,
-            logging: false,
-            backgroundColor: "#ffffff",
-            imageTimeout: 15000,
-          },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait", compress: true },
-          pagebreak: { mode: ["css", "legacy"], avoid: [".no-page-break"] },
-        })
-        .from(element)
-        .save();
-
-      // ── Paso 3: restaurar src originales ─────────────────────────────────
-      svgImgs.forEach((img, i) => { img.src = origSrcs[i]; });
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `Presupuesto-${docTitle}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (err) {
-      console.error("Error generando PDF presupuesto:", err);
+      console.error("Error descargando PDF:", err);
+      alert("No se pudo generar el PDF. Inténtalo de nuevo.");
     } finally {
       setDownloading(false);
     }

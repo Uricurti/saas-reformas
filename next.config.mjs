@@ -3,6 +3,10 @@ const nextConfig = {
   // InsForge SDK y su dependencia son pure-ESM — Next.js necesita transpilarlos
   transpilePackages: ["@insforge/sdk", "@insforge/shared-schemas"],
 
+  // Puppeteer y Chromium son módulos nativos con binarios grandes.
+  // Hay que excluirlos del bundle de webpack para que se carguen en runtime.
+  serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium-min"],
+
   // Aumentar el límite de body para el proxy de upload de vídeos (hasta 512 MB)
   experimental: {
     serverActions: {
