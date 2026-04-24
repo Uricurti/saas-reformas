@@ -230,7 +230,22 @@ export async function PATCH(req: NextRequest) {
 
   if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
 
+  const hoyEdicion   = new Date().toISOString().split("T")[0];
+  const validezEdicion = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+  // Al editar un presupuesto, la fecha de emisión se actualiza a hoy
+  // y la validez se recalcula como hoy + 30 días.
+  // Excepción: si solo se cambia el estado (ej. enviado → aceptado),
+  // no se renueva la fecha. Se detecta porque solo llega el campo `estado`.
+  const esSoloCambioEstado = params.estado !== undefined &&
+    Object.keys(params).filter(k => k !== "estado" && k !== "tenantId").length === 0;
+
   const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+
+  if (!esSoloCambioEstado) {
+    updates.fecha_emision = hoyEdicion;
+    updates.fecha_validez = validezEdicion;
+  }
 
   if (params.numero          !== undefined) updates.numero             = params.numero;
   if (params.version         !== undefined) updates.version            = params.version;
