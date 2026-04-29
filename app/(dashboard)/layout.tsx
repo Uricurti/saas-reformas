@@ -25,6 +25,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!user?.id) return;
     if (typeof window === "undefined") return;
+    if (!("Notification" in window)) return; // algunos navegadores no soportan Notification API
 
     // Si ya tiene permiso concedido, solo inicializar y vincular sin mostrar modal
     if (Notification.permission === "granted") {
