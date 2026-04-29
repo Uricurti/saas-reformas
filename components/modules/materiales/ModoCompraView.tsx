@@ -13,24 +13,25 @@ interface Props {
 }
 
 export function ModoCompraView({ tenantId: _tenantId, materiales, onFinalizar, onCancelar }: Props) {
-  const [marcados, setMarcados] = useState<Set<string>>(new Set());
+  const [marcados, setMarcados] = useState<string[]>([]);
   const [mostrarCompletados, setMostrarCompletados] = useState(false);
 
-  const pendientes  = materiales.filter((m) => !marcados.has(m.id));
-  const completados = materiales.filter((m) =>  marcados.has(m.id));
+  const pendientes  = materiales.filter((m) => !marcados.includes(m.id));
+  const completados = materiales.filter((m) =>  marcados.includes(m.id));
 
   function handleToggle(m: MaterialConDetalles) {
     setMarcados((prev) => {
-      const next = new Set(prev);
-      if (next.has(m.id)) next.delete(m.id);
-      else next.add(m.id);
-      return next;
+      if (prev.includes(m.id)) {
+        return prev.filter((id) => id !== m.id);
+      } else {
+        return [...prev, m.id];
+      }
     });
   }
 
   function handleFinalizar() {
-    if (marcados.size === 0) { onCancelar(); return; }
-    onFinalizar(Array.from(marcados));
+    if (marcados.length === 0) { onCancelar(); return; }
+    onFinalizar(marcados);
   }
 
   // Agrupar pendientes por obra
@@ -51,7 +52,7 @@ export function ModoCompraView({ tenantId: _tenantId, materiales, onFinalizar, o
           <div>
             <p className="font-bold text-base">Modo Compra</p>
             <p className="text-xs text-white/70">
-              {marcados.size}/{materiales.length} marcado{marcados.size !== 1 ? "s" : ""}
+              {marcados.length}/{materiales.length} marcado{marcados.length !== 1 ? "s" : ""}
             </p>
           </div>
         </div>
@@ -122,8 +123,8 @@ export function ModoCompraView({ tenantId: _tenantId, materiales, onFinalizar, o
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-border p-4 pb-safe">
         <button onClick={handleFinalizar} className="btn-primary w-full justify-center py-4 text-base">
           <Check className="w-5 h-5" />
-          {marcados.size > 0
-            ? `Finalizar — ${marcados.size} ítem${marcados.size !== 1 ? "s" : ""} comprado${marcados.size !== 1 ? "s" : ""}`
+          {marcados.length > 0
+            ? `Finalizar — ${marcados.length} ítem${marcados.length !== 1 ? "s" : ""} comprado${marcados.length !== 1 ? "s" : ""}`
             : "Salir del modo compra"}
         </button>
       </div>
