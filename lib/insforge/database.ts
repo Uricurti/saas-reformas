@@ -597,7 +597,9 @@ export async function getJornadasByTenantMes(
   tenantId: string, anio: number, mes: number
 ) {
   const inicio = `${anio}-${String(mes).padStart(2, "0")}-01`;
-  const fin = new Date(anio, mes, 0).toISOString().split("T")[0];
+  // Usamos getDate() para obtener el último día en hora LOCAL (evita bug UTC: toISOString() en UTC+2 devolvería el día anterior)
+  const lastDay = new Date(anio, mes, 0).getDate();
+  const fin = `${anio}-${String(mes).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
   return insforge.database
     .from("jornadas")
     .select("*")
