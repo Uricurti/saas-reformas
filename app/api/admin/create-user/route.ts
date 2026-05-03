@@ -45,7 +45,9 @@ async function insforgeAdmin(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { nombre, email, password, rol, tenant_id, tarifa_diaria } = body;
+    const { nombre, password, rol, tenant_id, tarifa_diaria } = body;
+    // Normalizar email a minúsculas para evitar problemas de case-sensitivity en el login
+    const email = (body.email as string)?.toLowerCase().trim();
 
     if (!nombre || !email || !password || !rol || !tenant_id) {
       return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });

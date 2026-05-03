@@ -13,8 +13,9 @@ export async function POST(req: NextRequest) {
     const { email } = await req.json();
     if (!email) return NextResponse.json({ emailAuth: null });
 
+    // ilike = case-insensitive → funciona aunque el email esté guardado con mayúsculas
     const res = await fetch(
-      `${INSFORGE_URL}/api/database/records/users?email=eq.${encodeURIComponent(email.toLowerCase().trim())}&select=email_auth&limit=1`,
+      `${INSFORGE_URL}/api/database/records/users?email=ilike.${encodeURIComponent(email.toLowerCase().trim())}&select=email_auth&limit=1`,
       { headers: { "x-api-key": SERVICE_KEY }, cache: "no-store" }
     );
 
