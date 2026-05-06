@@ -190,78 +190,15 @@ export async function subirFoto(
   return { url: storedPath, error: null, tamano: comprimido.size };
 }
 
-// ─── Comprimir vídeo con ffmpeg.wasm ────────────────────────────────────────
-// Se carga el core de ffmpeg desde CDN la primera vez (~30 MB, queda cacheado).
-// REQUIERE SharedArrayBuffer — disponible en navegadores modernos con
-// cabeceras de aislamiento cross-origin. En iOS Safari sin esas cabeceras
-// NO está disponible y la compresión fallará.
-let _ffmpegInstance: any = null;
-
+// ─── Comprimir vídeo con WebCodecs nativo (iOS Safari 16.4+ y Android Chrome 94+) ──
+// Sustituye FFmpeg.wasm que requería SharedArrayBuffer (no disponible en iOS).
+// Usa APIs nativas del navegador: VideoEncoder + Canvas + mp4-muxer.
 export async function comprimirVideo(
   file: File,
   onProgress?: (etapa: string, pct: number) => void
 ): Promise<File> {
-  // Detección temprana: si SharedArrayBuffer no está disponible significa que las
-  // cabeceras de aislamiento cross-origin (COOP/COEP) no se están aplicando correctamente
-  // → ffmpeg.wasm no puede arrancar. Fallamos rápido con error descriptivo.
-  if (typeof SharedArrayBuffer === "undefined") {
-    throw new Error(
-      "SharedArrayBuffer no disponible — las cabeceras COOP/COEP no están activas. " +
-      "Comprueba que next.config.mjs envía Cross-Origin-Opener-Policy y Cross-Origin-Embedder-Policy."
-    );
-  }
-
-  onProgress?.("Cargando compresor…", 0);
-
-  if (!_ffmpegInstance) {
-    const { FFmpeg } = await import("@ffmpeg/ffmpeg");
-    _ffmpegInstance = new FFmpeg();
-  }
-  const ffmpeg = _ffmpegInstance;
-
-  if (!ffmpeg.loaded) {
-    // Cargamos desde nuestro propio servidor (public/ffmpeg/) en vez del CDN.
-    // Ventajas:
-    //   - Sin problemas de CORS ni fallos de CDN → funciona en iOS Safari
-    //   - El .wasm se sirve con Content-Type correcto (application/wasm)
-    //   - Al ser mismo origen, no necesitamos toBlobURL
-    //   - Cacheado 1 año en el browser → solo se descarga una vez (~31 MB)
-    await ffmpeg.load({
-      coreURL: "/ffmpeg/ffmpeg-core.js",
-      wasmURL: "/ffmpeg/ffmpeg-core.wasm",
-    });
-  }
-
-  onProgress?.("Preparando vídeo…", 5);
-  const { fetchFile } = await import("@ffmpeg/util");
-  await ffmpeg.writeFile("input", await fetchFile(file));
-
-  const progressHandler = ({ progress }: { progress: number }) => {
-    onProgress?.("Comprimiendo vídeo…", Math.round(5 + progress * 90));
-  };
-  ffmpeg.on("progress", progressHandler);
-
-  // 720p máx, H.264, CRF 28 ≈ 15-20 MB/min · faststart para reproducción web
-  await ffmpeg.exec([
-    "-i", "input",
-    "-vf", "scale=-2:min(720\\,ih)",   // no upscale si ya es <720p
-    "-c:v", "libx264",
-    "-crf", "28",
-    "-preset", "fast",
-    "-movflags", "+faststart",
-    "-c:a", "aac",
-    "-b:a", "96k",
-    "output.mp4",
-  ]);
-
-  ffmpeg.off("progress", progressHandler);
-  onProgress?.("Finalizando…", 97);
-
-  const data = await ffmpeg.readFile("output.mp4") as Uint8Array;
-  await ffmpeg.deleteFile("input");
-  await ffmpeg.deleteFile("output.mp4");
-
-  return new File([data], "video_comprimido.mp4", { type: "video/mp4" });
+  const { comprimirVideoNativo } = await import("@/lib/video-compress");
+  return comprimirVideoNativo(file, onProgress);
 }
 
 // Límite máximo de subida cuando NO hay compresión disponible (iOS sin SharedArrayBuffer).
@@ -280,7 +217,8 @@ export async function subirVideo(
   let compressionFailed = false;
 
   // Comprimir siempre — H.264 720p ocupa ~10x menos que el original de iPhone.
-  // En iOS Safari (sin SharedArrayBuffer) ffmpeg no puede arrancar y lanza error.
+  // WebCodecs nativo: funciona en iOS Safari 16.4+, Android Chrome 94+ y desktop.
+  // Si falla (Firefox u otro navegador sin WebCodecs), se sube el original con límite de 40 MB.
   try {
     videoFile = await comprimirVideo(file, onProgress);
   } catch (e) {
@@ -289,15 +227,14 @@ export async function subirVideo(
     videoFile = file;
   }
 
-  // Si la compresión falló (típicamente iOS), verificar que el archivo no supere
-  // el límite del bucket ANTES de intentar la subida para evitar el error 400 de S3.
+  // Si la compresión falló, verificar que el original no supere el límite del bucket.
   if (compressionFailed) {
     const mb = videoFile.size / (1024 * 1024);
     if (mb > MAX_VIDEO_SIN_COMPRESION_MB) {
       const mbRedondeado = Math.round(mb);
       return {
         url: null,
-        error: `El vídeo pesa ${mbRedondeado} MB y no se puede comprimir en este dispositivo (iPhone/iPad). Graba un clip más corto o baja la calidad en Ajustes → Cámara → Grabar vídeo (máx. ${MAX_VIDEO_SIN_COMPRESION_MB} MB sin comprimir).`,
+        error: `El vídeo pesa ${mbRedondeado} MB y no se pudo comprimir automáticamente. Graba un clip más corto o usa Chrome/Safari para comprimir vídeos grandes (máx. ${MAX_VIDEO_SIN_COMPRESION_MB} MB sin comprimir).`,
         tamano: 0,
       };
     }
@@ -346,8 +283,9 @@ export async function subirDocumento(
 // ─── Límites de tamaño ───────────────────────────────────────────────────────
 export const MAX_DOC_MB  = 50;
 export const MAX_FOTO_MB = 10;
-export const MAX_VIDEO_MB     = 500; // límite absoluto (Android/desktop, con compresión)
-export const MAX_VIDEO_IOS_MB = 40;  // en iOS no hay compresión → límite = techo del bucket
+export const MAX_VIDEO_MB          = 500; // límite absoluto antes de comprimir
+export const MAX_VIDEO_IOS_MB      = 500; // WebCodecs disponible en iOS 16.4+ → mismo límite
+export const MAX_VIDEO_COMPRESS_MB = 40;  // si el vídeo ya pesa ≤ 40 MB no se comprime
 
 export function validarDocumento(file: File): string | null {
   const mb  = file.size / (1024 * 1024);
@@ -367,10 +305,6 @@ function esIOS(): boolean {
 export function validarTamanoArchivo(file: File): string | null {
   const mb = file.size / (1024 * 1024);
   if (file.type.startsWith("video/")) {
-    // En iOS no podemos comprimir → aplicar límite más estricto
-    if (esIOS() && mb > MAX_VIDEO_IOS_MB) {
-      return `El vídeo pesa ${Math.round(mb)} MB. En iPhone la compresión automática no está disponible, así que el límite es ${MAX_VIDEO_IOS_MB} MB. Graba un clip más corto o baja la resolución en Ajustes → Cámara → Grabar vídeo.`;
-    }
     if (mb > MAX_VIDEO_MB) {
       return `El vídeo supera el límite de ${MAX_VIDEO_MB} MB`;
     }
