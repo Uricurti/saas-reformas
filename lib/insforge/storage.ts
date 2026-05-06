@@ -219,11 +219,13 @@ export async function subirVideo(
   // Comprimir siempre — H.264 720p ocupa ~10x menos que el original de iPhone.
   // WebCodecs nativo: funciona en iOS Safari 16.4+, Android Chrome 94+ y desktop.
   // Si falla (Firefox u otro navegador sin WebCodecs), se sube el original con límite de 40 MB.
+  let compressionErrorMsg = "";
   try {
     videoFile = await comprimirVideo(file, onProgress);
-  } catch (e) {
-    compressionFailed = true;
-    console.warn("[storage] Compresión de vídeo falló, intentando subir original:", file.name, e);
+  } catch (e: any) {
+    compressionFailed    = true;
+    compressionErrorMsg  = e?.message ?? String(e);
+    console.error("[storage] Compresión de vídeo falló:", file.name, compressionErrorMsg);
     videoFile = file;
   }
 
@@ -234,7 +236,7 @@ export async function subirVideo(
       const mbRedondeado = Math.round(mb);
       return {
         url: null,
-        error: `El vídeo pesa ${mbRedondeado} MB y no se pudo comprimir automáticamente. Graba un clip más corto o usa Chrome/Safari para comprimir vídeos grandes (máx. ${MAX_VIDEO_SIN_COMPRESION_MB} MB sin comprimir).`,
+        error: `El vídeo pesa ${mbRedondeado} MB y no se pudo comprimir automáticamente (${compressionErrorMsg || "error desconocido"}). Graba un clip más corto o usa Chrome/Safari para subir vídeos grandes.`,
         tamano: 0,
       };
     }
