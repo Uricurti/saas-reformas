@@ -161,16 +161,26 @@ export async function comprimirVideoNativo(
 
     // ── 8. Configurar VideoEncoder ───────────────────────────────────────
     const videoEncoder = new VideoEncoder({
-      output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-      error:  (e) => { throw e; },
+      output: (chunk, meta) => {
+        // Safari/iOS puede pasar meta.info = null en frames delta → mp4-muxer 5.2.x se rompe.
+        // Parcheamos null → undefined antes de pasar al muxer.
+        if (meta && (meta as any).info === null) {
+          (meta as any).info = undefined;
+        }
+        muxer.addVideoChunk(chunk, meta ?? undefined);
+      },
+      error: (e) => { throw e; },
     });
-    videoEncoder.configure({
-      codec:     codecSoportado,
-      width:     outW,
-      height:    outH,
-      bitrate:   videoBitrate,
-      framerate: 30,
-    });
+    // colorSpace explícito: evita que Safari devuelva null en decoderConfig.colorSpace
+    const veConfig: any = {
+      codec:      codecSoportado,
+      width:      outW,
+      height:     outH,
+      bitrate:    videoBitrate,
+      framerate:  30,
+      colorSpace: { primaries: "bt709", transfer: "bt709", matrix: "bt709", fullRange: false },
+    };
+    videoEncoder.configure(veConfig);
 
     // ── 9. Canvas para redimensionar frames ─────────────────────────────
     const canvas  = document.createElement("canvas");
