@@ -201,11 +201,18 @@ export async function comprimirVideo(
   return comprimirVideoNativo(file, onProgress);
 }
 
-// Límite máximo de subida cuando NO hay compresión disponible (iOS sin SharedArrayBuffer).
-// El bucket de InsForge tiene un límite de ~50 MB; usamos 40 MB como margen de seguridad.
-const MAX_VIDEO_SIN_COMPRESION_MB = 40;
+// Límite para vídeos sin comprimir: si WebCodecs no está disponible en el dispositivo,
+// se sube el original directamente hasta este límite.
+// La subida va directo a S3 via presigned URL (no pasa por Vercel), así que no hay
+// límite de 4.5 MB — el único límite real es el storage total de InsForge.
+const MAX_VIDEO_SIN_COMPRESION_MB = 150;
 
-// ─── Subir vídeo (comprime SIEMPRE para ahorrar espacio en storage) ─────────
+// ─── Subir vídeo ─────────────────────────────────────────────────────────────
+// Flujo:
+//   1. Intentar comprimir con WebCodecs (H.264 720p, ~10× menos tamaño)
+//   2. Si la compresión falla (WebCodecs no disponible, dispositivo antiguo, etc.)
+//      → subir el original directamente si pesa ≤ 150 MB
+//   3. Si pesa > 150 MB Y no se pudo comprimir → error con instrucciones claras
 export async function subirVideo(
   file: File,
   tenantId: string,
@@ -215,38 +222,45 @@ export async function subirVideo(
 ): Promise<{ url: string | null; error: string | null; tamano: number }> {
   let videoFile = file;
   let compressionFailed = false;
-
-  // Comprimir siempre — H.264 720p ocupa ~10x menos que el original de iPhone.
-  // WebCodecs nativo: funciona en iOS Safari 16.4+, Android Chrome 94+ y desktop.
-  // Si falla (Firefox u otro navegador sin WebCodecs), se sube el original con límite de 40 MB.
   let compressionErrorMsg = "";
+
   try {
     videoFile = await comprimirVideo(file, onProgress);
   } catch (e: any) {
-    compressionFailed    = true;
-    compressionErrorMsg  = e?.message ?? String(e);
-    console.error("[storage] Compresión de vídeo falló:", file.name, compressionErrorMsg);
+    compressionFailed   = true;
+    compressionErrorMsg = e?.message ?? String(e);
+    console.warn("[storage] Compresión falló, intentando subir original:", file.name, compressionErrorMsg);
     videoFile = file;
   }
 
-  // Si la compresión falló, verificar que el original no supere el límite del bucket.
+  // Si la compresión falló y el vídeo original supera el límite sin compresión → error
   if (compressionFailed) {
     const mb = videoFile.size / (1024 * 1024);
     if (mb > MAX_VIDEO_SIN_COMPRESION_MB) {
-      const mbRedondeado = Math.round(mb);
       return {
         url: null,
-        error: `El vídeo pesa ${mbRedondeado} MB y no se pudo comprimir automáticamente (${compressionErrorMsg || "error desconocido"}). Graba un clip más corto o usa Chrome/Safari para subir vídeos grandes.`,
+        error:
+          `El vídeo pesa ${Math.round(mb)} MB. ` +
+          `Graba un clip más corto (menos de ${MAX_VIDEO_SIN_COMPRESION_MB} MB) ` +
+          `o usa Safari/Chrome para subir vídeos más grandes.`,
         tamano: 0,
       };
     }
+    // Vídeo ≤ 150 MB sin comprimir → se sube directamente (calidad original)
+    onProgress?.("Subiendo vídeo original…", 50);
+  } else {
+    onProgress?.("Subiendo vídeo…", 98);
   }
 
-  onProgress?.("Subiendo vídeo…", 98);
-  // Siempre .mp4 — el cliente crea un Blob con type video/mp4
-  const path = `${tenantId}/${obraId}/${userId}/${Date.now()}.mp4`;
+  // Extensión y content-type: si está comprimido siempre es mp4;
+  // si es el original, usar la extensión real del fichero (mov, mp4, etc.)
+  const esComprimido = !compressionFailed;
+  const extOriginal  = file.name.split(".").pop()?.toLowerCase() ?? "mp4";
+  const ext          = esComprimido ? "mp4" : (["mp4","mov","avi","mkv","webm"].includes(extOriginal) ? extOriginal : "mp4");
+  const contentType  = esComprimido ? "video/mp4" : (file.type || "video/mp4");
 
-  const { storedPath, error } = await uploadViaPresigned(videoFile, path, "video/mp4");
+  const path = `${tenantId}/${obraId}/${userId}/${Date.now()}.${ext}`;
+  const { storedPath, error } = await uploadViaPresigned(videoFile, path, contentType);
   if (error || !storedPath) {
     return { url: null, error: error ?? "Error al subir vídeo", tamano: 0 };
   }
@@ -285,9 +299,9 @@ export async function subirDocumento(
 // ─── Límites de tamaño ───────────────────────────────────────────────────────
 export const MAX_DOC_MB  = 50;
 export const MAX_FOTO_MB = 10;
-export const MAX_VIDEO_MB          = 500; // límite absoluto antes de comprimir
-export const MAX_VIDEO_IOS_MB      = 500; // WebCodecs disponible en iOS 16.4+ → mismo límite
-export const MAX_VIDEO_COMPRESS_MB = 40;  // si el vídeo ya pesa ≤ 40 MB no se comprime
+export const MAX_VIDEO_MB          = 500; // límite absoluto (validación en UI)
+export const MAX_VIDEO_IOS_MB      = 500; // mismo límite para iOS
+export const MAX_VIDEO_COMPRESS_MB = 40;  // si ya pesa ≤ 40 MB no se comprime
 
 export function validarDocumento(file: File): string | null {
   const mb  = file.size / (1024 * 1024);
