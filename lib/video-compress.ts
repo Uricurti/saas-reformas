@@ -36,11 +36,22 @@ const H264_CODECS = [
 ];
 
 export function webCodecsDisponible(): boolean {
+  // AudioEncoder es OPCIONAL — si no está, comprimimos sin audio.
+  // Solo bloqueamos si no hay VideoEncoder o VideoFrame, que son imprescindibles.
   return (
     typeof VideoEncoder !== "undefined" &&
-    typeof AudioEncoder !== "undefined" &&
     typeof VideoFrame   !== "undefined"
   );
+}
+
+/** Devuelve qué APIs están disponibles — útil para depurar en producción */
+export function webCodecsDiagnostico(): string {
+  return [
+    `VideoEncoder:${ typeof VideoEncoder !== "undefined" ? "✓" : "✗"}`,
+    `AudioEncoder:${ typeof AudioEncoder !== "undefined" ? "✓" : "✗"}`,
+    `VideoFrame:${   typeof VideoFrame   !== "undefined" ? "✓" : "✗"}`,
+    `AudioData:${    typeof (globalThis as any).AudioData !== "undefined" ? "✓" : "✗"}`,
+  ].join(" ");
 }
 
 export async function comprimirVideoNativo(
@@ -51,8 +62,9 @@ export async function comprimirVideoNativo(
   if (file.size <= TARGET_BYTES) return file;
 
   if (!webCodecsDisponible()) {
+    const diag = webCodecsDiagnostico();
     throw new Error(
-      "WebCodecs no disponible en este navegador. Usa Chrome o Safari 16.4+ para subir vídeos grandes."
+      `WebCodecs no disponible en este navegador (${diag}). Usa Chrome o Safari 16.4+ para subir vídeos grandes.`
     );
   }
 
