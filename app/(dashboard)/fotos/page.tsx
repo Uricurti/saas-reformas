@@ -321,41 +321,55 @@ function FotosInner() {
     setUploadError(null);
     setIsUploading(true);
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const tipo = detectarTipoArchivo(file);
-      const errorTamano = validarTamanoArchivo(file);
-      if (errorTamano) { setUploadError(errorTamano); continue; }
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const tipo = detectarTipoArchivo(file);
+        const errorTamano = validarTamanoArchivo(file);
+        if (errorTamano) { setUploadError(errorTamano); continue; }
 
-      if (tipo === "video") {
-        const mb = file.size / (1024 * 1024);
-        const necesitaComprimir = mb > MAX_VIDEO_COMPRESS_MB;
-        setUploadProgress(
-          necesitaComprimir
-            ? `Vídeo ${i + 1}/${files.length} — preparando compresión…`
-            : `Subiendo vídeo ${i + 1} de ${files.length}…`
-        );
-        const { url, error, tamano } = await subirVideo(
-          file, tenantId, obraId, user.id,
-          necesitaComprimir
-            ? (etapa, pct) => setUploadProgress(`Vídeo ${i + 1}/${files.length} — ${etapa} ${pct}%`)
-            : undefined
-        );
-        if (error || !url) { setUploadError(error ?? "Error al subir"); continue; }
-        await createArchivoRecord({ obraId, userId: user.id, tenantId, tipo, urlStorage: url, tamanoByte: tamano });
-      } else {
-        setUploadProgress(`Subiendo foto ${i + 1} de ${files.length}…`);
-        const { url, error, tamano } = await subirFoto(file, tenantId, obraId, user.id);
-        if (error || !url) { setUploadError(error ?? "Error al subir"); continue; }
-        await createArchivoRecord({ obraId, userId: user.id, tenantId, tipo, urlStorage: url, tamanoByte: tamano });
+        if (tipo === "video") {
+          const mb = file.size / (1024 * 1024);
+          setUploadProgress(
+            mb > MAX_VIDEO_COMPRESS_MB
+              ? `Vídeo ${i + 1}/${files.length} — preparando compresión…`
+              : `Subiendo vídeo ${i + 1} de ${files.length}…`
+          );
+          const { url, error, tamano } = await subirVideo(
+            file, tenantId, obraId, user.id,
+            (etapa, pct) => setUploadProgress(`Vídeo ${i + 1}/${files.length} — ${etapa} ${pct}%`)
+          );
+          if (error || !url) { setUploadError(error ?? "Error al subir el vídeo"); continue; }
+
+          setUploadProgress(`Vídeo ${i + 1}/${files.length} — Guardando…`);
+          const { error: dbError } = await createArchivoRecord({ obraId, userId: user.id, tenantId, tipo, urlStorage: url, tamanoByte: tamano });
+          if (dbError) {
+            setUploadError(`Vídeo subido pero error al guardar el registro: ${(dbError as any)?.message ?? "error desconocido"}`);
+            continue;
+          }
+        } else {
+          setUploadProgress(`Subiendo foto ${i + 1} de ${files.length}…`);
+          const { url, error, tamano } = await subirFoto(file, tenantId, obraId, user.id);
+          if (error || !url) { setUploadError(error ?? "Error al subir la foto"); continue; }
+
+          const { error: dbError } = await createArchivoRecord({ obraId, userId: user.id, tenantId, tipo, urlStorage: url, tamanoByte: tamano });
+          if (dbError) {
+            setUploadError(`Foto subida pero error al guardar el registro: ${(dbError as any)?.message ?? "error desconocido"}`);
+            continue;
+          }
+        }
       }
+    } catch (e: any) {
+      // Capturar cualquier error no previsto (errores de red, OOM, etc.)
+      setUploadError(`Error inesperado al subir: ${e?.message ?? String(e)}`);
+    } finally {
+      // Siempre limpiar el estado, pase lo que pase
+      setIsUploading(false);
+      setUploadProgress("");
+      if (inputRef.current)  inputRef.current.value  = "";
+      if (cameraRef.current) cameraRef.current.value = "";
+      cargar();
     }
-
-    setIsUploading(false);
-    setUploadProgress("");
-    if (inputRef.current)  inputRef.current.value  = "";
-    if (cameraRef.current) cameraRef.current.value = "";
-    cargar();
   }
 
   async function handleDeleteSelected() {

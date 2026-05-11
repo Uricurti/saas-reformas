@@ -121,56 +121,74 @@ async function uploadViaPresigned(
   path: string,
   contentType: string
 ): Promise<{ storedPath: string | null; error: string | null }> {
-  // 1. Obtener estrategia de upload del servidor (con SERVICE_KEY)
-  const strategyRes = await fetch("/api/media/upload", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path, contentType, size: file.size }),
-  });
-  const strategy = await strategyRes.json().catch(() => ({}));
-
-  if (!strategyRes.ok) {
-    return { storedPath: null, error: strategy?.error ?? `Strategy error ${strategyRes.status}` };
-  }
-
-  // 2. Subir directamente a la URL de S3/R2 (no pasa por Vercel)
-  const form = new FormData();
-  if (strategy.fields && typeof strategy.fields === "object") {
-    Object.entries(strategy.fields as Record<string, string>).forEach(([k, v]) => {
-      form.append(k, v);
-    });
-  }
-  // Crear Blob con el Content-Type correcto
-  const blob = new Blob([await file.arrayBuffer()], { type: contentType });
-  form.append("file", blob, path.split("/").pop() ?? "file");
-
-  const uploadRes = await fetch(strategy.uploadUrl, {
-    method: "POST",
-    body: form,
-  });
-
-  if (!uploadRes.ok) {
-    const text = await uploadRes.text().catch(() => uploadRes.statusText);
-    return { storedPath: null, error: `Upload error ${uploadRes.status}: ${text}` };
-  }
-
-  // 3. Confirmar si InsForge lo requiere
-  if (strategy.confirmRequired && strategy.confirmUrl) {
-    const confirmRes = await fetch("/api/media/confirm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ confirmUrl: strategy.confirmUrl, size: file.size, contentType }),
-    });
-    if (!confirmRes.ok) {
-      const j = await confirmRes.json().catch(() => ({}));
-      return { storedPath: null, error: j?.error ?? "Confirm error" };
+  try {
+    // 1. Obtener estrategia de upload del servidor (con SERVICE_KEY)
+    let strategyRes: Response;
+    try {
+      strategyRes = await fetch("/api/media/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, contentType, size: file.size }),
+      });
+    } catch (e: any) {
+      return { storedPath: null, error: `Sin conexión al pedir URL de subida: ${e?.message ?? "error de red"}` };
     }
-    const confirmed = await confirmRes.json().catch(() => ({}));
-    const storedPath = confirmed?.key ?? strategy.key ?? path;
-    return { storedPath, error: null };
-  }
+    const strategy = await strategyRes.json().catch(() => ({}));
+    if (!strategyRes.ok) {
+      return { storedPath: null, error: strategy?.error ?? `Strategy error ${strategyRes.status}` };
+    }
 
-  return { storedPath: strategy.key ?? path, error: null };
+    // 2. Leer el archivo en memoria (puede fallar en iOS si hay poca RAM)
+    let arrayBuf: ArrayBuffer;
+    try {
+      arrayBuf = await file.arrayBuffer();
+    } catch (e: any) {
+      return { storedPath: null, error: `Error leyendo el archivo (puede que no haya suficiente memoria): ${e?.message ?? "OOM"}` };
+    }
+
+    // 3. Subir directamente a la URL de S3/R2 (no pasa por Vercel)
+    const form = new FormData();
+    if (strategy.fields && typeof strategy.fields === "object") {
+      Object.entries(strategy.fields as Record<string, string>).forEach(([k, v]) => {
+        form.append(k, v);
+      });
+    }
+    const blob = new Blob([arrayBuf], { type: contentType });
+    form.append("file", blob, path.split("/").pop() ?? "file");
+
+    let uploadRes: Response;
+    try {
+      uploadRes = await fetch(strategy.uploadUrl, { method: "POST", body: form });
+    } catch (e: any) {
+      return { storedPath: null, error: `Error de red durante la subida (comprueba tu conexión): ${e?.message ?? "sin conexión"}` };
+    }
+
+    if (!uploadRes.ok) {
+      const text = await uploadRes.text().catch(() => uploadRes.statusText);
+      return { storedPath: null, error: `Upload error ${uploadRes.status}: ${text}` };
+    }
+
+    // 4. Confirmar si InsForge lo requiere
+    if (strategy.confirmRequired && strategy.confirmUrl) {
+      const confirmRes = await fetch("/api/media/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmUrl: strategy.confirmUrl, size: file.size, contentType }),
+      });
+      if (!confirmRes.ok) {
+        const j = await confirmRes.json().catch(() => ({}));
+        return { storedPath: null, error: j?.error ?? "Confirm error" };
+      }
+      const confirmed = await confirmRes.json().catch(() => ({}));
+      const storedPath = confirmed?.key ?? strategy.key ?? path;
+      return { storedPath, error: null };
+    }
+
+    return { storedPath: strategy.key ?? path, error: null };
+  } catch (e: any) {
+    // Captura final para cualquier error no previsto
+    return { storedPath: null, error: `Error inesperado al subir: ${e?.message ?? String(e)}` };
+  }
 }
 
 // ─── Subir foto ──────────────────────────────────────────────────────────────
