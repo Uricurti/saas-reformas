@@ -219,7 +219,7 @@
     left: 12px;
     right: 12px;
     bottom: calc(env(safe-area-inset-bottom) + 10px);
-    z-index: 40;
+    z-index: 9999;
 
     display: flex;
     align-items: center;
@@ -237,6 +237,14 @@
       0 4px 24px rgba(96, 126, 170, 0.18),
       0 1px 6px  rgba(0, 0, 0, 0.08),
       0 0 0 1px  rgba(96, 126, 170, 0.06);
+
+    /* Fix iOS Safari: fuerza capa GPU independiente → evita que el nav
+       salte o desaparezca al navegar entre páginas o al aparecer la barra URL */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: transform;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
   }
 
   .bottom-nav-item {
