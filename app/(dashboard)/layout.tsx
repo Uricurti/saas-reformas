@@ -36,21 +36,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null;
 
   return (
-    <div className="flex min-h-screen bg-app-bg">
+    <div
+      className="flex bg-app-bg"
+      style={{
+        height: "100dvh",
+        // Fallback para Safari antiguo que no soporta dvh
+        // @ts-ignore
+        "--height-fallback": "-webkit-fill-available",
+      }}
+    >
       {/* Sidebar — visible solo en desktop (md+) */}
       <aside className="hidden md:flex flex-col w-sidebar flex-shrink-0">
         <Sidebar />
       </aside>
 
-      {/* Contenido principal */}
-      <main className="flex-1 flex flex-col min-w-0">
-        <div className="flex-1 overflow-auto md:pb-0" style={{ paddingBottom: "calc(120px + env(safe-area-inset-bottom))" }}>
+      {/* Contenido principal — flex column que ocupa toda la altura */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Área de scroll — crece para llenar el espacio disponible */}
+        <div className="flex-1 overflow-auto">
           {children}
         </div>
-      </main>
 
-      {/* Bottom nav — visible solo en móvil */}
-      <BottomNav />
+        {/* Bottom nav — visible solo en móvil (md:hidden está en el propio componente)
+            Al estar aquí en el flujo normal (no fixed) nunca se corta en iOS Safari */}
+        <BottomNav />
+      </main>
 
       {/* Modal de fichaje bloqueante (aparece automáticamente si aplica) */}
       <FichajeModal />

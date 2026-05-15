@@ -12,8 +12,9 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import {
   ChevronLeft, ChevronRight, Calculator, Lock,
   ChevronDown, ChevronUp, Plus, Pencil, Trash2,
-  Check, X, Loader2, Clock,
+  Check, X, Loader2, Clock, FileSpreadsheet,
 } from "lucide-react";
+import { ExportarExcelModal } from "@/components/modules/jornales/ExportarExcelModal";
 import { formatCurrency, formatMonthYear } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 import { format, getDaysInMonth, getDay } from "date-fns";
@@ -53,6 +54,7 @@ export default function JornalesPage() {
 
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editando, setEditando] = useState<{ userId: string; fecha: string; jornadaId?: string } | null>(null);
+  const [showExport, setShowExport] = useState(false);
 
   useEffect(() => { if (!isAdmin) router.replace("/obras"); }, [isAdmin]);
   useEffect(() => { if (tenantId && isAdmin) cargar(); }, [tenantId, mes, anio, isAdmin]);
@@ -116,11 +118,28 @@ export default function JornalesPage() {
         title="Jornales"
         subtitle="Días trabajados y cálculo de nómina"
         action={
-          <div className="flex items-center gap-1.5 text-xs text-success-foreground bg-success-light px-3 py-1.5 rounded-full">
-            <Lock className="w-3 h-3" /> Solo admins
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowExport(true)}
+              className="btn-secondary flex items-center gap-1.5 text-xs py-1.5 px-3"
+              title="Exportar Excel"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Exportar Excel</span>
+            </button>
+            <div className="flex items-center gap-1.5 text-xs text-success-foreground bg-success-light px-3 py-1.5 rounded-full">
+              <Lock className="w-3 h-3" /> Solo admins
+            </div>
           </div>
         }
       />
+
+      {showExport && tenantId && (
+        <ExportarExcelModal
+          tenantId={tenantId}
+          onClose={() => setShowExport(false)}
+        />
+      )}
 
       {/* Selector de mes */}
       <div className="card p-3 flex items-center justify-between mb-6">

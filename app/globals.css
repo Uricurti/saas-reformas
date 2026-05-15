@@ -214,22 +214,22 @@
 
   /* Bottom nav — Revolut-style floating card */
   .bottom-nav {
-    /* Flota con márgenes en TODOS los lados — no toca los bordes del teléfono */
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: calc(env(safe-area-inset-bottom) + 10px);
-    z-index: 9999;
+    /* Layout en flujo normal (no fixed) — evita el bug de iOS Safari con position:fixed
+       cuando aparece/desaparece la barra de URL o se navega entre páginas */
+    flex-shrink: 0;
 
     display: flex;
     align-items: center;
     justify-content: space-around;
 
+    /* Márgenes laterales + espacio para la home indicator de iPhone */
+    margin: 0 12px calc(env(safe-area-inset-bottom) + 10px);
+
     /* Tarjeta completamente redondeada */
     border-radius: 22px;
     padding: 10px 6px 10px;
 
-    /* Fondo blanco puro — más limpio que glass para este estilo */
+    /* Fondo blanco puro — más limpio que glass para este estile */
     background: #ffffff;
 
     /* Sombra envolvente suave — clave del efecto premium */
@@ -237,14 +237,6 @@
       0 4px 24px rgba(96, 126, 170, 0.18),
       0 1px 6px  rgba(0, 0, 0, 0.08),
       0 0 0 1px  rgba(96, 126, 170, 0.06);
-
-    /* Fix iOS Safari: fuerza capa GPU independiente → evita que el nav
-       salte o desaparezca al navegar entre páginas o al aparecer la barra URL */
-    -webkit-transform: translateZ(0);
-    transform: translateZ(0);
-    will-change: transform;
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
   }
 
   .bottom-nav-item {

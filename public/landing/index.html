@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReforLife — Gestión de reformas bajo control</title>
+<meta name="description" content="App de gestión para empresas de reformas en España. Fichaje GPS legal, obras, facturación y equipo desde 39€/mes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07071a;--bg2:#0d0d2b;--blue:#607eaa;--blue-dark:#1c3879;--accent:#26bbec;--white:#ffffff;--text:#e2e8f0;--muted:#94A3B8;--card-bg:rgba(255,255,255,0.04);--card-border:rgba(255,255,255,0.08);--radius:16px;--radius-lg:24px;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+img{max-width:100%;display:block;}a{text-decoration:none;color:inherit;}ul{list-style:none;}
+
+/* CURSOR SPOTLIGHT */
+#spotlight{position:fixed;top:0;left:0;width:800px;height:800px;border-radius:50%;background:radial-gradient(circle 400px at center,rgba(96,126,170,0.07),transparent 70%);pointer-events:none;z-index:1;transform:translate(-50%,-50%);}
+
+/* FLOATING CHIP */
+#chip{position:fixed;bottom:32px;right:32px;z-index:1000;background:linear-gradient(135deg,var(--blue-dark),var(--accent));color:#fff;padding:14px 22px;border-radius:50px;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:700;box-shadow:0 8px 32px rgba(38,187,236,0.35);display:flex;align-items:center;gap:8px;opacity:0;transform:translateY(20px);transition:opacity 0.4s,transform 0.4s;cursor:pointer;white-space:nowrap;text-decoration:none;}
+#chip.visible{opacity:1;transform:translateY(0);}
+#chip:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(38,187,236,0.5);}
+
+/* TYPOGRAPHY */
+h1,h2,h3,h4{font-family:'Plus Jakarta Sans',sans-serif;}
+.gradient-text{background:linear-gradient(135deg,#26bbec 0%,#8aaad4 40%,#a78bfa 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.section-label{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--accent);background:rgba(38,187,236,0.1);border:1px solid rgba(38,187,236,0.2);padding:6px 14px;border-radius:100px;margin-bottom:20px;}
+.section-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:clamp(28px,4vw,48px);font-weight:800;letter-spacing:-1.5px;line-height:1.1;margin-bottom:16px;}
+.section-sub{font-size:18px;color:var(--muted);line-height:1.6;max-width:560px;}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:14px 28px;border-radius:12px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:15px;cursor:pointer;border:none;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);position:relative;overflow:hidden;white-space:nowrap;}
+.btn-primary{background:linear-gradient(135deg,var(--blue) 0%,var(--blue-dark) 100%);color:#fff;animation:glow-pulse 2s infinite;}
+.btn-primary::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.15) 0%,transparent 100%);opacity:0;transition:opacity 0.3s;}
+.btn-primary:hover::before{opacity:1;}.btn-primary:hover{transform:translateY(-2px);box-shadow:0 20px 40px rgba(96,126,170,0.4);}
+.btn-secondary{background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.12);backdrop-filter:blur(10px);}
+.btn-secondary:hover{background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2);transform:translateY(-2px);}
+.btn-accent{background:linear-gradient(135deg,var(--accent) 0%,#1a9fd4 100%);color:#07071a;font-weight:800;}
+.btn-accent:hover{transform:translateY(-3px);box-shadow:0 20px 40px rgba(38,187,236,0.4);}
+.btn-lg{padding:18px 36px;font-size:17px;border-radius:14px;}
+@keyframes glow-pulse{0%{box-shadow:0 0 0 0 rgba(96,126,170,0.4);}70%{box-shadow:0 0 0 12px rgba(96,126,170,0);}100%{box-shadow:0 0 0 0 rgba(96,126,170,0);}}
+
+/* NAV */
+#nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:0 24px;transition:all 0.4s;}
+#nav.scrolled{background:rgba(7,7,26,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.06);}
+.nav-inner{max-width:1200px;margin:0 auto;height:72px;display:flex;align-items:center;justify-content:space-between;gap:24px;}
+.nav-logo{display:flex;align-items:center;gap:10px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:22px;letter-spacing:-0.5px;}
+.nav-logo-icon{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--blue) 0%,var(--blue-dark) 100%);display:flex;align-items:center;justify-content:center;font-size:18px;}
+.nav-links{display:flex;align-items:center;gap:8px;}
+.nav-links a{font-size:14px;font-weight:500;color:var(--muted);padding:8px 14px;border-radius:8px;transition:all 0.2s;}
+.nav-links a:hover{color:var(--white);background:rgba(255,255,255,0.06);}
+.nav-cta{display:flex;align-items:center;gap:12px;}
+.nav-hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:8px;}
+.nav-hamburger span{display:block;width:24px;height:2px;background:var(--text);border-radius:2px;}
+
+/* HERO */
+#hero{position:relative;min-height:100vh;display:flex;align-items:center;background:var(--bg);overflow:hidden;padding:120px 24px 80px;}
+#particles-canvas{position:absolute;inset:0;z-index:0;pointer-events:none;}
+.hero-noise{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:0.025;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");background-size:200px;}
+.hero-glow{position:absolute;top:-20%;left:50%;transform:translateX(-50%);width:800px;height:600px;background:radial-gradient(ellipse,rgba(28,56,121,0.3) 0%,transparent 70%);pointer-events:none;z-index:1;}
+.hero-inner{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;position:relative;z-index:2;width:100%;}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--accent);background:rgba(38,187,236,0.08);border:1px solid rgba(38,187,236,0.25);padding:7px 16px;border-radius:100px;margin-bottom:28px;animation:fadeInDown 0.8s ease both;}
+.hero-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);animation:blink 1.5s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.hero-h1{font-size:clamp(44px,6vw,80px);font-weight:900;letter-spacing:-3px;line-height:1.0;margin-bottom:24px;animation:fadeInUp 0.8s 0.2s ease both;}
+.hero-h1 .line{display:block;}
+/* Reserva SIEMPRE 2 líneas de altura — evita salto de layout tanto en vacío como en texto largo que wrappea */
+#typewriter-target{min-height:calc(clamp(44px,6vw,80px) * 2);display:block;}
+.typewriter-cursor{display:inline-block;width:3px;height:0.85em;background:var(--accent);margin-left:4px;vertical-align:middle;animation:cursor-blink 0.8s infinite;}
+@keyframes cursor-blink{0%,100%{opacity:1;}50%{opacity:0;}}
+.hero-sub{font-size:19px;color:var(--muted);line-height:1.65;margin-bottom:40px;max-width:480px;animation:fadeInUp 0.8s 0.4s ease both;}
+.hero-ctas{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:48px;animation:fadeInUp 0.8s 0.6s ease both;}
+.hero-trust{display:flex;align-items:center;gap:14px;animation:fadeInUp 0.8s 0.8s ease both;}
+.hero-trust-avatars{display:flex;}
+.hero-trust-avatars span{width:32px;height:32px;border-radius:50%;border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:14px;margin-left:-8px;background:linear-gradient(135deg,var(--blue) 0%,var(--blue-dark) 100%);}
+.hero-trust-avatars span:first-child{margin-left:0;}
+.hero-trust-text{font-size:13px;color:var(--muted);line-height:1.4;}
+.hero-trust-text strong{color:var(--text);display:block;}
+
+/* HERO IPHONE — usando imagen real con privacy shield */
+.hero-visual{display:flex;justify-content:center;align-items:center;animation:fadeInRight 1s 0.4s ease both;}
+.iphone-wrapper{position:relative;animation:float 4s ease-in-out infinite;}
+@keyframes float{0%,100%{transform:translateY(0px) rotateY(-5deg) rotateX(3deg);}50%{transform:translateY(-18px) rotateY(-5deg) rotateX(3deg);}}
+.iphone{width:280px;height:580px;background:#2a2a2e;border-radius:54px;padding:14px;position:relative;box-shadow:0 0 0 1px #4a4a50,0 0 0 2px #2a2a2e,0 40px 80px rgba(0,0,0,0.7),0 80px 120px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.15);}
+.iphone::before{content:'';position:absolute;left:-3px;top:120px;width:3px;height:32px;background:#3a3a3c;border-radius:2px 0 0 2px;box-shadow:0 44px 0 #3a3a3c;}
+.iphone::after{content:'';position:absolute;right:-3px;top:150px;width:3px;height:60px;background:#3a3a3c;border-radius:0 2px 2px 0;}
+.iphone-screen{width:100%;height:100%;background:#07071a;border-radius:42px;overflow:hidden;position:relative;}
+.iphone-island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:90px;height:26px;background:#1a1a1e;border-radius:20px;z-index:10;}
+.iphone-screen img{width:100%;height:100%;object-fit:cover;object-position:top;border-radius:42px;}
+
+/* PRIVACY SHIELD */
+.privacy-shield{
+  position:absolute;inset:0;z-index:5;
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  background:rgba(7,7,26,0.35);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:8px;text-align:center;
+  border-radius:inherit;
+}
+.privacy-shield .lock{font-size:28px;}
+.privacy-shield .label{font-size:12px;font-weight:700;color:#fff;font-family:'Plus Jakarta Sans',sans-serif;}
+.privacy-shield .sublabel{font-size:10px;color:rgba(255,255,255,0.6);}
+
+/* TARGETED NUMBER BLUR — blurs only specific number areas */
+.num-blur {
+  position: absolute;
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  background: rgba(7, 7, 26, 0.25);
+  border-radius: 5px;
+  z-index: 6;
+  pointer-events: none;
+}
+
+/* NÚMERO MASK — reemplaza números sensibles con "XXX €" estilizado */
+.num-mask {
+  position: absolute;
+  background: rgba(20,30,70,0.92);
+  border-radius: 5px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 1.5px;
+  pointer-events: none;
+}
+
+/* FLOAT BADGES */
+.float-badge{position:absolute;background:rgba(255,255,255,0.06);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:12px 18px;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;box-shadow:0 8px 32px rgba(0,0,0,0.3);white-space:nowrap;z-index:10;}
+.float-badge-1{top:60px;left:-120px;animation:floatCard1 7s ease-in-out infinite;}
+.float-badge-2{bottom:160px;left:-140px;animation:floatCard2 8s ease-in-out infinite 1s;}
+.float-badge-3{bottom:80px;right:-100px;animation:floatCard3 9s ease-in-out infinite 0.5s;}
+@keyframes floatCard1{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+@keyframes floatCard2{0%,100%{transform:translateY(0)}50%{transform:translateY(10px)}}
+@keyframes floatCard3{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.badge-dot-green{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,0.6);}
+
+/* MARQUEE */
+#marquee-strip{background:rgba(255,255,255,0.025);border-top:1px solid rgba(255,255,255,0.06);border-bottom:1px solid rgba(255,255,255,0.06);padding:20px 0;overflow:hidden;position:relative;z-index:2;}
+.marquee-track{display:flex;animation:marquee-scroll 30s linear infinite;width:max-content;}
+.marquee-item{display:flex;align-items:center;gap:12px;padding:0 36px;white-space:nowrap;font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:600;color:var(--muted);}
+.marquee-item .strikethrough{text-decoration:line-through;opacity:0.5;}
+.marquee-item .check{color:#22c55e;font-size:18px;}.marquee-item .cross{color:#ef4444;font-size:18px;}
+.marquee-item .arrow{color:var(--accent);}.marquee-item .brand{color:var(--white);font-weight:700;}
+.marquee-sep{color:rgba(255,255,255,0.12);padding:0 16px;}
+@keyframes marquee-scroll{0%{transform:translateX(0);}100%{transform:translateX(-50%);}}
+
+/* SCROLL REVEAL */
+.reveal{opacity:0;transform:translateY(40px);transition:opacity 0.7s cubic-bezier(0.22,1,0.36,1),transform 0.7s cubic-bezier(0.22,1,0.36,1);}
+.reveal.visible{opacity:1;transform:none;}
+.reveal-delay-1{transition-delay:0.1s;}.reveal-delay-2{transition-delay:0.2s;}.reveal-delay-3{transition-delay:0.3s;}
+.reveal-delay-4{transition-delay:0.4s;}.reveal-delay-5{transition-delay:0.5s;}.reveal-delay-6{transition-delay:0.6s;}
+
+/* PAIN POINTS */
+#pain{padding:100px 24px;background:var(--bg2);}
+.pain-inner{max-width:1200px;margin:0 auto;}
+.pain-header{text-align:center;margin-bottom:64px;}
+.pain-header .section-sub{margin:0 auto;}
+.pain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.tilt-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-lg);padding:32px;cursor:default;transition:border-color 0.3s,box-shadow 0.3s;transform-style:preserve-3d;position:relative;overflow:hidden;}
+.tilt-card::after{content:'';position:absolute;inset:0;border-radius:var(--radius-lg);background:radial-gradient(circle at var(--mx,50%) var(--my,50%),rgba(255,255,255,0.06),transparent 60%);opacity:0;transition:opacity 0.3s;pointer-events:none;}
+.tilt-card:hover::after{opacity:1;}.tilt-card:hover{border-color:rgba(96,126,170,0.3);box-shadow:0 20px 60px rgba(0,0,0,0.4);}
+.pain-emoji{font-size:44px;margin-bottom:16px;display:block;}
+.pain-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:18px;font-weight:700;color:var(--white);margin-bottom:10px;letter-spacing:-0.3px;}
+.pain-desc{font-size:14px;color:var(--muted);line-height:1.65;}
+
+/* LEGAL BANNER */
+#legal-banner{background:linear-gradient(135deg,#7f1d1d 0%,#991b1b 50%,#7f1d1d 100%);border-top:1px solid rgba(239,68,68,0.3);border-bottom:1px solid rgba(239,68,68,0.3);padding:40px 24px;position:relative;overflow:hidden;}
+#legal-banner::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(-45deg,transparent,transparent 20px,rgba(0,0,0,0.05) 20px,rgba(0,0,0,0.05) 40px);}
+.legal-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:32px;position:relative;z-index:1;flex-wrap:wrap;}
+.legal-icon{font-size:64px;flex-shrink:0;}
+.legal-text{flex:1;min-width:280px;}
+.legal-headline{font-family:'Plus Jakarta Sans',sans-serif;font-size:clamp(22px,3vw,36px);font-weight:900;color:#fff;letter-spacing:-1px;margin-bottom:8px;}
+.legal-headline span{color:#fca5a5;}
+.legal-desc{font-size:15px;color:rgba(255,255,255,0.8);line-height:1.55;}
+.legal-desc strong{color:#fff;}
+.legal-badge{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);backdrop-filter:blur(10px);padding:20px 28px;border-radius:16px;text-align:center;flex-shrink:0;}
+.legal-badge-amount{font-family:'Plus Jakarta Sans',sans-serif;font-size:42px;font-weight:900;color:#fca5a5;letter-spacing:-2px;line-height:1;}
+.legal-badge-label{font-size:12px;color:rgba(255,255,255,0.7);margin-top:6px;font-weight:500;}
+
+/* FEATURES */
+#features{padding:100px 24px;background:var(--bg);}
+.features-inner{max-width:1200px;margin:0 auto;}
+.features-header{text-align:center;margin-bottom:64px;}
+.features-header .section-sub{margin:0 auto;}
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.feature-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-lg);padding:32px;transition:all 0.3s;position:relative;overflow:hidden;transform-style:preserve-3d;}
+.feature-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(96,126,170,0.5),transparent);opacity:0;transition:opacity 0.3s;}
+.feature-card:hover::before{opacity:1;}.feature-card:hover{border-color:rgba(96,126,170,0.25);box-shadow:0 20px 60px rgba(0,0,0,0.4);transform:translateY(-4px);}
+.feature-icon{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,rgba(96,126,170,0.2) 0%,rgba(28,56,121,0.2) 100%);border:1px solid rgba(96,126,170,0.2);display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:20px;transition:transform 0.3s;}
+.feature-card:hover .feature-icon{transform:scale(1.1) rotate(5deg);}
+.feature-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:17px;font-weight:700;color:var(--white);margin-bottom:10px;letter-spacing:-0.3px;}
+.feature-desc{font-size:14px;color:var(--muted);line-height:1.65;}
+.feature-tag{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:100px;margin-top:14px;background:rgba(38,187,236,0.1);color:var(--accent);border:1px solid rgba(38,187,236,0.2);}
+
+/* SCREENSHOTS SECTION */
+#pantallas{padding:100px 0 60px;background:var(--bg2);overflow:hidden;}
+.screenshots-header{text-align:center;padding:0 24px;margin-bottom:64px;}
+.screenshots-header .section-sub{margin:0 auto;}
+.screenshots-track-wrap{overflow-x:auto;cursor:grab;padding:20px 0 40px;scrollbar-width:none;}
+.screenshots-track-wrap::-webkit-scrollbar{display:none;}
+.screenshots-track-wrap.dragging{cursor:grabbing;user-select:none;}
+.screenshots-track{display:flex;gap:24px;padding:0 80px;width:max-content;}
+.screen-card{flex-shrink:0;width:220px;}
+.screen-card-inner{position:relative;width:220px;height:460px;background:linear-gradient(145deg,#1a1a2e,#0f0f1e);border-radius:36px;border:2px solid rgba(255,255,255,0.1);box-shadow:0 20px 60px rgba(0,0,0,0.5);overflow:hidden;transition:transform 0.3s,box-shadow 0.3s;}
+.screen-card-inner:hover{transform:translateY(-8px) scale(1.02);box-shadow:0 32px 80px rgba(0,0,0,0.6),0 0 0 1px rgba(38,187,236,0.15);}
+.screen-card-inner img{width:100%;height:100%;object-fit:cover;object-position:top;border-radius:34px;}
+.screen-label{text-align:center;margin-top:16px;font-size:13px;font-weight:600;color:var(--muted);}
+.desktop-preview{margin:48px 80px 0;position:relative;}
+.desktop-frame{position:relative;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);box-shadow:0 32px 80px rgba(0,0,0,0.5);}
+.desktop-notch{height:36px;background:rgba(255,255,255,0.04);border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;padding:0 16px;gap:8px;}
+.desktop-dot{width:12px;height:12px;border-radius:50%;}
+.desktop-frame img{width:100%;display:block;}
+
+/* STATS */
+#stats{padding:80px 24px;background:var(--bg);border-top:1px solid rgba(255,255,255,0.04);border-bottom:1px solid rgba(255,255,255,0.04);}
+.stats-inner{max-width:1000px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:40px;text-align:center;}
+.stat-number{font-family:'Plus Jakarta Sans',sans-serif;font-size:clamp(36px,4vw,56px);font-weight:900;letter-spacing:-2px;line-height:1;margin-bottom:8px;background:linear-gradient(135deg,#fff 0%,var(--muted) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.stat-label{font-size:14px;color:var(--muted);line-height:1.4;}
+
+/* HOW IT WORKS */
+#how{padding:100px 24px;background:var(--bg2);}
+.how-inner{max-width:1000px;margin:0 auto;}
+.how-header{text-align:center;margin-bottom:64px;}
+.how-header .section-sub{margin:0 auto;}
+.how-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:40px;position:relative;}
+.how-steps::before{content:'';position:absolute;top:28px;left:calc(16.67% + 20px);right:calc(16.67% + 20px);height:2px;background:linear-gradient(90deg,var(--blue) 0%,var(--accent) 100%);}
+.how-step{text-align:center;}
+.how-step-num{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--blue) 0%,var(--blue-dark) 100%);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:20px;color:#fff;position:relative;z-index:1;box-shadow:0 0 0 6px rgba(96,126,170,0.1);}
+.how-step-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:18px;font-weight:700;color:var(--white);margin-bottom:10px;letter-spacing:-0.3px;}
+.how-step-desc{font-size:14px;color:var(--muted);line-height:1.65;}
+
+/* TESTIMONIALS */
+#testimonials{padding:100px 24px;background:var(--bg);}
+.testimonials-inner{max-width:1200px;margin:0 auto;}
+.testimonials-header{text-align:center;margin-bottom:64px;}
+.testimonials-header .section-sub{margin:0 auto;}
+.testimonials-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.testimonial-card{background:rgba(255,255,255,0.04);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-lg);padding:32px;transition:transform 0.3s,border-color 0.3s;}
+.testimonial-card:hover{transform:translateY(-6px);border-color:rgba(96,126,170,0.3);}
+.testimonial-stars{display:flex;gap:3px;margin-bottom:16px;font-size:16px;}
+.testimonial-text{font-size:15px;color:var(--text);line-height:1.7;margin-bottom:24px;font-style:italic;}
+.testimonial-text::before{content:'\201C';color:var(--accent);font-size:24px;font-style:normal;line-height:0;vertical-align:-6px;margin-right:4px;}
+.testimonial-author{display:flex;align-items:center;gap:12px;}
+.testimonial-avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;background:linear-gradient(135deg,var(--blue) 0%,var(--blue-dark) 100%);flex-shrink:0;}
+.testimonial-name{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:14px;color:var(--white);}
+.testimonial-role{font-size:12px;color:var(--muted);margin-top:2px;}
+
+/* PRICING */
+#pricing{padding:100px 24px;background:var(--bg2);}
+.pricing-inner{max-width:1100px;margin:0 auto;}
+.pricing-header{text-align:center;margin-bottom:48px;}
+.pricing-header .section-sub{margin:0 auto;}
+.pricing-toggle{display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:48px;}
+.pricing-toggle span{font-size:14px;font-weight:600;color:var(--muted);}
+.pricing-toggle span.active{color:var(--white);}
+.toggle-switch{width:52px;height:28px;background:rgba(255,255,255,0.1);border-radius:100px;padding:3px;cursor:pointer;transition:background 0.3s;}
+.toggle-switch.on{background:var(--blue);}
+.toggle-knob{width:22px;height:22px;background:#fff;border-radius:50%;transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);}
+.toggle-switch.on .toggle-knob{transform:translateX(24px);}
+.annual-badge{font-size:11px;font-weight:700;background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3);padding:3px 8px;border-radius:100px;}
+.pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:start;}
+.pricing-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-lg);padding:36px;position:relative;transition:all 0.3s;}
+.pricing-card:hover{transform:translateY(-4px);box-shadow:0 30px 60px rgba(0,0,0,0.4);}
+.pricing-card.popular{background:linear-gradient(135deg,rgba(96,126,170,0.12) 0%,rgba(28,56,121,0.12) 100%);border-color:rgba(96,126,170,0.4);transform:scale(1.04);box-shadow:0 30px 80px rgba(96,126,170,0.2);}
+.pricing-card.popular:hover{transform:scale(1.04) translateY(-4px);}
+.popular-badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--blue) 0%,var(--accent) 100%);color:#fff;font-size:11px;font-weight:700;padding:4px 16px;border-radius:100px;white-space:nowrap;letter-spacing:0.5px;}
+.pricing-tier{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;}
+.pricing-price{display:flex;align-items:flex-end;gap:4px;margin-bottom:6px;line-height:1;}
+.pricing-currency{font-family:'Plus Jakarta Sans',sans-serif;font-size:22px;font-weight:700;color:var(--text);padding-bottom:6px;}
+.pricing-amount{font-family:'Plus Jakarta Sans',sans-serif;font-size:56px;font-weight:900;color:var(--white);letter-spacing:-3px;}
+.pricing-period{font-size:14px;color:var(--muted);padding-bottom:10px;}
+.pricing-billing{font-size:12px;color:var(--muted);margin-bottom:24px;}
+.pricing-desc{font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:28px;padding-bottom:28px;border-bottom:1px solid rgba(255,255,255,0.06);}
+.pricing-features{margin-bottom:28px;}
+.pricing-feature{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:14px;color:var(--text);}
+.pricing-check{color:#22c55e;font-size:16px;flex-shrink:0;}
+.pricing-btn{width:100%;justify-content:center;}
+
+/* KIT DIGITAL */
+#kit-digital{padding:60px 24px;background:linear-gradient(135deg,rgba(28,56,121,0.3) 0%,rgba(7,7,26,0.8) 100%);border-top:1px solid rgba(28,56,121,0.4);border-bottom:1px solid rgba(28,56,121,0.4);position:relative;overflow:hidden;}
+.kit-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:48px;flex-wrap:wrap;}
+.kit-icon{font-size:64px;flex-shrink:0;}
+.kit-text{flex:1;min-width:280px;}
+.kit-label{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:8px;}
+.kit-headline{font-family:'Plus Jakarta Sans',sans-serif;font-size:clamp(22px,3vw,36px);font-weight:900;color:var(--white);letter-spacing:-1px;margin-bottom:10px;}
+.kit-desc{font-size:15px;color:var(--muted);line-height:1.6;}
+.kit-amount-box{text-align:center;background:rgba(38,187,236,0.08);border:1px solid rgba(38,187,236,0.25);border-radius:20px;padding:24px 36px;flex-shrink:0;}
+.kit-amount{font-family:'Plus Jakarta Sans',sans-serif;font-size:52px;font-weight:900;color:var(--accent);letter-spacing:-3px;line-height:1;}
+.kit-amount-label{font-size:13px;color:var(--muted);margin-top:4px;}
+
+/* FAQ */
+#faq{padding:100px 24px;background:var(--bg);}
+.faq-inner{max-width:800px;margin:0 auto;}
+.faq-header{text-align:center;margin-bottom:64px;}
+.faq-header .section-sub{margin:0 auto;}
+.faq-list{display:flex;flex-direction:column;gap:12px;}
+.faq-item{background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius);overflow:hidden;transition:border-color 0.3s;}
+.faq-item:hover,.faq-item.open{border-color:rgba(96,126,170,0.3);}
+.faq-question{width:100%;text-align:left;background:none;border:none;padding:22px 24px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:16px;font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:600;color:var(--white);}
+.faq-icon{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:18px;flex-shrink:0;transition:transform 0.3s,background 0.3s;}
+.faq-item.open .faq-icon{transform:rotate(45deg);background:rgba(96,126,170,0.2);color:var(--accent);}
+.faq-answer{max-height:0;overflow:hidden;transition:max-height 0.4s cubic-bezier(0.22,1,0.36,1);}
+.faq-answer-inner{padding:0 24px 22px;font-size:14px;color:var(--muted);line-height:1.7;}
+
+/* FINAL CTA */
+#final-cta{padding:100px 24px;background:var(--bg2);}
+.final-cta-inner{max-width:900px;margin:0 auto;}
+.final-cta-card{background:linear-gradient(135deg,rgba(96,126,170,0.15) 0%,rgba(28,56,121,0.2) 50%,rgba(38,187,236,0.08) 100%);border:1px solid rgba(96,126,170,0.25);border-radius:28px;padding:72px 60px;text-align:center;position:relative;overflow:hidden;}
+.final-cta-card::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(96,126,170,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(96,126,170,0.05) 1px,transparent 1px);background-size:40px 40px;}
+.final-cta-card>*{position:relative;z-index:1;}
+.final-cta-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:clamp(32px,5vw,60px);font-weight:900;letter-spacing:-2px;line-height:1.05;margin-bottom:20px;}
+.final-cta-sub{font-size:18px;color:var(--muted);line-height:1.6;margin-bottom:40px;max-width:500px;margin-left:auto;margin-right:auto;}
+.final-cta-btns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:24px;}
+.final-cta-fine{font-size:13px;color:var(--muted);}
+
+/* FOOTER */
+#footer{background:#050510;border-top:1px solid rgba(255,255,255,0.05);padding:48px 24px 32px;}
+.footer-inner{max-width:1200px;margin:0 auto;}
+.footer-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:24px;padding-bottom:32px;border-bottom:1px solid rgba(255,255,255,0.05);margin-bottom:28px;}
+.footer-logo{display:flex;align-items:center;gap:10px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:20px;}
+.footer-links{display:flex;gap:24px;flex-wrap:wrap;}
+.footer-links a{font-size:13px;color:var(--muted);transition:color 0.2s;}
+.footer-links a:hover{color:var(--white);}
+.footer-bottom{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+.footer-copy{font-size:13px;color:var(--muted);}
+.footer-legal{font-size:13px;color:var(--muted);}
+.footer-legal span{color:var(--accent);}
+
+/* WORKFLOW / JOURNEY */
+#workflow{padding:100px 24px;background:var(--bg);}
+.workflow-inner{max-width:1100px;margin:0 auto;}
+.workflow-header{text-align:center;margin-bottom:64px;}
+.workflow-header .section-sub{margin:0 auto;}
+.workflow-steps{display:grid;grid-template-columns:repeat(5,1fr);gap:0;position:relative;align-items:start;}
+.workflow-steps::before{content:'';position:absolute;top:28px;left:10%;right:10%;height:2px;background:linear-gradient(90deg,var(--blue),var(--accent),var(--blue));opacity:0.4;}
+.wf-step{text-align:center;padding:0 8px;position:relative;z-index:1;}
+.wf-num{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 16px;border:2px solid rgba(255,255,255,0.1);background:var(--bg2);}
+.wf-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;color:var(--white);margin-bottom:6px;letter-spacing:-0.2px;}
+.wf-desc{font-size:12px;color:var(--muted);line-height:1.5;}
+
+/* BEFORE / AFTER COMPARISON */
+#comparison{padding:100px 24px;background:var(--bg2);}
+.comparison-inner{max-width:1000px;margin:0 auto;}
+.comparison-header{text-align:center;margin-bottom:64px;}
+.comparison-header .section-sub{margin:0 auto;}
+.comparison-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.comp-col{border-radius:var(--radius-lg);overflow:hidden;}
+.comp-col-header{padding:20px 28px;display:flex;align-items:center;gap:12px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:17px;}
+.comp-col-bad .comp-col-header{background:rgba(239,68,68,0.12);color:#fca5a5;border:1px solid rgba(239,68,68,0.2);border-bottom:none;}
+.comp-col-good .comp-col-header{background:rgba(34,197,94,0.12);color:#4ade80;border:1px solid rgba(34,197,94,0.2);border-bottom:none;}
+.comp-col-body{padding:8px 0;}
+.comp-col-bad .comp-col-body{background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.12);border-top:none;border-radius:0 0 var(--radius-lg) var(--radius-lg);}
+.comp-col-good .comp-col-body{background:rgba(34,197,94,0.04);border:1px solid rgba(34,197,94,0.12);border-top:none;border-radius:0 0 var(--radius-lg) var(--radius-lg);}
+.comp-row{display:flex;align-items:flex-start;gap:12px;padding:14px 24px;border-bottom:1px solid rgba(255,255,255,0.04);}
+.comp-row:last-child{border-bottom:none;}
+.comp-icon{font-size:16px;flex-shrink:0;margin-top:1px;}
+.comp-text{font-size:14px;line-height:1.55;color:var(--text);}
+.comp-text strong{display:block;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;margin-bottom:2px;}
+.comp-col-bad .comp-text strong{color:#fca5a5;}
+.comp-col-good .comp-text strong{color:#4ade80;}
+
+@media(max-width:768px){
+  .workflow-steps{grid-template-columns:1fr 1fr;gap:24px;}
+  .workflow-steps::before{display:none;}
+  .comparison-grid{grid-template-columns:1fr;}
+}
+@media(max-width:480px){
+  .workflow-steps{grid-template-columns:1fr;}
+}
+
+/* ANIMATIONS */
+@keyframes fadeInUp{from{opacity:0;transform:translateY(30px);}to{opacity:1;transform:none;}}
+@keyframes fadeInDown{from{opacity:0;transform:translateY(-20px);}to{opacity:1;transform:none;}}
+@keyframes fadeInRight{from{opacity:0;transform:translateX(40px);}to{opacity:1;transform:none;}}
+
+/* RESPONSIVE */
+@media(max-width:1024px){
+  .pain-grid,.features-grid{grid-template-columns:repeat(2,1fr);}
+  .pricing-grid{grid-template-columns:1fr;gap:16px;}
+  .pricing-card.popular{transform:none;}.pricing-card.popular:hover{transform:translateY(-4px);}
+  .stats-inner{grid-template-columns:repeat(2,1fr);}
+  .desktop-preview{margin:32px 24px 0;}
+  .screenshots-track{padding:0 24px;}
+}
+@media(max-width:768px){
+  .hero-inner{grid-template-columns:1fr;gap:48px;text-align:center;}
+  .hero-ctas,.hero-trust{justify-content:center;}
+  .hero-visual{order:-1;}
+  .iphone{width:220px;height:450px;}
+  .float-badge{display:none;}
+  .pain-grid,.features-grid{grid-template-columns:1fr;}
+  .how-steps{grid-template-columns:1fr;}
+  .how-steps::before{display:none;}
+  .testimonials-grid{grid-template-columns:1fr;}
+  .legal-inner,.kit-inner{flex-direction:column;text-align:center;}
+  .final-cta-card{padding:48px 28px;}
+  .footer-top{flex-direction:column;align-items:flex-start;}
+  .nav-links,.nav-cta .btn-secondary{display:none;}
+  .nav-hamburger{display:flex;}
+  .desktop-preview{margin:32px 0 0;}
+  #chip{bottom:16px;right:16px;font-size:12px;padding:12px 16px;}
+}
+@media(max-width:480px){
+  .stats-inner{grid-template-columns:repeat(2,1fr);gap:24px;}
+}
+</style>
+</head>
+<body>
+
+<div id="spotlight"></div>
+
+<!-- FLOATING CHIP -->
+<a href="#pricing" id="chip">⚡ 14 días gratis — sin tarjeta</a>
+
+<!-- NAV -->
+<nav id="nav">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <div class="nav-logo-icon">🏗️</div>
+      ReforLife
+    </a>
+    <div class="nav-links">
+      <a href="#pain">Problemas</a>
+      <a href="#features">Funciones</a>
+      <a href="#pantallas">App real</a>
+      <a href="#pricing">Precios</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <div class="nav-cta">
+      <a href="/login" class="btn btn-secondary" style="padding:10px 20px;font-size:14px;">Iniciar sesión</a>
+      <a href="#pricing" class="btn btn-primary magnetic" style="padding:10px 20px;font-size:14px;">Prueba gratis →</a>
+    </div>
+    <div class="nav-hamburger"><span></span><span></span><span></span></div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <canvas id="particles-canvas"></canvas>
+  <div class="hero-noise"></div>
+  <div class="hero-glow"></div>
+  <div class="hero-inner">
+    <div class="hero-content">
+      <div class="hero-badge">✦ El CRM todo-en-uno para empresas de reformas · España</div>
+      <h1 class="hero-h1">
+        <span class="line">Tu empresa de reformas,</span>
+        <span class="line gradient-text" id="typewriter-target"></span>
+      </h1>
+      <p class="hero-sub">Presupuestos automáticos, fichaje GPS legal, gestión de obras, fotos por fase, facturación y control de jornales. Todo conectado. Todo desde el móvil. <strong style="color:var(--white)">Diseñado exclusivamente para reformas.</strong></p>
+      <div class="hero-ctas">
+        <a href="#pricing" class="btn btn-primary btn-lg magnetic">Probar gratis 14 días →</a>
+        <a href="#pantallas" class="btn btn-secondary btn-lg">▶ Ver la app</a>
+      </div>
+      <div class="hero-trust">
+        <div class="hero-trust-avatars">
+          <span>👷</span><span>🔨</span><span>🏠</span><span>⚒️</span>
+        </div>
+        <div class="hero-trust-text">
+          <strong>+340 empresas de reformas</strong>
+          gestionan con ReforLife
+        </div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="iphone-wrapper" style="position:relative;">
+        <div class="iphone">
+          <div class="iphone-island"></div>
+          <div class="iphone-screen">
+            <img src="screenshots/mobile_dashboard.png" alt="ReforLife Dashboard" loading="lazy">
+          </div>
+        </div>
+        <div class="float-badge float-badge-1">
+          <div class="badge-dot-green"></div>
+          📍 5/5 operarios fichados hoy
+        </div>
+        <div class="float-badge float-badge-2">
+          💶 Facturación controlada
+        </div>
+        <div class="float-badge float-badge-3">
+          🏗️ 9 obras activas
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div id="marquee-strip"><div class="marquee-track" id="marquee-track"></div></div>
+
+<!-- PAIN POINTS -->
+<section id="pain">
+  <div class="pain-inner">
+    <div class="pain-header reveal">
+      <div class="section-label">¿Te suena esto?</div>
+      <h2 class="section-title">Los problemas que frenan<br><span class="gradient-text">a las empresas de reformas</span></h2>
+      <p class="section-sub">Si reconoces 3 de estas situaciones, tienes un problema que crece en silencio. Y cada día que pasa, cuesta más caro resolverlo.</p>
+    </div>
+    <div class="pain-grid">
+      <div class="tilt-card reveal reveal-delay-1"><span class="pain-emoji">📱</span><div class="pain-title">WhatsApp: el caos que llamas "coordinación"</div><div class="pain-desc">Mensajes perdidos. Fotos de obra mezcladas con memes. Pedidos sin confirmar. Cada semana pierdes horas buscando lo que alguien dijo hace 3 días.</div></div>
+      <div class="tilt-card reveal reveal-delay-2"><span class="pain-emoji">📊</span><div class="pain-title">El Excel que solo tú entiendes</div><div class="pain-desc">Y el día que no estás, todo para. Actualizarlo tarda más que hacer el trabajo. Y cuando alguien lo toca, la versión correcta desaparece.</div></div>
+      <div class="tilt-card reveal reveal-delay-3"><span class="pain-emoji">⚖️</span><div class="pain-title">Cada obra es un riesgo legal silencioso</div><div class="pain-desc">Si Inspección de Trabajo visita tu empresa y los partes son en papel o por WhatsApp, la multa empieza en <strong style="color:#fca5a5">626€</strong>. Y eso es solo el principio.</div></div>
+      <div class="tilt-card reveal reveal-delay-4"><span class="pain-emoji">🧾</span><div class="pain-title">El albarán que nunca aparece</div><div class="pain-desc">Cada albarán perdido es dinero que pagas dos veces. O que no puedes reclamar al proveedor. O que Hacienda te pedirá en la próxima revisión.</div></div>
+      <div class="tilt-card reveal reveal-delay-5"><span class="pain-emoji">💸</span><div class="pain-title">Obras terminadas. Dinero sin cobrar.</div><div class="pain-desc">¿Cuánto tienes "pendiente de cuadrar" ahora mismo? Ese dinero existe. Está hecho. Pero no lo has cobrado porque el proceso de cierre es un caos.</div></div>
+      <div class="tilt-card reveal reveal-delay-6"><span class="pain-emoji">😳</span><div class="pain-title">El cliente llama. Tú no sabes qué decirle.</div><div class="pain-desc">Llamas al encargado. Esperas. El cliente se impacienta. Cada vez que esto pasa, tu reputación como empresa profesional cae un poco más.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- LEGAL BANNER -->
+<div id="legal-banner">
+  <div class="legal-inner">
+    <div class="legal-icon">⚠️</div>
+    <div class="legal-text">
+      <h3 class="legal-headline">Ahora mismo hay empresas siendo <span>multadas</span>. El inspector no llama antes.</h3>
+      <p class="legal-desc">El <strong>RD-Ley 8/2019</strong> lleva 6 años en vigor y la Inspección de Trabajo ha multiplicado controles en obras. Si tus operarios fichan en papel o por WhatsApp, <strong>no estás cumpliendo la ley</strong>. La siguiente obra inspeccionada podría ser la tuya.</p>
+    </div>
+    <div class="legal-badge">
+      <div class="legal-badge-amount">6.250€</div>
+      <div class="legal-badge-label">multa máxima — y<br>tus clientes se enteran</div>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="features-inner">
+    <div class="features-header reveal">
+      <div class="section-label">6 módulos. 1 app.</div>
+      <h2 class="section-title">Todo lo que necesita<br><span class="gradient-text">tu empresa de reformas</span></h2>
+      <p class="section-sub">Sin 4 herramientas distintas. Sin traspasar datos entre apps. Sin formación eterna. Todo pensado para el sector de reformas.</p>
+    </div>
+    <div class="features-grid">
+      <div class="tilt-card feature-card reveal reveal-delay-1"><div class="feature-icon">📋</div><div class="feature-title">Presupuestos Automáticos</div><div class="feature-desc">Catálogo de partidas propio por tipo de reforma. Genera un PDF profesional en 3 minutos. Del presupuesto aceptado a la obra, con un clic.</div><span class="feature-tag">✦ Exclusivo ReforLife</span></div>
+      <div class="tilt-card feature-card reveal reveal-delay-2"><div class="feature-icon">📍</div><div class="feature-title">Control Horario GPS Legal</div><div class="feature-desc">Tu equipo ficha desde el móvil con geolocalización verificada. Informe PDF para Inspección en 10 segundos. Cumplimiento RD-Ley 8/2019 automático.</div><span class="feature-tag">✓ Legal garantizado</span></div>
+      <div class="tilt-card feature-card reveal reveal-delay-3"><div class="feature-icon">🏗️</div><div class="feature-title">Gestión de Obras</div><div class="feature-desc">Crea obras, asigna equipo y fases, define hitos. Vista de estado en tiempo real. Sabes qué pasa en cada obra sin hacer una sola llamada.</div><span class="feature-tag">Tiempo real</span></div>
+      <div class="tilt-card feature-card reveal reveal-delay-4"><div class="feature-icon">📸</div><div class="feature-title">Fotos y Vídeos de Obra</div><div class="feature-desc">Cada imagen queda vinculada a su obra, fase y fecha. Documentas el trabajo. El cliente ve el avance. Tienes pruebas si hay reclamaciones.</div><span class="feature-tag">Cloud seguro</span></div>
+      <div class="tilt-card feature-card reveal reveal-delay-5"><div class="feature-icon">🧾</div><div class="feature-title">Facturación Integrada</div><div class="feature-desc">De presupuesto a factura con un clic. Controla pagos pendientes y cobros. Nunca más se te olvidará facturar una obra que ya terminaste.</div><span class="feature-tag">Conforme a AEAT</span></div>
+      <div class="tilt-card feature-card reveal reveal-delay-6"><div class="feature-icon">📦</div><div class="feature-title">Control de Materiales</div><div class="feature-desc">Registra materiales y sube albaranes desde el móvil. Nunca más perderás un comprobante. Todo vinculado a su obra.</div><span class="feature-tag">Escaneo OCR</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- WORKFLOW — el recorrido completo -->
+<section id="workflow">
+  <div class="workflow-inner">
+    <div class="workflow-header reveal">
+      <div class="section-label">El flujo completo</div>
+      <h2 class="section-title">De la primera llamada<br><span class="gradient-text">al dinero en la cuenta</span></h2>
+      <p class="section-sub">ReforLife cubre cada paso del negocio de reformas. Sin saltar de una app a otra. Sin perder información entre herramientas.</p>
+    </div>
+    <div class="workflow-steps">
+      <div class="wf-step reveal reveal-delay-1">
+        <div class="wf-num">📞</div>
+        <div class="wf-title">Cliente llama</div>
+        <div class="wf-desc">Creas el contacto y el presupuesto en el momento. Sin papeles, sin olvidarlo después.</div>
+      </div>
+      <div class="wf-step reveal reveal-delay-2">
+        <div class="wf-num">📋</div>
+        <div class="wf-title">Presupuesto en minutos</div>
+        <div class="wf-desc">Añades partidas desde tu catálogo. PDF profesional en 3 minutos. El cliente lo recibe por email.</div>
+      </div>
+      <div class="wf-step reveal reveal-delay-3">
+        <div class="wf-num">🏗️</div>
+        <div class="wf-title">Obra en marcha</div>
+        <div class="wf-desc">Asignas equipo, fases y fechas. Tus operarios fichan GPS y suben fotos desde la obra.</div>
+      </div>
+      <div class="wf-step reveal reveal-delay-4">
+        <div class="wf-num">📸</div>
+        <div class="wf-title">Progreso documentado</div>
+        <div class="wf-desc">Cada foto y vídeo queda vinculado a su fase. Prueba del trabajo. Confianza del cliente.</div>
+      </div>
+      <div class="wf-step reveal reveal-delay-5">
+        <div class="wf-num">💶</div>
+        <div class="wf-title">Factura y cobra</div>
+        <div class="wf-desc">Del presupuesto a la factura con un clic. Controlas los pagos hasta que está todo cobrado.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARISON — Sin ReforLife vs Con ReforLife -->
+<section id="comparison">
+  <div class="comparison-inner">
+    <div class="comparison-header reveal">
+      <div class="section-label">La diferencia real</div>
+      <h2 class="section-title">Tu empresa ahora<br><span class="gradient-text">vs. tu empresa con ReforLife</span></h2>
+      <p class="section-sub">No es teoría. Es lo que viven cada semana las empresas que usaban WhatsApp y Excel.</p>
+    </div>
+    <div class="comparison-grid reveal">
+      <div class="comp-col comp-col-bad">
+        <div class="comp-col-header">❌ Sin ReforLife</div>
+        <div class="comp-col-body">
+          <div class="comp-row"><span class="comp-icon">📱</span><div class="comp-text"><strong>Coordinación por WhatsApp</strong>Mensajes perdidos, fotos mezcladas, nadie sabe quién hace qué ni dónde.</div></div>
+          <div class="comp-row"><span class="comp-icon">📊</span><div class="comp-text"><strong>Excel que nadie actualiza</strong>Cada obra en una hoja diferente. Versiones que se pisan. Viernes de pesadilla.</div></div>
+          <div class="comp-row"><span class="comp-icon">🖊️</span><div class="comp-text"><strong>Fichaje en papel o de palabra</strong>Riesgo legal constante. Si llega Inspección, no tienes nada válido.</div></div>
+          <div class="comp-row"><span class="comp-icon">📝</span><div class="comp-text"><strong>Presupuestos en Word o Excel</strong>Cada uno diferente. Tardas 1 hora. Y aun así no queda profesional.</div></div>
+          <div class="comp-row"><span class="comp-icon">💸</span><div class="comp-text"><strong>Obras cerradas sin facturar</strong>Dinero hecho que no cobras porque el proceso de cierre es un caos.</div></div>
+          <div class="comp-row"><span class="comp-icon">😰</span><div class="comp-text"><strong>Si tú no estás, nada funciona</strong>Eres el único que sabe dónde está todo. Eso no escala. Eso te ata.</div></div>
+        </div>
+      </div>
+      <div class="comp-col comp-col-good">
+        <div class="comp-col-header">✅ Con ReforLife</div>
+        <div class="comp-col-body">
+          <div class="comp-row"><span class="comp-icon">🔔</span><div class="comp-text"><strong>Notificaciones push por obra</strong>El mensaje correcto a la persona correcta. Sin grupos. Sin ruido.</div></div>
+          <div class="comp-row"><span class="comp-icon">🏗️</span><div class="comp-text"><strong>Todas las obras en un panel</strong>Estado real, fotos, equipo asignado y cronograma. Siempre actualizado.</div></div>
+          <div class="comp-row"><span class="comp-icon">📍</span><div class="comp-text"><strong>Fichaje GPS verificado y legal</strong>Informe descargable en PDF en 10 segundos. Sin estrés si llega Inspección.</div></div>
+          <div class="comp-row"><span class="comp-icon">📋</span><div class="comp-text"><strong>Presupuesto profesional en 3 min</strong>Catálogo de partidas propio. PDF enviado al cliente desde el móvil.</div></div>
+          <div class="comp-row"><span class="comp-icon">💶</span><div class="comp-text"><strong>Del presupuesto a la factura en 1 clic</strong>Cobras lo que trabajaste. Sin olvidarte de nada. Sin perder tiempo.</div></div>
+          <div class="comp-row"><span class="comp-icon">😌</span><div class="comp-text"><strong>Tu empresa funciona sin ti presente</strong>El equipo sabe qué hacer. El sistema recoge todo. Tú diriges, no apaga fuegos.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SCREENSHOTS — pantallas reales con privacy shields -->
+<section id="pantallas">
+  <div class="screenshots-header reveal">
+    <div class="section-label">App real</div>
+    <h2 class="section-title">La app que quisieras<br><span class="gradient-text">haber tenido antes</span></h2>
+    <p class="section-sub">Arrastra para explorar las pantallas reales. Diseñada para usarse con guantes de obra. Cero fricción para el operario, control total para el gerente.</p>
+  </div>
+
+  <div class="screenshots-track-wrap" id="screenshot-track-wrap">
+    <div class="screenshots-track" id="screenshot-track">
+
+      <!-- Dashboard -->
+      <div class="screen-card">
+        <div class="screen-card-inner">
+          <img src="screenshots/mobile_dashboard.png" alt="Dashboard" loading="lazy">
+        </div>
+        <div class="screen-label">Dashboard</div>
+      </div>
+
+      <!-- Obras — sin datos sensibles, sin shield -->
+      <div class="screen-card">
+        <div class="screen-card-inner">
+          <img src="screenshots/mobile_obras.png" alt="Obras activas" loading="lazy">
+        </div>
+        <div class="screen-label">Obras activas</div>
+      </div>
+
+      <!-- Detalle obra — sin datos sensibles -->
+      <div class="screen-card">
+        <div class="screen-card-inner">
+          <img src="screenshots/mobile_obra_detail.png" alt="Detalle de obra" loading="lazy">
+        </div>
+        <div class="screen-label">Detalle de obra</div>
+      </div>
+
+      <!-- Facturación — targeted blur on amounts only -->
+      <div class="screen-card">
+        <div class="screen-card-inner">
+          <img src="screenshots/mobile_facturacion.png" alt="Facturación" loading="lazy">
+          <div class="num-mask" style="top:24%;left:4%;width:43%;height:9%;">XXX.XXX €</div>
+          <div class="num-mask" style="top:35%;left:4%;width:30%;height:7%;">XX%</div>
+          <div class="num-mask" style="top:24%;left:51%;width:45%;height:9%;">XXX.XXX €</div>
+          <div class="num-mask" style="top:35%;left:51%;width:22%;height:7%;">XX%</div>
+          <div class="num-mask" style="top:47%;left:4%;width:43%;height:9%;">XXX.XXX €</div>
+          <div class="num-mask" style="top:63%;left:4%;width:43%;height:9%;">XXX.XXX €</div>
+          <div class="num-mask" style="top:78%;left:4%;width:43%;height:9%;">XXX.XXX €</div>
+          <div class="num-mask" style="top:47%;left:51%;width:45%;height:9%;">XX obras</div>
+          <div class="num-mask" style="top:63%;left:51%;width:45%;height:9%;">XX%</div>
+        </div>
+        <div class="screen-label">Facturación</div>
+      </div>
+
+      <!-- Jornales — targeted blur on wage amounts only -->
+      <div class="screen-card">
+        <div class="screen-card-inner">
+          <img src="screenshots/mobile_jornales.png" alt="Control de jornales" loading="lazy">
+          <div class="num-mask" style="top:20%;left:54%;width:43%;height:10%;">XXX €</div>
+          <div class="num-mask" style="top:31%;left:54%;width:43%;height:10%;">XXX €</div>
+          <div class="num-mask" style="top:42%;left:54%;width:43%;height:10%;">XXX €</div>
+          <div class="num-mask" style="top:53%;left:54%;width:43%;height:10%;">XXX €</div>
+          <div class="num-mask" style="top:64%;left:54%;width:43%;height:10%;">XXX €</div>
+          <div class="num-mask" style="top:75%;left:54%;width:43%;height:10%;">XXX €</div>
+          <div class="num-mask" style="top:86%;left:54%;width:43%;height:10%;">XXX €</div>
+        </div>
+        <div class="screen-label">Control de jornales</div>
+      </div>
+
+      <!-- Calendario — sin datos sensibles -->
+      <div class="screen-card">
+        <div class="screen-card-inner">
+          <img src="screenshots/mobile_calendario.png" alt="Calendario" loading="lazy">
+        </div>
+        <div class="screen-label">Calendario</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Desktop screenshot — privacy shield (datos financieros) -->
+  <div class="desktop-preview reveal">
+    <div class="desktop-frame" style="position:relative;">
+      <div class="desktop-notch">
+        <div class="desktop-dot" style="background:#ef4444"></div>
+        <div class="desktop-dot" style="background:#fbbf24"></div>
+        <div class="desktop-dot" style="background:#22c55e"></div>
+      </div>
+      <img src="screenshots/desktop_dashboard.png" alt="ReforLife escritorio" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section id="stats">
+  <div class="stats-inner">
+    <div class="stat-item reveal"><div class="stat-number" data-target="340" data-suffix="+">0</div><div class="stat-label">Empresas de reformas<br>activas en España</div></div>
+    <div class="stat-item reveal reveal-delay-2"><div class="stat-number" data-target="12400" data-suffix="">0</div><div class="stat-label">Fichajes GPS<br>registrados este mes</div></div>
+    <div class="stat-item reveal reveal-delay-3"><div class="stat-number" data-target="87" data-suffix="%">0</div><div class="stat-label">Menos tiempo<br>en tareas administrativas</div></div>
+    <div class="stat-item reveal reveal-delay-4"><div class="stat-number" data-target="4.9" data-suffix="★" data-decimal="true">0</div><div class="stat-label">Valoración media<br>en App Store</div></div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="how-inner">
+    <div class="how-header reveal">
+      <div class="section-label">Cómo funciona</div>
+      <h2 class="section-title">De cero a funcionando<br><span class="gradient-text">en menos de 1 hora</span></h2>
+      <p class="section-sub">No hay instalación. No hay formación. No hay excusas para seguir el lunes igual que el viernes.</p>
+    </div>
+    <div class="how-steps">
+      <div class="how-step reveal reveal-delay-1"><div class="how-step-num">1</div><h3 class="how-step-title">Regístrate en 2 minutos</h3><p class="how-step-desc">Sin tarjeta de crédito. Sin burocracia. Te creamos la cuenta y empiezas el periodo de prueba gratis hoy mismo.</p></div>
+      <div class="how-step reveal reveal-delay-2"><div class="how-step-num">2</div><h3 class="how-step-title">Tu equipo ficha el primer día</h3><p class="how-step-desc">Envías un enlace a tus operarios. En 60 segundos tienen la app instalada. El primer fichaje GPS legal de tu empresa ya está hecho.</p></div>
+      <div class="how-step reveal reveal-delay-3"><div class="how-step-num">3</div><h3 class="how-step-title">Tú diriges. Ellos trabajan.</h3><p class="how-step-desc">Obras en tiempo real, fotos por fase, materiales, facturas. Sabes qué pasa en cada obra sin hacer una sola llamada.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section id="testimonials">
+  <div class="testimonials-inner">
+    <div class="testimonials-header reveal">
+      <div class="section-label">Resultados reales</div>
+      <h2 class="section-title">Lo que pasa cuando dejas<br><span class="gradient-text">de trabajar en el caos</span></h2>
+      <p class="section-sub">No son promesas. Son resultados reales de empresas como la tuya.</p>
+    </div>
+    <div class="testimonials-grid">
+      <div class="testimonial-card reveal reveal-delay-1"><div class="testimonial-stars">⭐⭐⭐⭐⭐</div><p class="testimonial-text">El primer viernes con ReforLife me di cuenta de lo que llevaba perdiendo años. Antes tardaba 3 horas cerrando fichajes de papel. Ahora son 5 minutos. Esas 3 horas las dedico a presupuestar, que es donde está el dinero real.</p><div class="testimonial-author"><div class="testimonial-avatar">👷</div><div><div class="testimonial-name">Miquel F.</div><div class="testimonial-role">Propietario · Reformas Miquel, Barcelona</div></div></div></div>
+      <div class="testimonial-card reveal reveal-delay-2"><div class="testimonial-stars">⭐⭐⭐⭐⭐</div><p class="testimonial-text">Tuve una visita de Inspección de Trabajo en marzo. Abrí ReforLife, exporté el informe en PDF y se lo di en el momento. El inspector quedó satisfecho y se fue. Sin esta app no quiero imaginar qué habría pasado.</p><div class="testimonial-author"><div class="testimonial-avatar">🔨</div><div><div class="testimonial-name">Sergio M.</div><div class="testimonial-role">Gerente · SM Reformes, Valencia</div></div></div></div>
+      <div class="testimonial-card reveal reveal-delay-3"><div class="testimonial-stars">⭐⭐⭐⭐⭐</div><p class="testimonial-text">Tenía más de 4.000€ pendientes de facturar de obras cerradas. Con ReforLife lo detecté la primera semana y lo facturé todo en un día. El software se pagó solo 5 veces en la primera semana.</p><div class="testimonial-author"><div class="testimonial-avatar">🏠</div><div><div class="testimonial-name">Ana R.</div><div class="testimonial-role">Administración · Reformas Roca, Madrid</div></div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="pricing-inner">
+    <div class="pricing-header reveal">
+      <div class="section-label">Precios</div>
+      <h2 class="section-title">¿Cuánto te cuesta<br><span class="gradient-text">NO tener esto?</span></h2>
+      <p class="section-sub">Una sola multa por fichaje ilegal (626€ mín.) cubre 16 meses del plan básico. Una factura olvidada de 3.000€ cubre 6 años enteros.</p>
+    </div>
+    <div class="pricing-toggle reveal">
+      <span class="active" id="toggle-monthly">Mensual</span>
+      <div class="toggle-switch" id="billing-toggle"><div class="toggle-knob"></div></div>
+      <span id="toggle-annual">Anual</span>
+      <span class="annual-badge">Ahorra 2 meses</span>
+    </div>
+    <div class="pricing-grid reveal">
+      <div class="pricing-card">
+        <div class="pricing-tier">Básico</div>
+        <div class="pricing-price"><span class="pricing-currency">€</span><span class="pricing-amount" data-monthly="39" data-annual="32">39</span><span class="pricing-period">/mes</span></div>
+        <div class="pricing-billing" id="billing-basic">Facturado mensualmente</div>
+        <div class="pricing-desc">Para autónomos y empresas pequeñas que quieren empezar a organizarse.</div>
+        <div class="pricing-features">
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Hasta 3 usuarios</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Obras ilimitadas</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Fichaje GPS legal</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Fotos y documentos</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> 10 facturas/mes</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> App iOS + Android</div>
+        </div>
+        <a href="#" class="btn btn-secondary pricing-btn magnetic">Empezar gratis →</a>
+      </div>
+      <div class="pricing-card popular">
+        <div class="popular-badge">⭐ MÁS POPULAR</div>
+        <div class="pricing-tier">Pro</div>
+        <div class="pricing-price"><span class="pricing-currency">€</span><span class="pricing-amount" data-monthly="79" data-annual="66">79</span><span class="pricing-period">/mes</span></div>
+        <div class="pricing-billing" id="billing-pro">Facturado mensualmente</div>
+        <div class="pricing-desc">Para empresas en crecimiento que necesitan toda la potencia.</div>
+        <div class="pricing-features">
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Hasta 10 usuarios</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Obras ilimitadas</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Fichaje GPS legal</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Fotos, vídeos y docs</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Facturación ilimitada</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Control de materiales</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Calendario y planificación</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Soporte prioritario</div>
+        </div>
+        <a href="#" class="btn btn-primary pricing-btn magnetic">Empezar gratis →</a>
+      </div>
+      <div class="pricing-card">
+        <div class="pricing-tier">Business</div>
+        <div class="pricing-price"><span class="pricing-currency">€</span><span class="pricing-amount" data-monthly="149" data-annual="124">149</span><span class="pricing-period">/mes</span></div>
+        <div class="pricing-billing" id="billing-biz">Facturado mensualmente</div>
+        <div class="pricing-desc">Para empresas consolidadas con equipos grandes y necesidades avanzadas.</div>
+        <div class="pricing-features">
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Hasta 25 usuarios</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Todo lo de Pro</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Multiempresa / sedes</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> API + integraciones</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Informes avanzados</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> Manager dedicado</div>
+          <div class="pricing-feature"><span class="pricing-check">✓</span> SLA 99.9% garantizado</div>
+        </div>
+        <a href="#" class="btn btn-secondary pricing-btn magnetic">Contactar →</a>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:24px;font-size:13px;color:var(--muted);" class="reveal">14 días de prueba gratuita — sin tarjeta, sin compromiso. Si no cambia algo en tu empresa, cancelar es gratis.</div>
+  </div>
+</section>
+
+<!-- KIT DIGITAL -->
+<div id="kit-digital">
+  <div class="kit-inner">
+    <div class="kit-icon">🇪🇸</div>
+    <div class="kit-text">
+      <div class="kit-label">Programa Kit Digital · Gobierno de España</div>
+      <h3 class="kit-headline">Consigue hasta 6.000€ gratis para digitalizar tu empresa</h3>
+      <p class="kit-desc">Si tu empresa tiene entre 3 y 49 empleados, puedes solicitar la ayuda del <strong>Programa Kit Digital</strong> y usarla para contratar ReforLife. El gobierno paga tu suscripción de hasta 12 meses.</p>
+    </div>
+    <div class="kit-amount-box">
+      <div class="kit-amount">6.000€</div>
+      <div class="kit-amount-label">subvención disponible<br>para tu empresa</div>
+    </div>
+  </div>
+</div>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="faq-inner">
+    <div class="faq-header reveal">
+      <div class="section-label">FAQ</div>
+      <h2 class="section-title">Preguntas frecuentes</h2>
+      <p class="section-sub">Todo lo que necesitas saber antes de empezar.</p>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item"><button class="faq-question">¿El fichaje GPS cumple el RD-Ley 8/2019?<span class="faq-icon">+</span></button><div class="faq-answer"><div class="faq-answer-inner">Sí. El sistema registra entrada y salida con coordenadas GPS verificadas, timestamp y firma del trabajador. Los informes son exportables en PDF y CSV para la inspección de trabajo. Hemos contado con asesores laborales para garantizar el cumplimiento total.</div></div></div>
+      <div class="faq-item"><button class="faq-question">¿Qué pasa si mis operarios no tienen experiencia con móviles?<span class="faq-icon">+</span></button><div class="faq-answer"><div class="faq-answer-inner">La app está diseñada para usuarios con poca experiencia digital. El único botón que el operario necesita el primer día es el de fichar. El resto lo gestiona el encargado. Incluimos un vídeo tutorial de 3 minutos para operarios.</div></div></div>
+      <div class="faq-item"><button class="faq-question">¿Puedo importar mis obras y clientes de Excel?<span class="faq-icon">+</span></button><div class="faq-answer"><div class="faq-answer-inner">Sí. Ofrecemos importación desde CSV y Excel para clientes, presupuestos y obras. En el plan Business también hacemos la migración por ti. El onboarding incluye una llamada de 30 minutos con nuestro equipo.</div></div></div>
+      <div class="faq-item"><button class="faq-question">¿Funciona sin conexión a internet en la obra?<span class="faq-icon">+</span></button><div class="faq-answer"><div class="faq-answer-inner">Sí. El fichaje, las fotos y las notas funcionan en modo offline. Cuando el móvil recupera conexión, todo se sincroniza automáticamente en la nube. Las obras en sótanos o zonas con mala cobertura no son un problema.</div></div></div>
+      <div class="faq-item"><button class="faq-question">¿Cuánto cuesta comparado con otras apps del sector?<span class="faq-icon">+</span></button><div class="faq-answer"><div class="faq-answer-inner">Las alternativas generalistas cuestan 200-400€/mes y están pensadas para constructoras grandes. ReforLife empieza en 39€/mes y está diseñado específicamente para pymes de reformas de 2 a 25 personas. Pagas por lo que necesitas.</div></div></div>
+      <div class="faq-item"><button class="faq-question">¿Puedo cancelar cuando quiera?<span class="faq-icon">+</span></button><div class="faq-answer"><div class="faq-answer-inner">Sin permanencia. Cancela en cualquier momento desde tu cuenta, sin llamadas, sin formularios. Sigues teniendo acceso hasta el final del período pagado. Puedes exportar todos tus datos.</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section id="final-cta">
+  <div class="final-cta-inner">
+    <div class="final-cta-card reveal">
+      <div class="final-cta-title">El CRM que tu empresa<br><span class="gradient-text">llevaba años necesitando.</span></div>
+      <p class="final-cta-sub">Del presupuesto al cobro, todo en una app. La semana que viene puede ser igual que esta — o puede ser diferente. Son 14 días gratis y 2 minutos para empezar.</p>
+      <div class="final-cta-btns">
+        <a href="#" class="btn btn-accent btn-lg magnetic">Empezar ahora — es gratis →</a>
+        <a href="#" class="btn btn-secondary btn-lg">Hablar con alguien</a>
+      </div>
+      <div class="final-cta-fine">Sin tarjeta · Sin permanencia · Soporte en español · Cancela cuando quieras</div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer id="footer">
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div class="footer-logo"><div class="nav-logo-icon">🏗️</div>ReforLife</div>
+      <div class="footer-links">
+        <a href="#">Funciones</a><a href="#">Precios</a><a href="#">Kit Digital</a>
+        <a href="#">Blog</a><a href="#">Contacto</a><a href="#">Privacidad</a><a href="#">Términos</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="footer-copy">© 2025 ReforLife. Todos los derechos reservados.</div>
+      <div class="footer-legal">Hecho con ♥ para las reformas de <span>España</span></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* PARTICLE SYSTEM */
+(function(){
+var c=document.getElementById('particles-canvas'),ctx=c.getContext('2d'),w,h,p=[];
+function resize(){w=c.width=c.offsetWidth;h=c.height=c.offsetHeight;}
+function P(){this.x=Math.random()*w;this.y=Math.random()*h;this.vx=(Math.random()-.5)*.6;this.vy=(Math.random()-.5)*.6;this.r=1.5+Math.random()*1.5;this.o=.3+Math.random()*.5;}
+P.prototype.update=function(){this.x+=this.vx;this.y+=this.vy;if(this.x<0||this.x>w)this.vx*=-1;if(this.y<0||this.y>h)this.vy*=-1;};
+function init(){resize();p=[];for(var i=0;i<80;i++)p.push(new P());}
+function draw(){
+ctx.clearRect(0,0,w,h);
+for(var i=0;i<p.length;i++){
+var a=p[i];a.update();
+ctx.beginPath();ctx.arc(a.x,a.y,a.r,0,Math.PI*2);ctx.fillStyle='rgba(96,126,170,'+a.o+')';ctx.fill();
+for(var j=i+1;j<p.length;j++){var b=p[j],dx=a.x-b.x,dy=a.y-b.y,d=Math.sqrt(dx*dx+dy*dy);if(d<120){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle='rgba(96,126,170,'+((1-d/120)*.2)+')';ctx.lineWidth=1;ctx.stroke();}}}
+requestAnimationFrame(draw);}
+window.addEventListener('resize',init);init();draw();
+})();
+
+/* CURSOR SPOTLIGHT */
+(function(){
+var el=document.getElementById('spotlight'),mx=-400,my=-400,cx=-400,cy=-400;
+document.addEventListener('mousemove',function(e){mx=e.clientX;my=e.clientY;});
+function lerp(a,b,t){return a+(b-a)*t;}
+function go(){cx=lerp(cx,mx,.08);cy=lerp(cy,my,.08);el.style.left=cx+'px';el.style.top=cy+'px';requestAnimationFrame(go);}
+go();
+})();
+
+/* NAV + CHIP */
+window.addEventListener('scroll',function(){
+  document.getElementById('nav').classList.toggle('scrolled',window.scrollY>40);
+  document.getElementById('chip').classList.toggle('visible',window.scrollY>400);
+});
+
+/* TYPEWRITER */
+(function(){
+var t=document.getElementById('typewriter-target');
+if(!t)return;
+var phrases=['de la obra al cobro.','todo en una sola app.','sin caos, sin excusas.'];
+var pi=0,ci=0,deleting=false;
+t.textContent='';
+var cur=document.createElement('span');cur.className='typewriter-cursor';
+t.after(cur);
+function tick(){
+  var phrase=phrases[pi];
+  if(!deleting){
+    ci++;t.textContent=phrase.slice(0,ci);
+    if(ci===phrase.length){deleting=true;setTimeout(tick,2200);return;}
+    setTimeout(tick,80);
+  } else {
+    ci--;t.textContent=phrase.slice(0,ci);
+    if(ci===0){deleting=false;pi=(pi+1)%phrases.length;setTimeout(tick,400);return;}
+    setTimeout(tick,40);
+  }
+}
+setTimeout(tick,1000);
+})();
+
+/* 3D TILT */
+(function(){
+document.querySelectorAll('.tilt-card').forEach(function(card){
+card.addEventListener('mousemove',function(e){
+var r=card.getBoundingClientRect();
+var dx=(e.clientX-r.left-r.width/2)/(r.width/2);
+var dy=(e.clientY-r.top-r.height/2)/(r.height/2);
+card.style.transform='perspective(800px) rotateX('+(-dy*12)+'deg) rotateY('+(dx*12)+'deg) scale3d(1.02,1.02,1.02)';
+card.style.setProperty('--mx',((e.clientX-r.left)/r.width*100)+'%');
+card.style.setProperty('--my',((e.clientY-r.top)/r.height*100)+'%');
+});
+card.addEventListener('mouseleave',function(){card.style.transition='transform 0.5s cubic-bezier(0.22,1,0.36,1)';card.style.transform='';setTimeout(function(){card.style.transition='';},500);});
+});
+})();
+
+/* MAGNETIC */
+(function(){
+document.querySelectorAll('.magnetic').forEach(function(btn){
+btn.addEventListener('mousemove',function(e){
+var r=btn.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2),d=Math.sqrt(dx*dx+dy*dy);
+if(d<80){var f=(80-d)/80;btn.style.transform='translate('+(dx*f*0.25)+'px,'+(dy*f*0.25)+'px)';}
+});
+btn.addEventListener('mouseleave',function(){btn.style.transition='transform 0.5s cubic-bezier(0.34,1.56,0.64,1)';btn.style.transform='';setTimeout(function(){btn.style.transition='';},500);});
+});
+})();
+
+/* MARQUEE */
+(function(){
+var track=document.getElementById('marquee-track');
+var items=['<span class="strikethrough">WhatsApp</span> <span class="cross">✕</span>','<span class="strikethrough">Excel</span> <span class="cross">✕</span>','<span class="strikethrough">Notas en papel</span> <span class="cross">✕</span>','<span class="strikethrough">Llamadas perdidas</span> <span class="cross">✕</span>','<span class="strikethrough">Fichaje manual</span> <span class="cross">✕</span>','<span class="arrow">→</span> <span class="brand">ReforLife</span> <span class="check">✓</span>'];
+var html='';
+for(var rep=0;rep<4;rep++){items.forEach(function(item,idx){html+='<div class="marquee-item">'+item+'</div>';if(idx<items.length-1)html+='<div class="marquee-item marquee-sep">·</div>';});}
+track.innerHTML=html;
+})();
+
+/* SCROLL REVEAL */
+(function(){
+var obs=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target);}});},{threshold:.1,rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(function(el){obs.observe(el);});
+})();
+
+/* COUNTERS */
+(function(){
+function easeOut(t){return 1-Math.pow(1-t,3);}
+function animate(el){
+var dec=el.dataset.decimal==='true',target=parseFloat(el.dataset.target),suf=el.dataset.suffix||'',start=Date.now();
+function up(){var p=Math.min((Date.now()-start)/2000,1),val=target*easeOut(p);el.textContent=(dec?val.toFixed(1):Math.floor(val).toLocaleString('es-ES'))+suf;if(p<1)requestAnimationFrame(up);}
+up();}
+var obs=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){animate(e.target);obs.unobserve(e.target);}});},{threshold:.3});
+document.querySelectorAll('.stat-number[data-target]').forEach(function(el){obs.observe(el);});
+})();
+
+/* FAQ */
+(function(){
+document.querySelectorAll('.faq-question').forEach(function(btn){
+btn.addEventListener('click',function(){
+var item=btn.closest('.faq-item'),ans=item.querySelector('.faq-answer'),open=item.classList.contains('open');
+document.querySelectorAll('.faq-item.open').forEach(function(o){o.classList.remove('open');o.querySelector('.faq-answer').style.maxHeight='0';});
+if(!open){item.classList.add('open');ans.style.maxHeight=ans.scrollHeight+'px';}
+});
+});
+})();
+
+/* PRICING TOGGLE */
+(function(){
+var tog=document.getElementById('billing-toggle'),isAnn=false;
+tog.addEventListener('click',function(){
+isAnn=!isAnn;
+tog.classList.toggle('on',isAnn);
+document.getElementById('toggle-monthly').classList.toggle('active',!isAnn);
+document.getElementById('toggle-annual').classList.toggle('active',isAnn);
+document.querySelectorAll('.pricing-amount[data-monthly]').forEach(function(el){el.textContent=isAnn?el.dataset.annual:el.dataset.monthly;});
+['billing-basic','billing-pro','billing-biz'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=isAnn?'Facturado anualmente':'Facturado mensualmente';});
+});
+})();
+
+/* DRAG TO SCROLL — screenshots */
+(function(){
+var wrap=document.getElementById('screenshot-track-wrap');
+if(!wrap)return;
+var isDown=false,startX,scrollLeft;
+wrap.addEventListener('mousedown',function(e){isDown=true;wrap.classList.add('dragging');startX=e.pageX-wrap.offsetLeft;scrollLeft=wrap.scrollLeft;});
+wrap.addEventListener('mouseleave',function(){isDown=false;wrap.classList.remove('dragging');});
+wrap.addEventListener('mouseup',function(){isDown=false;wrap.classList.remove('dragging');});
+wrap.addEventListener('mousemove',function(e){if(!isDown)return;e.preventDefault();var x=e.pageX-wrap.offsetLeft;wrap.scrollLeft=scrollLeft-(x-startX)*1.5;});
+var touchStartX,touchScrollLeft;
+wrap.addEventListener('touchstart',function(e){touchStartX=e.touches[0].pageX;touchScrollLeft=wrap.scrollLeft;},{passive:true});
+wrap.addEventListener('touchmove',function(e){var diff=touchStartX-e.touches[0].pageX;wrap.scrollLeft=touchScrollLeft+diff*1.5;},{passive:true});
+})();
+</script>
+</body>
+</html>
