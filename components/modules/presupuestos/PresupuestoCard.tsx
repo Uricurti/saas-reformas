@@ -98,7 +98,12 @@ export function PresupuestoCard({
           </p>
           {(presupuesto.cliente_ciudad || presupuesto.cliente_direccion) && (
             <p className="text-xs text-content-muted truncate">
-              {[presupuesto.cliente_direccion, presupuesto.cliente_ciudad].filter(Boolean).join(", ")}
+              📍 {[presupuesto.cliente_direccion, presupuesto.cliente_ciudad].filter(Boolean).join(", ")}
+            </p>
+          )}
+          {(presupuesto.facturacion_direccion || presupuesto.facturacion_ciudad) && (
+            <p className="text-xs text-content-muted truncate">
+              🧾 {[presupuesto.facturacion_direccion, presupuesto.facturacion_ciudad].filter(Boolean).join(", ")}
             </p>
           )}
 
@@ -125,11 +130,9 @@ export function PresupuestoCard({
           <FileText className="w-3.5 h-3.5" /> Ver PDF
         </button>
 
-        {presupuesto.estado !== "aceptado" && presupuesto.estado !== "rechazado" && (
-          <button onClick={() => onEditar(presupuesto.id)} className="btn-ghost text-xs py-1.5">
-            <Pencil className="w-3.5 h-3.5" /> Editar
-          </button>
-        )}
+        <button onClick={() => onEditar(presupuesto.id)} className="btn-ghost text-xs py-1.5">
+          <Pencil className="w-3.5 h-3.5" /> Editar
+        </button>
 
         <button onClick={() => onDuplicar(presupuesto.id)} className="btn-ghost text-xs py-1.5">
           <Copy className="w-3.5 h-3.5" /> Duplicar

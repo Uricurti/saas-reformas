@@ -1504,9 +1504,12 @@ export async function createPresupuesto(params: {
   clienteNombre: string;
   clienteApellidos?: string;
   clienteNif?: string;
-  clienteDireccion?: string;
+  clienteDireccion?: string;       // dirección de la obra
   clienteCp?: string;
   clienteCiudad?: string;
+  facturacionDireccion?: string;   // dirección de facturación (null = misma que obra)
+  facturacionCp?: string;
+  facturacionCiudad?: string;
   clienteEmail?: string;
   clienteTelefono?: string;
   importeBase: number;
@@ -1545,6 +1548,9 @@ export async function updatePresupuesto(
     clienteDireccion: string | null;
     clienteCp: string | null;
     clienteCiudad: string | null;
+    facturacionDireccion: string | null;
+    facturacionCp: string | null;
+    facturacionCiudad: string | null;
     clienteEmail: string | null;
     clienteTelefono: string | null;
     importeBase: number;
@@ -1590,15 +1596,18 @@ export async function createNuevaVersionPresupuesto(id: string): Promise<Presupu
     clienteNombre:     original.cliente_nombre,
     clienteApellidos:  original.cliente_apellidos,
     clienteNif:        original.cliente_nif,
-    clienteDireccion:  original.cliente_direccion,
-    clienteCp:         original.cliente_cp,
-    clienteCiudad:     original.cliente_ciudad,
-    clienteEmail:      original.cliente_email,
-    clienteTelefono:   original.cliente_telefono,
-    importeBase:       original.importe_base,
-    porcentajeIva:     original.porcentaje_iva,
-    formaPago:         original.forma_pago,
-    notasInternas:     original.notas_internas,
+    clienteDireccion:      original.cliente_direccion,
+    clienteCp:             original.cliente_cp,
+    clienteCiudad:         original.cliente_ciudad,
+    facturacionDireccion:  original.facturacion_direccion,
+    facturacionCp:         original.facturacion_cp,
+    facturacionCiudad:     original.facturacion_ciudad,
+    clienteEmail:          original.cliente_email,
+    clienteTelefono:       original.cliente_telefono,
+    importeBase:           original.importe_base,
+    porcentajeIva:         original.porcentaje_iva,
+    formaPago:             original.forma_pago,
+    notasInternas:         original.notas_internas,
     lineas:            original.lineas.map((l) => ({
       nombre_partida: l.nombre_partida,
       descripcion:    l.descripcion,
@@ -1670,15 +1679,18 @@ export async function duplicarPresupuesto(id: string, tenantId: string): Promise
         clienteNombre:    original.cliente_nombre,
         clienteApellidos: original.cliente_apellidos,
         clienteNif:       original.cliente_nif,
-        clienteDireccion: original.cliente_direccion,
-        clienteCp:        original.cliente_cp,
-        clienteCiudad:    original.cliente_ciudad,
-        clienteEmail:     original.cliente_email,
-        clienteTelefono:  original.cliente_telefono,
-        importeBase:      original.importe_base,
-        porcentajeIva:    original.porcentaje_iva,
-        formaPago:        original.forma_pago,
-        notasInternas:    original.notas_internas,
+        clienteDireccion:     original.cliente_direccion,
+        clienteCp:            original.cliente_cp,
+        clienteCiudad:        original.cliente_ciudad,
+        facturacionDireccion: original.facturacion_direccion,
+        facturacionCp:        original.facturacion_cp,
+        facturacionCiudad:    original.facturacion_ciudad,
+        clienteEmail:         original.cliente_email,
+        clienteTelefono:      original.cliente_telefono,
+        importeBase:          original.importe_base,
+        porcentajeIva:        original.porcentaje_iva,
+        formaPago:            original.forma_pago,
+        notasInternas:        original.notas_internas,
         lineas:           original.lineas.map((l) => ({
           nombre_partida: l.nombre_partida,
           descripcion:    l.descripcion,

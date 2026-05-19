@@ -86,6 +86,10 @@ export function EditarPresupuestoModal({
   const [direccion, setDireccion]   = useState("");
   const [cp, setCp]                 = useState("");
   const [ciudad, setCiudad]         = useState("");
+  const [mismaDireccion, setMismaDireccion]             = useState(true);
+  const [facturacionDireccion, setFacturacionDireccion] = useState("");
+  const [facturacionCp, setFacturacionCp]               = useState("");
+  const [facturacionCiudad, setFacturacionCiudad]       = useState("");
   const [iva, setIva]               = useState<10 | 21>(21);
   const [formaPago, setFormaPago]   = useState<{ concepto: string; porcentaje: number }[]>([]);
 
@@ -101,7 +105,8 @@ export function EditarPresupuestoModal({
   const [loadingCatTipo, setLoadingCatTipo] = useState<Record<string, boolean>>({});
 
   const esMixto = tipo === "mixto";
-  const esEnviado = pres?.estado === "enviado";
+  const esEnviado    = pres?.estado === "enviado";
+  const esFinalizado = pres?.estado === "aceptado" || pres?.estado === "rechazado";
 
   // ── Carga de catálogo por tipo (con caché) ───────────────────────
   const cargarCatalogoTipo = useCallback(async (t: "bano" | "cocina" | "otros") => {
@@ -128,6 +133,16 @@ export function EditarPresupuestoModal({
       setDireccion(data.cliente_direccion ?? "");
       setCp(data.cliente_cp ?? "");
       setCiudad(data.cliente_ciudad ?? "");
+      // Dirección de facturación
+      const facDir    = data.facturacion_direccion ?? "";
+      const facCp     = data.facturacion_cp ?? "";
+      const facCiudad = data.facturacion_ciudad ?? "";
+      const hayFacturacionDistinta = !!(facDir || facCp || facCiudad) &&
+        !(facDir === (data.cliente_direccion ?? "") && facCp === (data.cliente_cp ?? "") && facCiudad === (data.cliente_ciudad ?? ""));
+      setMismaDireccion(!hayFacturacionDistinta);
+      setFacturacionDireccion(facDir);
+      setFacturacionCp(facCp);
+      setFacturacionCiudad(facCiudad);
       setIva((data.porcentaje_iva as 10 | 21) ?? 21);
       setFormaPago(data.forma_pago ?? []);
 
@@ -414,6 +429,9 @@ export function EditarPresupuestoModal({
       clienteDireccion: direccion.trim() || null,
       clienteCp:        cp.trim() || null,
       clienteCiudad:    ciudad.trim() || null,
+      facturacionDireccion: mismaDireccion ? (direccion.trim() || null) : (facturacionDireccion.trim() || null),
+      facturacionCp:        mismaDireccion ? (cp.trim() || null) : (facturacionCp.trim() || null),
+      facturacionCiudad:    mismaDireccion ? (ciudad.trim() || null) : (facturacionCiudad.trim() || null),
       porcentajeIva:    iva,
       importeBase,
       formaPago,
@@ -481,6 +499,16 @@ export function EditarPresupuestoModal({
             </p>
           </div>
         )}
+        {/* Aviso edición de presupuesto cerrado */}
+        {esFinalizado && paso === 1 && (
+          <div className="mx-5 mt-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-800">
+              Este presupuesto está <strong>{pres?.estado === "aceptado" ? "Aceptado" : "Rechazado"}</strong>.
+              Los cambios se guardarán directamente sobre el mismo.
+            </p>
+          </div>
+        )}
 
         {/* ═══ PASO 1 ═══════════════════════════════════════════════ */}
         {paso === 1 && (
@@ -535,7 +563,7 @@ export function EditarPresupuestoModal({
                   <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
                 <div className="col-span-2">
-                  <label className="label text-xs">Dirección de la obra</label>
+                  <label className="label text-xs">📍 Dirección de la obra</label>
                   <input className="input" value={direccion} onChange={(e) => setDireccion(e.target.value)} />
                 </div>
                 <div>
@@ -546,6 +574,37 @@ export function EditarPresupuestoModal({
                   <label className="label text-xs">Ciudad</label>
                   <input className="input" value={ciudad} onChange={(e) => setCiudad(e.target.value)} />
                 </div>
+
+                {/* Toggle dirección facturación */}
+                <div className="col-span-2 mt-1">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={mismaDireccion}
+                      onChange={(e) => setMismaDireccion(e.target.checked)}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-sm text-content-secondary">🧾 La dirección de facturación es la misma que la de la obra</span>
+                  </label>
+                </div>
+
+                {/* Campos facturación (solo si difiere) */}
+                {!mismaDireccion && (
+                  <>
+                    <div className="col-span-2">
+                      <label className="label text-xs">🧾 Dirección de facturación</label>
+                      <input className="input" value={facturacionDireccion} onChange={(e) => setFacturacionDireccion(e.target.value)} placeholder="Calle, número, piso..." />
+                    </div>
+                    <div>
+                      <label className="label text-xs">CP facturación</label>
+                      <input className="input" value={facturacionCp} onChange={(e) => setFacturacionCp(e.target.value)} placeholder="08001" />
+                    </div>
+                    <div>
+                      <label className="label text-xs">Ciudad facturación</label>
+                      <input className="input" value={facturacionCiudad} onChange={(e) => setFacturacionCiudad(e.target.value)} placeholder="Barcelona" />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

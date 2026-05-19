@@ -137,10 +137,13 @@ export async function POST(req: NextRequest) {
     cliente_nombre:     presupuestoData.clienteNombre,
     cliente_apellidos:  presupuestoData.clienteApellidos ?? null,
     cliente_nif:        presupuestoData.clienteNif ?? null,
-    cliente_direccion:  presupuestoData.clienteDireccion ?? null,
-    cliente_cp:         presupuestoData.clienteCp ?? null,
-    cliente_ciudad:     presupuestoData.clienteCiudad ?? null,
-    cliente_email:      presupuestoData.clienteEmail ?? null,
+    cliente_direccion:      presupuestoData.clienteDireccion ?? null,
+    cliente_cp:             presupuestoData.clienteCp ?? null,
+    cliente_ciudad:         presupuestoData.clienteCiudad ?? null,
+    facturacion_direccion:  presupuestoData.facturacionDireccion ?? null,
+    facturacion_cp:         presupuestoData.facturacionCp ?? null,
+    facturacion_ciudad:     presupuestoData.facturacionCiudad ?? null,
+    cliente_email:          presupuestoData.clienteEmail ?? null,
     cliente_telefono:   presupuestoData.clienteTelefono ?? null,
     fecha_emision:      hoy,
     fecha_validez:      validez,
@@ -254,10 +257,13 @@ export async function PATCH(req: NextRequest) {
   if (params.clienteNombre   !== undefined) updates.cliente_nombre     = params.clienteNombre;
   if (params.clienteApellidos !== undefined) updates.cliente_apellidos = params.clienteApellidos;
   if (params.clienteNif      !== undefined) updates.cliente_nif        = params.clienteNif;
-  if (params.clienteDireccion !== undefined) updates.cliente_direccion = params.clienteDireccion;
-  if (params.clienteCp       !== undefined) updates.cliente_cp         = params.clienteCp;
-  if (params.clienteCiudad   !== undefined) updates.cliente_ciudad     = params.clienteCiudad;
-  if (params.clienteEmail    !== undefined) updates.cliente_email      = params.clienteEmail;
+  if (params.clienteDireccion    !== undefined) updates.cliente_direccion    = params.clienteDireccion;
+  if (params.clienteCp           !== undefined) updates.cliente_cp            = params.clienteCp;
+  if (params.clienteCiudad       !== undefined) updates.cliente_ciudad        = params.clienteCiudad;
+  if (params.facturacionDireccion !== undefined) updates.facturacion_direccion = params.facturacionDireccion;
+  if (params.facturacionCp       !== undefined) updates.facturacion_cp        = params.facturacionCp;
+  if (params.facturacionCiudad   !== undefined) updates.facturacion_ciudad    = params.facturacionCiudad;
+  if (params.clienteEmail        !== undefined) updates.cliente_email         = params.clienteEmail;
   if (params.clienteTelefono !== undefined) updates.cliente_telefono   = params.clienteTelefono;
   if (params.notasInternas   !== undefined) updates.notas_internas     = params.notasInternas;
   if (params.obraId          !== undefined) updates.obra_id            = params.obraId;

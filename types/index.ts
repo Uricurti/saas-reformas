@@ -371,8 +371,11 @@ export interface Presupuesto {
   id: string; tenant_id: string; numero: string; version: number;
   tipo: PresupuestoTipo; estado: PresupuestoEstado;
   cliente_nombre: string; cliente_apellidos: string | null;
-  cliente_nif: string | null; cliente_direccion: string | null;
-  cliente_cp: string | null; cliente_ciudad: string | null;
+  cliente_nif: string | null;
+  // Dirección de la obra (donde se ejecutan los trabajos)
+  cliente_direccion: string | null; cliente_cp: string | null; cliente_ciudad: string | null;
+  // Dirección de facturación (puede diferir de la obra)
+  facturacion_direccion: string | null; facturacion_cp: string | null; facturacion_ciudad: string | null;
   cliente_email: string | null; cliente_telefono: string | null;
   fecha_emision: string; fecha_validez: string;
   importe_base: number; porcentaje_iva: number;

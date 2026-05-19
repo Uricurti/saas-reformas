@@ -81,6 +81,10 @@ export function NuevoPresupuestoModal({
   const [direccion, setDireccion]     = useState("");
   const [cp, setCp]                   = useState("");
   const [ciudad, setCiudad]           = useState("");
+  const [mismaDireccion, setMismaDireccion]             = useState(true);
+  const [facturacionDireccion, setFacturacionDireccion] = useState("");
+  const [facturacionCp, setFacturacionCp]               = useState("");
+  const [facturacionCiudad, setFacturacionCiudad]       = useState("");
   const [iva, setIva]                 = useState<10 | 21>(21);
   const [formaPago, setFormaPago]     = useState(FORMA_PAGO_DEFAULT.map((f) => ({ ...f })));
 
@@ -355,6 +359,9 @@ export function NuevoPresupuestoModal({
       clienteDireccion: direccion.trim() || undefined,
       clienteCp:        cp.trim() || undefined,
       clienteCiudad:    ciudad.trim() || undefined,
+      facturacionDireccion: mismaDireccion ? (direccion.trim() || undefined) : (facturacionDireccion.trim() || undefined),
+      facturacionCp:        mismaDireccion ? (cp.trim() || undefined) : (facturacionCp.trim() || undefined),
+      facturacionCiudad:    mismaDireccion ? (ciudad.trim() || undefined) : (facturacionCiudad.trim() || undefined),
       importeBase,
       porcentajeIva:    iva,
       formaPago,
@@ -466,7 +473,7 @@ export function NuevoPresupuestoModal({
                   <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@email.com" />
                 </div>
                 <div className="col-span-2">
-                  <label className="label text-xs">Dirección de la obra</label>
+                  <label className="label text-xs">📍 Dirección de la obra</label>
                   <input className="input" value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Calle, número, piso..." />
                 </div>
                 <div>
@@ -477,6 +484,37 @@ export function NuevoPresupuestoModal({
                   <label className="label text-xs">Ciudad</label>
                   <input className="input" value={ciudad} onChange={(e) => setCiudad(e.target.value)} placeholder="Barcelona" />
                 </div>
+
+                {/* Toggle dirección facturación */}
+                <div className="col-span-2 mt-1">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={mismaDireccion}
+                      onChange={(e) => setMismaDireccion(e.target.checked)}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-sm text-content-secondary">🧾 La dirección de facturación es la misma que la de la obra</span>
+                  </label>
+                </div>
+
+                {/* Campos facturación (solo si difiere) */}
+                {!mismaDireccion && (
+                  <>
+                    <div className="col-span-2">
+                      <label className="label text-xs">🧾 Dirección de facturación</label>
+                      <input className="input" value={facturacionDireccion} onChange={(e) => setFacturacionDireccion(e.target.value)} placeholder="Calle, número, piso..." />
+                    </div>
+                    <div>
+                      <label className="label text-xs">CP facturación</label>
+                      <input className="input" value={facturacionCp} onChange={(e) => setFacturacionCp(e.target.value)} placeholder="08001" />
+                    </div>
+                    <div>
+                      <label className="label text-xs">Ciudad facturación</label>
+                      <input className="input" value={facturacionCiudad} onChange={(e) => setFacturacionCiudad(e.target.value)} placeholder="Barcelona" />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

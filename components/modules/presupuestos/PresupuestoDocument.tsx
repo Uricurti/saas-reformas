@@ -147,10 +147,21 @@ export function PresupuestoDocument({
           {presupuesto.cliente_telefono && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>{presupuesto.cliente_telefono}</div>}
           {presupuesto.cliente_email && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>{presupuesto.cliente_email}</div>}
           {presupuesto.cliente_direccion && (
-            <div style={{ fontSize: 12, color: TEXT_SOFT }}>
+            <div style={{ fontSize: 12, color: TEXT_SOFT, marginTop: 4 }}>
+              <span style={{ fontWeight: 600, color: TEXT_MID }}>📍 Dirección obra: </span>
               {presupuesto.cliente_direccion}
               {(presupuesto.cliente_cp || presupuesto.cliente_ciudad) && (
                 <span> · {[presupuesto.cliente_cp, presupuesto.cliente_ciudad].filter(Boolean).join(" ")}</span>
+              )}
+            </div>
+          )}
+          {presupuesto.facturacion_direccion &&
+            presupuesto.facturacion_direccion !== presupuesto.cliente_direccion && (
+            <div style={{ fontSize: 12, color: TEXT_SOFT, marginTop: 3 }}>
+              <span style={{ fontWeight: 600, color: TEXT_MID }}>🧾 Facturación: </span>
+              {presupuesto.facturacion_direccion}
+              {(presupuesto.facturacion_cp || presupuesto.facturacion_ciudad) && (
+                <span> · {[presupuesto.facturacion_cp, presupuesto.facturacion_ciudad].filter(Boolean).join(" ")}</span>
               )}
             </div>
           )}
