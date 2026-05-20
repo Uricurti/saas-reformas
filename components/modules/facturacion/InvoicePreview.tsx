@@ -141,14 +141,9 @@ function InvoiceDocument({
           {obra?.cliente_nombre ? (
             <>
               {/* Nombre: empresa si hay, o cliente */}
-              {obra.facturacion_nombre ? (
-                <>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 2 }}>{obra.facturacion_nombre}</div>
-                  <div style={{ fontSize: 13, color: TEXT_MID, marginBottom: 4 }}>{obra.cliente_nombre}</div>
-                </>
-              ) : (
-                <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 4 }}>{obra.cliente_nombre}</div>
-              )}
+              <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 4 }}>
+                {obra.facturacion_nombre ?? obra.cliente_nombre}
+              </div>
               {/* CIF empresa o DNI/NIE persona */}
               {(obra.facturacion_nif || (obra as any).cliente_dni_nie_cif) && (
                 <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
