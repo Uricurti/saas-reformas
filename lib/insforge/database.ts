@@ -1796,17 +1796,19 @@ export async function deleteCatalogoPartida(id: string): Promise<void> {
 
 
 // ── Obtener presupuesto origen de una obra ────────────────────────────────────
-export async function getPresupuestoByObraId(obraId: string): Promise<import("@/types").PresupuestoConLineas | null> {
-  // Primero buscamos sin lineas para obtener el id
-  const { data } = await insforge.database
-    .from("presupuestos")
-    .select("id")
-    .eq("obra_id", obraId)
-    .order("version", { ascending: false })
-    .limit(1)
-    .single();
-  if (!data) return null;
-  return getPresupuestoById((data as any).id);
+export async function getPresupuestoByObraId(obraId: string, tenantId: string): Promise<import("@/types").PresupuestoConLineas | null> {
+  // Usamos la API admin (service key) para bypassear RLS
+  try {
+    const res = await fetch(`${GESTIONAR_API}?tenantId=${tenantId}&obraId=${obraId}`);
+    if (!res.ok) return null;
+    const lista = await res.json();
+    if (!Array.isArray(lista) || lista.length === 0) return null;
+    // Ordenar por versión descendente y coger el primero
+    lista.sort((a: any, b: any) => (b.version ?? 1) - (a.version ?? 1));
+    return getPresupuestoById(lista[0].id);
+  } catch {
+    return null;
+  }
 }
 
 // ── Conversión presupuesto → obra ─────────────────────────────────────────────

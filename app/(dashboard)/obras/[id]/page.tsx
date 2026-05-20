@@ -120,8 +120,10 @@ export default function ObraDetallePage() {
     }
 
     // Cargar presupuesto origen (si existe)
-    const pres = await getPresupuestoByObraId(id);
-    setPresupuestoOrigen(pres ?? null);
+    if (tenantId) {
+      const pres = await getPresupuestoByObraId(id, tenantId);
+      setPresupuestoOrigen(pres ?? null);
+    }
 
     setIsLoading(false);
   }

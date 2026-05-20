@@ -88,10 +88,12 @@ export async function GET(req: NextRequest) {
   const tipo     = searchParams.get("tipo");
   const desde    = searchParams.get("desde");
   const hasta    = searchParams.get("hasta");
-  if (estado) path += `&estado=eq.${estado}`;
-  if (tipo)   path += `&tipo=eq.${tipo}`;
-  if (desde)  path += `&fecha_emision=gte.${desde}`;
-  if (hasta)  path += `&fecha_emision=lte.${hasta}`;
+  const obraId   = searchParams.get("obraId");
+  if (estado)  path += `&estado=eq.${estado}`;
+  if (tipo)    path += `&tipo=eq.${tipo}`;
+  if (desde)   path += `&fecha_emision=gte.${desde}`;
+  if (hasta)   path += `&fecha_emision=lte.${hasta}`;
+  if (obraId)  path += `&obra_id=eq.${obraId}`;
 
   const { data, error } = await insforgeAdmin(path);
   if (error) return NextResponse.json({ error }, { status: 500 });
