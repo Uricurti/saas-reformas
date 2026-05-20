@@ -83,6 +83,7 @@ export function NuevoPresupuestoModal({
   const [ciudad, setCiudad]           = useState("");
   const [mismaDireccion, setMismaDireccion]             = useState(true);
   const [facturacionNombre, setFacturacionNombre]       = useState("");
+  const [facturacionNif, setFacturacionNif]             = useState("");
   const [facturacionDireccion, setFacturacionDireccion] = useState("");
   const [facturacionCp, setFacturacionCp]               = useState("");
   const [facturacionCiudad, setFacturacionCiudad]       = useState("");
@@ -361,6 +362,7 @@ export function NuevoPresupuestoModal({
       clienteCp:        cp.trim() || undefined,
       clienteCiudad:    ciudad.trim() || undefined,
       facturacionNombre:    mismaDireccion ? undefined : (facturacionNombre.trim() || undefined),
+      facturacionNif:       mismaDireccion ? undefined : (facturacionNif.trim() || undefined),
       facturacionDireccion: mismaDireccion ? (direccion.trim() || undefined) : (facturacionDireccion.trim() || undefined),
       facturacionCp:        mismaDireccion ? (cp.trim() || undefined) : (facturacionCp.trim() || undefined),
       facturacionCiudad:    mismaDireccion ? (ciudad.trim() || undefined) : (facturacionCiudad.trim() || undefined),
@@ -506,6 +508,10 @@ export function NuevoPresupuestoModal({
                     <div className="col-span-2">
                       <label className="label text-xs">🏢 Nombre empresa / Razón social</label>
                       <input className="input" value={facturacionNombre} onChange={(e) => setFacturacionNombre(e.target.value)} placeholder="Empresa S.L." />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="label text-xs">CIF empresa</label>
+                      <input className="input" value={facturacionNif} onChange={(e) => setFacturacionNif(e.target.value)} placeholder="B12345678" />
                     </div>
                     <div className="col-span-2">
                       <label className="label text-xs">🧾 Dirección de facturación</label>

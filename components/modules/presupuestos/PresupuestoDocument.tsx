@@ -155,7 +155,7 @@ export function PresupuestoDocument({
               )}
             </div>
           )}
-          {(presupuesto.facturacion_nombre ||
+          {(presupuesto.facturacion_nombre || presupuesto.facturacion_nif ||
             (presupuesto.facturacion_direccion && presupuesto.facturacion_direccion !== presupuesto.cliente_direccion)) && (
             <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed #e5e7eb" }}>
               <div style={{ fontSize: 9, fontWeight: 700, color: TEXT_FAINT, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 3 }}>
@@ -164,6 +164,11 @@ export function PresupuestoDocument({
               {presupuesto.facturacion_nombre && (
                 <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK, marginBottom: 1 }}>
                   {presupuesto.facturacion_nombre}
+                </div>
+              )}
+              {presupuesto.facturacion_nif && (
+                <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
+                  <strong style={{ color: TEXT_MID }}>CIF:</strong> {presupuesto.facturacion_nif}
                 </div>
               )}
               {presupuesto.facturacion_direccion &&
