@@ -187,9 +187,6 @@ function InvoiceDocument({
           </div>
           <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 2 }}>{obra?.nombre ?? "—"}</div>
           {obra?.direccion && <div style={{ fontSize: 12, color: TEXT_SOFT }}>{obra.direccion}</div>}
-          {obra?.fecha_inicio && (
-            <div style={{ fontSize: 12, color: TEXT_SOFT }}>Inicio: {fmtDate(obra.fecha_inicio)}</div>
-          )}
         </div>
       </div>
 
