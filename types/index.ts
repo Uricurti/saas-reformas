@@ -240,6 +240,13 @@ export interface JornalMes {
 // ─── Facturación ──────────────────────────────────────────────────────────────
 export type PagoEstado = "pendiente_emitir" | "emitida" | "cobrada";
 
+export interface LineaFactura {
+  nombre_partida: string;
+  descripcion: string | null;
+  es_base: boolean;
+  seccion?: string | null;
+}
+
 export interface Factura {
   id: string;
   tenant_id: string;
@@ -251,6 +258,7 @@ export interface Factura {
   archivo_url: string | null;
   notas: string | null;
   porcentaje_iva: number;
+  lineas_partidas: LineaFactura[];
   created_at: string;
   updated_at: string;
 }

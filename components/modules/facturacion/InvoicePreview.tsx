@@ -179,12 +179,71 @@ function InvoiceDocument({
         <div style={{ fontSize: 9, fontWeight: 700, color: PRIMARY, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>
           {isModoHito ? `Hito ${pago!.orden} de ${factura.pagos.length} — ${pago!.concepto}` : "Concepto del presupuesto"}
         </div>
-        <div style={{ fontSize: 17, fontWeight: 800, color: TEXT_DARK, letterSpacing: "-0.3px", lineHeight: 1.25, marginBottom: factura.notas ? 12 : 0 }}>
+        <div style={{ fontSize: 17, fontWeight: 800, color: TEXT_DARK, letterSpacing: "-0.3px", lineHeight: 1.25, marginBottom: (factura.notas || (factura.lineas_partidas && factura.lineas_partidas.length > 0)) ? 12 : 0 }}>
           {factura.concepto}
         </div>
         {factura.notas && (
           <div style={{ fontSize: 12.5, color: TEXT_MID, lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 8, paddingTop: 8, borderTop: "1px solid #dde6f5" }}>
             {factura.notas}
+          </div>
+        )}
+        {/* ── Partidas del presupuesto ── */}
+        {factura.lineas_partidas && factura.lineas_partidas.length > 0 && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #dde6f5" }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: PRIMARY, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>
+              Alcance de los trabajos
+            </div>
+            {/* Agrupar por sección si las hay */}
+            {(() => {
+              const lineas = factura.lineas_partidas;
+              const secciones = new Map<string, typeof lineas>();
+              for (const l of lineas) {
+                const key = l.seccion ?? "";
+                if (!secciones.has(key)) secciones.set(key, []);
+                secciones.get(key)!.push(l);
+              }
+              const tieneSecciones = secciones.size > 1 || (secciones.size === 1 && !secciones.has("") && !secciones.has(null as any));
+              if (tieneSecciones) {
+                return Array.from(secciones.entries()).map(([sec, items]) => {
+                  const secLabel = sec ? sec.split(":").pop() ?? sec : "";
+                  return (
+                    <div key={sec} style={{ marginBottom: 10 }}>
+                      {secLabel && (
+                        <div style={{ fontSize: 10, fontWeight: 700, color: TEXT_MID, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          {secLabel}
+                        </div>
+                      )}
+                      {items.map((l, i) => (
+                        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 3 }}>
+                          <span style={{ fontSize: 10, color: PRIMARY, flexShrink: 0, marginTop: 2 }}>▸</span>
+                          <div>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: TEXT_DARK }}>{l.nombre_partida}</span>
+                            {l.descripcion && (
+                              <span style={{ fontSize: 11, color: TEXT_SOFT, marginLeft: 6 }}>{l.descripcion}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                });
+              }
+              return (
+                <div style={{ columns: lineas.length > 8 ? 2 : 1, columnGap: 24 }}>
+                  {lineas.map((l, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 4, breakInside: "avoid" }}>
+                      <span style={{ fontSize: 10, color: PRIMARY, flexShrink: 0, marginTop: 2 }}>▸</span>
+                      <div>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: TEXT_DARK }}>{l.nombre_partida}</span>
+                        {l.descripcion && (
+                          <span style={{ fontSize: 11, color: TEXT_SOFT, marginLeft: 6 }}>{l.descripcion}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>

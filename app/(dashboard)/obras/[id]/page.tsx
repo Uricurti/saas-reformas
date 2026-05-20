@@ -17,8 +17,9 @@ import {
   getMaterialesByObra,
   getArchivosByObra,
   getDocumentosByObra,
+  getPresupuestoByObraId,
 } from "@/lib/insforge/database";
-import type { ObraConAsignados, User, Material, Archivo, Documento } from "@/types";
+import type { ObraConAsignados, User, Material, Archivo, Documento, PresupuestoConLineas } from "@/types";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft, Building2, MapPin, Calendar, Phone, Users,
@@ -33,6 +34,7 @@ import { DireccionInput } from "@/components/ui/DireccionInput";
 import { DireccionLink } from "@/components/ui/DireccionLink";
 import { DocumentacionSection } from "@/components/modules/obras/DocumentacionSection";
 import { FacturacionSection } from "@/components/modules/obras/FacturacionSection";
+import { PresupuestoPreview } from "@/components/modules/presupuestos/PresupuestoPreview";
 
 // ─────────────────────────────────────────────────────────────
 // Página principal
@@ -49,6 +51,8 @@ export default function ObraDetallePage() {
   const [materiales, setMateriales] = useState<Material[]>([]);
   const [archivos, setArchivos] = useState<Archivo[]>([]);
   const [documentos, setDocumentos] = useState<Documento[]>([]);
+  const [presupuestoOrigen, setPresupuestoOrigen] = useState<PresupuestoConLineas | null | undefined>(undefined);
+  const [showPresupuesto, setShowPresupuesto] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [editando, setEditando] = useState(false);
 
@@ -114,6 +118,10 @@ export default function ObraDetallePage() {
       const usersRes = await getUsuariosByTenant(tenantId);
       setUsuarios((usersRes.data as User[]) ?? []);
     }
+
+    // Cargar presupuesto origen (si existe)
+    const pres = await getPresupuestoByObraId(id);
+    setPresupuestoOrigen(pres ?? null);
 
     setIsLoading(false);
   }
@@ -473,11 +481,66 @@ export default function ObraDetallePage() {
         )}
       </div>
 
+      {/* Presupuesto origen (solo admin) */}
+      {isAdmin && presupuestoOrigen && (
+        <div className="mt-2 p-4 bg-white rounded-2xl border border-surface-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#EEF2F8" }}>
+                <FileText className="w-4 h-4" style={{ color: "#607eaa" }} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-content-primary">Presupuesto origen</p>
+                <p className="text-xs text-content-muted">
+                  {presupuestoOrigen.numero} v{presupuestoOrigen.version}
+                  {" · "}
+                  {presupuestoOrigen.importe_total.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €
+                  {" · "}
+                  {presupuestoOrigen.lineas.length} partida{presupuestoOrigen.lineas.length !== 1 ? "s" : ""}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowPresupuesto(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+              style={{ background: "#EEF2F8", color: "#607eaa" }}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Ver presupuesto
+            </button>
+          </div>
+          {/* Listado rápido de partidas */}
+          {presupuestoOrigen.lineas.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {presupuestoOrigen.lineas.slice(0, 8).map((l, i) => (
+                <span key={i} className="text-xs px-2 py-0.5 rounded-full" style={{ background: l.es_base ? "#EEF2F8" : "#F3F4F6", color: l.es_base ? "#607eaa" : "#6B7280" }}>
+                  {l.nombre_partida}
+                </span>
+              ))}
+              {presupuestoOrigen.lineas.length > 8 && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-content-muted">
+                  +{presupuestoOrigen.lineas.length - 8} más
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Facturación (solo admin) */}
       {isAdmin && tenantId && (
         <div className="mt-2 p-4 bg-white rounded-2xl border border-surface-border">
           <FacturacionSection obraId={obra.id} tenantId={tenantId} />
         </div>
+      )}
+
+      {/* Modal presupuesto origen */}
+      {showPresupuesto && presupuestoOrigen && tenantId && (
+        <PresupuestoPreview
+          presupuesto={presupuestoOrigen}
+          tenantId={tenantId}
+          onClose={() => setShowPresupuesto(false)}
+        />
       )}
 
       {/* Acciones de estado — solo admin */}

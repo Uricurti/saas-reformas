@@ -774,6 +774,7 @@ export async function createFactura(params: {
   porcentajeEfectivoB?: number;
   fechaEmision?: string | null;
   notas?: string | null;
+  lineas?: import("@/types").LineaFactura[];
   pagos: {
     concepto: string;
     porcentaje: number;
@@ -791,6 +792,7 @@ export async function createFactura(params: {
       porcentaje_iva: params.porcentajeIva ?? 21,
       fecha_emision: params.fechaEmision ?? null,
       notas: params.notas ?? null,
+      lineas_partidas: params.lineas ?? [],
     })
     .select()
     .single();
@@ -1793,6 +1795,20 @@ export async function deleteCatalogoPartida(id: string): Promise<void> {
 }
 
 
+// ── Obtener presupuesto origen de una obra ────────────────────────────────────
+export async function getPresupuestoByObraId(obraId: string): Promise<import("@/types").PresupuestoConLineas | null> {
+  // Primero buscamos sin lineas para obtener el id
+  const { data } = await insforge.database
+    .from("presupuestos")
+    .select("id")
+    .eq("obra_id", obraId)
+    .order("version", { ascending: false })
+    .limit(1)
+    .single();
+  if (!data) return null;
+  return getPresupuestoById((data as any).id);
+}
+
 // ── Conversión presupuesto → obra ─────────────────────────────────────────────
 export async function convertirPresupuestoAObra(
   presupuestoId: string,
@@ -1832,6 +1848,12 @@ export async function convertirPresupuestoAObra(
     numeroFactura: nextNum,
     porcentajeIva: pres.porcentaje_iva,
     fechaEmision: null, notas: null,
+    lineas: pres.lineas.map((l) => ({
+      nombre_partida: l.nombre_partida,
+      descripcion:    l.descripcion ?? null,
+      es_base:        l.es_base,
+      seccion:        l.seccion ?? null,
+    })),
     pagos: pres.forma_pago.map((fp) => ({
       concepto: fp.concepto, porcentaje: fp.porcentaje, fechaPrevista: null,
     })),
