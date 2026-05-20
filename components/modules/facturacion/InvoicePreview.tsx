@@ -74,14 +74,14 @@ function InvoiceDocument({
         background: "#ffffff",
         width: "794px",
         boxSizing: "border-box",
-        padding: "52px 56px 44px",
+        padding: "36px 48px 28px",
         color: TEXT_DARK,
-        fontSize: "13px",
-        lineHeight: "1.55",
+        fontSize: "12.5px",
+        lineHeight: "1.5",
       }}
     >
       {/* ══ CABECERA ═══════════════════════════════════════════════ */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32, pageBreakInside: "avoid", breakInside: "avoid" }}>
+      <div className="no-page-break" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
         {/* Empresa */}
         <div style={{ maxWidth: 320 }}>
           <div style={{ fontSize: 26, fontWeight: 800, color: PRIMARY, letterSpacing: "-0.5px", lineHeight: 1.1, marginBottom: 8 }}>
@@ -130,11 +130,11 @@ function InvoiceDocument({
       </div>
 
       {/* ══ LÍNEA DEGRADADA ════════════════════════════════════════ */}
-      <div style={{ height: 3, background: `linear-gradient(90deg, ${PRIMARY}, #26bbec 50%, transparent)`, borderRadius: 99, marginBottom: 32 }} />
+      <div style={{ height: 3, background: `linear-gradient(90deg, ${PRIMARY}, #26bbec 50%, transparent)`, borderRadius: 99, marginBottom: 20 }} />
 
       {/* ══ CLIENTE + OBRA ══════════════════════════════════════════ */}
-      <div style={{ display: "flex", gap: 32, marginBottom: 32, pageBreakInside: "avoid", breakInside: "avoid" }}>
-        <div style={{ flex: 1, padding: "16px 20px", background: "#f9fafb", borderRadius: 10, borderLeft: `3px solid ${PRIMARY}` }}>
+      <div className="no-page-break" style={{ display: "flex", gap: 24, marginBottom: 20 }}>
+        <div style={{ flex: 1, padding: "12px 16px", background: "#f9fafb", borderRadius: 10, borderLeft: `3px solid ${PRIMARY}` }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: TEXT_FAINT, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>
             Facturar a
           </div>
@@ -181,7 +181,7 @@ function InvoiceDocument({
             <div style={{ fontSize: 13, color: TEXT_FAINT, fontStyle: "italic" }}>Sin datos de cliente</div>
           )}
         </div>
-        <div style={{ flex: 1, padding: "16px 20px", background: "#f9fafb", borderRadius: 10, borderLeft: `3px solid #26bbec` }}>
+        <div style={{ flex: 1, padding: "12px 16px", background: "#f9fafb", borderRadius: 10, borderLeft: `3px solid #26bbec` }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: TEXT_FAINT, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>
             Obra / Proyecto
           </div>
@@ -194,7 +194,7 @@ function InvoiceDocument({
       </div>
 
       {/* ══ CONCEPTO + DESCRIPCIÓN ══════════════════════════════════ */}
-      <div style={{ background: BG_LIGHT, borderRadius: 12, padding: "20px 24px", marginBottom: 28, breakInside: "avoid" }}>
+      <div style={{ background: BG_LIGHT, borderRadius: 12, padding: "14px 20px", marginBottom: 18 }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: PRIMARY, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>
           {isModoHito ? `Hito ${pago!.orden} de ${factura.pagos.length} — ${pago!.concepto}` : "Concepto del presupuesto"}
         </div>
@@ -233,12 +233,12 @@ function InvoiceDocument({
                         </div>
                       )}
                       {items.map((l, i) => (
-                        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 3 }}>
+                        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 5, marginBottom: 2 }}>
                           <span style={{ fontSize: 10, color: PRIMARY, flexShrink: 0, marginTop: 2 }}>▸</span>
                           <div>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: TEXT_DARK }}>{l.nombre_partida}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: TEXT_DARK }}>{l.nombre_partida}</span>
                             {l.descripcion && (
-                              <span style={{ fontSize: 11, color: TEXT_SOFT, marginLeft: 6 }}>{l.descripcion}</span>
+                              <span style={{ fontSize: 10, color: TEXT_SOFT, marginLeft: 5 }}>{l.descripcion}</span>
                             )}
                           </div>
                         </div>
@@ -250,7 +250,7 @@ function InvoiceDocument({
               return (
                 <div style={{ columns: lineas.length > 8 ? 2 : 1, columnGap: 24 }}>
                   {lineas.map((l, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 4, breakInside: "avoid" }}>
+                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 5, marginBottom: 2 }}>
                       <span style={{ fontSize: 10, color: PRIMARY, flexShrink: 0, marginTop: 2 }}>▸</span>
                       <div>
                         <span style={{ fontSize: 12, fontWeight: 600, color: TEXT_DARK }}>{l.nombre_partida}</span>
@@ -267,8 +267,11 @@ function InvoiceDocument({
         )}
       </div>
 
-      {/* ══ TABLA HITOS ════════════════════════════════════════════ */}
-      <div style={{ marginBottom: 28, breakInside: "avoid" }}>
+      {/* ══ TABLA HITOS + TOTALES + IBAN — bloque que nunca se parte ══ */}
+      <div className="no-page-break">
+
+      {/* ── Tabla hitos ── */}
+      <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: TEXT_FAINT, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>
           {isModoHito ? "Detalle del cobro" : "Hitos de pago"}
         </div>
@@ -313,8 +316,8 @@ function InvoiceDocument({
         <div style={{ height: 2, background: TEXT_DARK, borderRadius: "0 0 4px 4px" }} />
       </div>
 
-      {/* ══ TOTALES ════════════════════════════════════════════════ */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 36, breakInside: "avoid" }}>
+      {/* ── Totales ── */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
         <div style={{ width: 300 }}>
           {isModoHito ? (
             // ── Modo hito: desglose con IVA
@@ -386,15 +389,14 @@ function InvoiceDocument({
         </div>
       </div>
 
-      {/* ══ TRANSFERENCIA BANCARIA ════════════════════════════════ */}
+      {/* ── IBAN ── */}
       {isModoHito && (config as any)?.numero_cuenta && (
         <div style={{
           background: "#f0f9ff",
           border: "1.5px solid #bae6fd",
           borderRadius: 10,
-          padding: "14px 18px",
-          marginBottom: 24,
-          breakInside: "avoid",
+          padding: "12px 16px",
+          marginBottom: 16,
         }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: "#0284c7", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>
             Instrucciones de pago
@@ -411,8 +413,10 @@ function InvoiceDocument({
         </div>
       )}
 
+      </div>{/* fin no-page-break */}
+
       {/* ══ FOOTER ════════════════════════════════════════════════ */}
-      <div style={{ borderTop: "1.5px solid #EEF2F8", paddingTop: 20, display: "flex", justifyContent: "space-between", alignItems: "flex-end", breakInside: "avoid" }}>
+      <div style={{ borderTop: "1.5px solid #EEF2F8", paddingTop: 14, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div style={{ fontSize: 10, color: TEXT_FAINT, maxWidth: 380, lineHeight: 1.6 }}>
           {isModoHito
             ? `Factura nº ${numeroFactura} emitida conforme a la normativa fiscal vigente (Ley 37/1992 del IVA). El pago debe realizarse en la fecha indicada. En caso de demora se aplicará el interés legal del dinero.`
@@ -489,7 +493,9 @@ export function InvoicePreview({
           },
           pagebreak: {
             mode: ["css", "legacy"],
-            avoid: [".no-page-break"],
+            avoid: [".no-page-break", "table", "tr"],
+            before: [],
+            after: [],
           },
         })
         .from(element)
