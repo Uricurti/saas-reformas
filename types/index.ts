@@ -41,7 +41,14 @@ export interface Obra {
   poblacion?: string;
   cliente_nombre?: string;
   cliente_telefono?: string;
+  cliente_email?: string;
   cliente_dni_nie_cif?: string;
+  // Dirección de facturación (puede diferir de la obra)
+  facturacion_nombre?: string | null;
+  facturacion_nif?: string | null;
+  facturacion_direccion?: string | null;
+  facturacion_cp?: string | null;
+  facturacion_ciudad?: string | null;
   fecha_inicio: string;
   fecha_fin_estimada?: string;
   estado: ObraEstado;

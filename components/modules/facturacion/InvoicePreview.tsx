@@ -140,22 +140,46 @@ function InvoiceDocument({
           </div>
           {obra?.cliente_nombre ? (
             <>
-              <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 4 }}>{obra.cliente_nombre}</div>
-              {(obra as any).cliente_dni_nie_cif && (
+              {/* Nombre: empresa si hay, o cliente */}
+              {obra.facturacion_nombre ? (
+                <>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 2 }}>{obra.facturacion_nombre}</div>
+                  <div style={{ fontSize: 13, color: TEXT_MID, marginBottom: 4 }}>{obra.cliente_nombre}</div>
+                </>
+              ) : (
+                <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 4 }}>{obra.cliente_nombre}</div>
+              )}
+              {/* CIF empresa o DNI/NIE persona */}
+              {(obra.facturacion_nif || (obra as any).cliente_dni_nie_cif) && (
                 <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
-                  <strong style={{ color: TEXT_MID }}>DNI/NIE/CIF:</strong> {(obra as any).cliente_dni_nie_cif}
+                  <strong style={{ color: TEXT_MID }}>
+                    {obra.facturacion_nif ? "CIF:" : "DNI/NIE/CIF:"}
+                  </strong>{" "}
+                  {obra.facturacion_nif ?? (obra as any).cliente_dni_nie_cif}
                 </div>
+              )}
+              {/* Dirección de facturación (o de obra si coinciden) */}
+              {(obra.facturacion_direccion || obra.direccion) && (
+                <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
+                  {obra.facturacion_direccion ?? obra.direccion}
+                </div>
+              )}
+              {(obra.facturacion_cp || obra.facturacion_ciudad) && (
+                <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
+                  {[obra.facturacion_cp, obra.facturacion_ciudad].filter(Boolean).join(" ")}
+                </div>
+              )}
+              {!obra.facturacion_cp && !obra.facturacion_ciudad && ((obra as any).codigo_postal || (obra as any).poblacion) && (
+                <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
+                  {[(obra as any).codigo_postal, (obra as any).poblacion].filter(Boolean).join(" ")}
+                </div>
+              )}
+              {/* Email y teléfono */}
+              {(obra as any).cliente_email && (
+                <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>{(obra as any).cliente_email}</div>
               )}
               {obra.cliente_telefono && (
-                <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>{obra.cliente_telefono}</div>
-              )}
-              {obra.direccion && (
-                <div style={{ fontSize: 12, color: TEXT_SOFT }}>
-                  {obra.direccion}
-                  {((obra as any).codigo_postal || (obra as any).poblacion) && (
-                    <span> · {[(obra as any).codigo_postal, (obra as any).poblacion].filter(Boolean).join(" ")}</span>
-                  )}
-                </div>
+                <div style={{ fontSize: 12, color: TEXT_SOFT }}>{obra.cliente_telefono}</div>
               )}
             </>
           ) : (

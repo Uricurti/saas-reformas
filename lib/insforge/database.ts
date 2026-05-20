@@ -1822,16 +1822,27 @@ export async function convertirPresupuestoAObra(
   if (!pres) return null;
 
   const clienteCompleto = [pres.cliente_nombre, pres.cliente_apellidos].filter(Boolean).join(" ");
-  const direccionCompleta = [pres.cliente_direccion, pres.cliente_cp, pres.cliente_ciudad].filter(Boolean).join(", ") || null;
+  const direccionObra = [pres.cliente_direccion, pres.cliente_cp, pres.cliente_ciudad].filter(Boolean).join(", ") || null;
+
+  // Datos de facturación: si hay dirección de facturación distinta, usar esa; si no, igual que obra
+  const hayFacturacionDistinta = !!(pres.facturacion_nombre || pres.facturacion_nif ||
+    (pres.facturacion_direccion && pres.facturacion_direccion !== pres.cliente_direccion));
 
   const { data: obra } = await insforge.database
     .from("obras")
     .insert({
       tenant_id: tenantId, nombre: nombreObra,
-      direccion: direccionCompleta,
+      direccion: direccionObra,
       cliente_nombre: clienteCompleto,
       cliente_dni_nie_cif: pres.cliente_nif ?? null,
       cliente_telefono: pres.cliente_telefono ?? null,
+      cliente_email: pres.cliente_email ?? null,
+      // Facturación
+      facturacion_nombre:    hayFacturacionDistinta ? (pres.facturacion_nombre ?? null)    : null,
+      facturacion_nif:       hayFacturacionDistinta ? (pres.facturacion_nif ?? null)       : null,
+      facturacion_direccion: hayFacturacionDistinta ? (pres.facturacion_direccion ?? null) : null,
+      facturacion_cp:        hayFacturacionDistinta ? (pres.facturacion_cp ?? null)        : null,
+      facturacion_ciudad:    hayFacturacionDistinta ? (pres.facturacion_ciudad ?? null)    : null,
       estado: "activa", created_by: userId,
       fecha_inicio: new Date().toISOString().split("T")[0],
     })
