@@ -1507,6 +1507,7 @@ export async function createPresupuesto(params: {
   clienteDireccion?: string;       // dirección de la obra
   clienteCp?: string;
   clienteCiudad?: string;
+  facturacionNombre?: string;       // razón social / nombre empresa para facturación
   facturacionDireccion?: string;   // dirección de facturación (null = misma que obra)
   facturacionCp?: string;
   facturacionCiudad?: string;
@@ -1548,6 +1549,7 @@ export async function updatePresupuesto(
     clienteDireccion: string | null;
     clienteCp: string | null;
     clienteCiudad: string | null;
+    facturacionNombre: string | null;
     facturacionDireccion: string | null;
     facturacionCp: string | null;
     facturacionCiudad: string | null;
@@ -1599,6 +1601,7 @@ export async function createNuevaVersionPresupuesto(id: string): Promise<Presupu
     clienteDireccion:      original.cliente_direccion,
     clienteCp:             original.cliente_cp,
     clienteCiudad:         original.cliente_ciudad,
+    facturacionNombre:     original.facturacion_nombre,
     facturacionDireccion:  original.facturacion_direccion,
     facturacionCp:         original.facturacion_cp,
     facturacionCiudad:     original.facturacion_ciudad,
@@ -1682,6 +1685,7 @@ export async function duplicarPresupuesto(id: string, tenantId: string): Promise
         clienteDireccion:     original.cliente_direccion,
         clienteCp:            original.cliente_cp,
         clienteCiudad:        original.cliente_ciudad,
+        facturacionNombre:    original.facturacion_nombre,
         facturacionDireccion: original.facturacion_direccion,
         facturacionCp:        original.facturacion_cp,
         facturacionCiudad:    original.facturacion_ciudad,

@@ -82,6 +82,7 @@ export function NuevoPresupuestoModal({
   const [cp, setCp]                   = useState("");
   const [ciudad, setCiudad]           = useState("");
   const [mismaDireccion, setMismaDireccion]             = useState(true);
+  const [facturacionNombre, setFacturacionNombre]       = useState("");
   const [facturacionDireccion, setFacturacionDireccion] = useState("");
   const [facturacionCp, setFacturacionCp]               = useState("");
   const [facturacionCiudad, setFacturacionCiudad]       = useState("");
@@ -359,6 +360,7 @@ export function NuevoPresupuestoModal({
       clienteDireccion: direccion.trim() || undefined,
       clienteCp:        cp.trim() || undefined,
       clienteCiudad:    ciudad.trim() || undefined,
+      facturacionNombre:    mismaDireccion ? undefined : (facturacionNombre.trim() || undefined),
       facturacionDireccion: mismaDireccion ? (direccion.trim() || undefined) : (facturacionDireccion.trim() || undefined),
       facturacionCp:        mismaDireccion ? (cp.trim() || undefined) : (facturacionCp.trim() || undefined),
       facturacionCiudad:    mismaDireccion ? (ciudad.trim() || undefined) : (facturacionCiudad.trim() || undefined),
@@ -501,6 +503,10 @@ export function NuevoPresupuestoModal({
                 {/* Campos facturación (solo si difiere) */}
                 {!mismaDireccion && (
                   <>
+                    <div className="col-span-2">
+                      <label className="label text-xs">🏢 Nombre empresa / Razón social</label>
+                      <input className="input" value={facturacionNombre} onChange={(e) => setFacturacionNombre(e.target.value)} placeholder="Empresa S.L." />
+                    </div>
                     <div className="col-span-2">
                       <label className="label text-xs">🧾 Dirección de facturación</label>
                       <input className="input" value={facturacionDireccion} onChange={(e) => setFacturacionDireccion(e.target.value)} placeholder="Calle, número, piso..." />

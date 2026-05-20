@@ -375,6 +375,7 @@ export interface Presupuesto {
   // Dirección de la obra (donde se ejecutan los trabajos)
   cliente_direccion: string | null; cliente_cp: string | null; cliente_ciudad: string | null;
   // Dirección de facturación (puede diferir de la obra)
+  facturacion_nombre: string | null;
   facturacion_direccion: string | null; facturacion_cp: string | null; facturacion_ciudad: string | null;
   cliente_email: string | null; cliente_telefono: string | null;
   fecha_emision: string; fecha_validez: string;

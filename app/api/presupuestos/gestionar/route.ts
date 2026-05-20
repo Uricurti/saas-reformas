@@ -140,6 +140,7 @@ export async function POST(req: NextRequest) {
     cliente_direccion:      presupuestoData.clienteDireccion ?? null,
     cliente_cp:             presupuestoData.clienteCp ?? null,
     cliente_ciudad:         presupuestoData.clienteCiudad ?? null,
+    facturacion_nombre:     presupuestoData.facturacionNombre ?? null,
     facturacion_direccion:  presupuestoData.facturacionDireccion ?? null,
     facturacion_cp:         presupuestoData.facturacionCp ?? null,
     facturacion_ciudad:     presupuestoData.facturacionCiudad ?? null,
@@ -260,6 +261,7 @@ export async function PATCH(req: NextRequest) {
   if (params.clienteDireccion    !== undefined) updates.cliente_direccion    = params.clienteDireccion;
   if (params.clienteCp           !== undefined) updates.cliente_cp            = params.clienteCp;
   if (params.clienteCiudad       !== undefined) updates.cliente_ciudad        = params.clienteCiudad;
+  if (params.facturacionNombre    !== undefined) updates.facturacion_nombre    = params.facturacionNombre;
   if (params.facturacionDireccion !== undefined) updates.facturacion_direccion = params.facturacionDireccion;
   if (params.facturacionCp       !== undefined) updates.facturacion_cp        = params.facturacionCp;
   if (params.facturacionCiudad   !== undefined) updates.facturacion_ciudad    = params.facturacionCiudad;

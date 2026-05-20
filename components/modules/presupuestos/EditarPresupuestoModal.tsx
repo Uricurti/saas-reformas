@@ -87,6 +87,7 @@ export function EditarPresupuestoModal({
   const [cp, setCp]                 = useState("");
   const [ciudad, setCiudad]         = useState("");
   const [mismaDireccion, setMismaDireccion]             = useState(true);
+  const [facturacionNombre, setFacturacionNombre]       = useState("");
   const [facturacionDireccion, setFacturacionDireccion] = useState("");
   const [facturacionCp, setFacturacionCp]               = useState("");
   const [facturacionCiudad, setFacturacionCiudad]       = useState("");
@@ -137,9 +138,10 @@ export function EditarPresupuestoModal({
       const facDir    = data.facturacion_direccion ?? "";
       const facCp     = data.facturacion_cp ?? "";
       const facCiudad = data.facturacion_ciudad ?? "";
-      const hayFacturacionDistinta = !!(facDir || facCp || facCiudad) &&
+      const hayFacturacionDistinta = !!(facDir || facCp || facCiudad || data.facturacion_nombre) &&
         !(facDir === (data.cliente_direccion ?? "") && facCp === (data.cliente_cp ?? "") && facCiudad === (data.cliente_ciudad ?? ""));
       setMismaDireccion(!hayFacturacionDistinta);
+      setFacturacionNombre(data.facturacion_nombre ?? "");
       setFacturacionDireccion(facDir);
       setFacturacionCp(facCp);
       setFacturacionCiudad(facCiudad);
@@ -429,6 +431,7 @@ export function EditarPresupuestoModal({
       clienteDireccion: direccion.trim() || null,
       clienteCp:        cp.trim() || null,
       clienteCiudad:    ciudad.trim() || null,
+      facturacionNombre:    mismaDireccion ? null : (facturacionNombre.trim() || null),
       facturacionDireccion: mismaDireccion ? (direccion.trim() || null) : (facturacionDireccion.trim() || null),
       facturacionCp:        mismaDireccion ? (cp.trim() || null) : (facturacionCp.trim() || null),
       facturacionCiudad:    mismaDireccion ? (ciudad.trim() || null) : (facturacionCiudad.trim() || null),
@@ -591,6 +594,10 @@ export function EditarPresupuestoModal({
                 {/* Campos facturación (solo si difiere) */}
                 {!mismaDireccion && (
                   <>
+                    <div className="col-span-2">
+                      <label className="label text-xs">🏢 Nombre empresa / Razón social</label>
+                      <input className="input" value={facturacionNombre} onChange={(e) => setFacturacionNombre(e.target.value)} placeholder="Empresa S.L." />
+                    </div>
                     <div className="col-span-2">
                       <label className="label text-xs">🧾 Dirección de facturación</label>
                       <input className="input" value={facturacionDireccion} onChange={(e) => setFacturacionDireccion(e.target.value)} placeholder="Calle, número, piso..." />
