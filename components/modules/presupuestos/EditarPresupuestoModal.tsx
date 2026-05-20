@@ -169,7 +169,7 @@ export function EditarPresupuestoModal({
             localId: `s${Date.now()}_${Math.random()}`,
             nombre:  sn,
             tipo:    st,
-            expandCatalogo: false,
+            expandCatalogo: true,   // expandir para que el usuario vea las partidas ya seleccionadas
             nuevaLinea: null,
             lineas: ls.map((l: LineaPresupuesto) => ({
               nombre_partida: l.nombre_partida,
@@ -222,9 +222,13 @@ export function EditarPresupuestoModal({
       if (secciones.length === 0) {
         setSecciones([{ localId: `s${Date.now()}`, nombre: "Baño 1", tipo: "bano", lineas: [], expandCatalogo: true, nuevaLinea: null }]);
       }
-      // Cargar catálogos de todos los tipos de sección actuales
-      const tiposUsados = Array.from(new Set(secciones.map((s) => s.tipo)));
-      for (const t of tiposUsados) await cargarCatalogoTipo(t);
+      // Cargar catálogos para todos los tipos usados en las secciones actuales
+      // Forzamos recarga con fetch directo para evitar stale closures del useCallback
+      const tiposUsados = Array.from(new Set(secciones.map((s) => s.tipo))) as ("bano" | "cocina" | "otros")[];
+      for (const t of tiposUsados) {
+        const cat = await getCatalogoPresupuesto(tenantId, t);
+        setCatalogoCache((prev) => ({ ...prev, [t]: cat }));
+      }
     } else {
       setLoadingCat(true);
       const cat = await getCatalogoPresupuesto(tenantId, tipo as "bano" | "cocina" | "otros");
@@ -275,7 +279,8 @@ export function EditarPresupuestoModal({
         ? SECCION_NOMBRE_LABEL[nuevoTipo]
         : `${SECCION_NOMBRE_LABEL[nuevoTipo]} ${existentes + 1}`;
       return prev.map((s) =>
-        s.localId === localId ? { ...s, tipo: nuevoTipo, nombre: nuevoNombre, lineas: [], expandCatalogo: true } : s
+        // ⚠️ NO borrar lineas al cambiar tipo — solo actualizar tipo, nombre y expandir catálogo
+        s.localId === localId ? { ...s, tipo: nuevoTipo, nombre: nuevoNombre, expandCatalogo: true } : s
       );
     });
     cargarCatalogoTipo(nuevoTipo);
@@ -852,9 +857,36 @@ export function EditarPresupuestoModal({
                   </div>
 
                   <div style={{ padding: "12px 14px" }}>
+                    {/* ── Partidas YA incluidas (siempre visible primero) ── */}
+                    {sec.lineas.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1.5">
+                          ✓ Incluidas en este presupuesto ({sec.lineas.length})
+                        </p>
+                        <div className="space-y-1">
+                          {sec.lineas.map((l) => (
+                            <div key={l.nombre_partida} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-content-primary truncate">{l.nombre_partida}</p>
+                              </div>
+                              <CantidadPrecioInline
+                                cantidad={l.cantidad} precioUnitario={l.precioUnitario}
+                                onCantidadChange={(c) => actualizarCantidadEnSeccion(sec.localId, l.nombre_partida, c)}
+                                onPrecioChange={(p) => actualizarPrecioEnSeccion(sec.localId, l.nombre_partida, p)}
+                              />
+                              <button onClick={() => eliminarLineaDeSeccion(sec.localId, l.nombre_partida)} className="p-1 rounded hover:bg-red-100 hover:text-danger transition-colors" title="Quitar partida">
+                                <Trash2 className="w-3 h-3 text-gray-400" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Catálogo para añadir más ── */}
                     {isLoading ? (
-                      <div className="flex justify-center py-4">
-                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                      <div className="flex justify-center py-3">
+                        <Loader2 className="w-4 h-4 animate-spin text-primary" />
                       </div>
                     ) : (
                       <>
@@ -864,7 +896,7 @@ export function EditarPresupuestoModal({
                             className="flex items-center gap-2 text-xs font-bold text-content-muted uppercase tracking-wider mb-2 hover:text-primary transition-colors"
                           >
                             {sec.expandCatalogo ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            Catálogo {sec.tipo === "bano" ? "baño" : sec.tipo === "cocina" ? "cocina" : "otros"} ({cat.length} partidas)
+                            + Añadir del catálogo ({cat.length} disponibles)
                           </button>
                         )}
 
@@ -906,31 +938,8 @@ export function EditarPresupuestoModal({
                             )}
                           </div>
                         )}
-
-                        {sec.lineas.length > 0 && (
-                          <div className="mb-2">
-                            <p className="text-xs font-bold text-content-muted uppercase tracking-wider mb-1.5">
-                              Incluidas ({sec.lineas.length})
-                            </p>
-                            <div className="space-y-1">
-                              {sec.lineas.map((l) => (
-                                <div key={l.nombre_partida} className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-semibold text-content-primary truncate">{l.nombre_partida}</p>
-                                  </div>
-                                  <CantidadPrecioInline
-                                    cantidad={l.cantidad} precioUnitario={l.precioUnitario}
-                                    onCantidadChange={(c) => actualizarCantidadEnSeccion(sec.localId, l.nombre_partida, c)}
-                                    onPrecioChange={(p) => actualizarPrecioEnSeccion(sec.localId, l.nombre_partida, p)}
-                                  />
-                                  <button onClick={() => eliminarLineaDeSeccion(sec.localId, l.nombre_partida)} className="p-1 rounded hover:bg-danger-light hover:text-danger transition-colors">
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                      </>
+                    )}
 
                         {sec.nuevaLinea ? (
                           <div className="mt-2 p-3 border border-dashed border-gray-300 rounded-lg space-y-2">
@@ -955,8 +964,6 @@ export function EditarPresupuestoModal({
                             <Plus className="w-3 h-3" /> Añadir partida personalizada
                           </button>
                         )}
-                      </>
-                    )}
                   </div>
                 </div>
               );
