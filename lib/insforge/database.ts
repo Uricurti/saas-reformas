@@ -743,17 +743,19 @@ export async function getFacturasByObra(obraId: string): Promise<FacturaConPagos
 
 /** Próximo número de factura global para el tenant (FAC-001, FAC-002…) */
 export async function getNextNumeroFactura(tenantId: string): Promise<string> {
+  // El contador solo avanza con facturas EMITIDAS (pagos con numero_factura_emitida)
+  // No avanza al crear la obra ni al crear el grupo de facturación
   const { data } = await insforge.database
-    .from("facturas")
-    .select("numero_factura")
+    .from("pagos")
+    .select("numero_factura_emitida")
     .eq("tenant_id", tenantId)
-    .not("numero_factura", "is", null)
+    .not("numero_factura_emitida", "is", null)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(200);
 
   let maxNum = 0;
-  for (const row of (data ?? []) as { numero_factura: string | null }[]) {
-    const match = row.numero_factura?.match(/(\d+)$/);
+  for (const row of (data ?? []) as { numero_factura_emitida: string | null }[]) {
+    const match = row.numero_factura_emitida?.match(/(\d+)$/);
     if (match) {
       const n = parseInt(match[1], 10);
       if (n > maxNum) maxNum = n;
