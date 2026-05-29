@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, Plus, Trash2, Loader2, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { X, Plus, Trash2, Loader2, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, AlertTriangle, Pencil, Check } from "lucide-react";
 import {
   updatePresupuesto,
   getCatalogoPresupuesto,
@@ -100,6 +100,12 @@ export function EditarPresupuestoModal({
   const [lineas, setLineas]         = useState<LineaLocal[]>([]);
   const [loadingCat, setLoadingCat] = useState(false);
   const [nuevaLinea, setNuevaLinea] = useState<NuevaLineaForm | null>(null);
+  // Edición inline de partidas (simple)
+  const [editandoLinea, setEditandoLinea] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ nombre: string; desc: string; precio: string } | null>(null);
+  // Edición inline de partidas (mixto)
+  const [editandoLineaMixto, setEditandoLineaMixto] = useState<{ secId: string; nombre: string } | null>(null);
+  const [editFormMixto, setEditFormMixto] = useState<{ nombre: string; desc: string; precio: string } | null>(null);
 
   // ── Paso 2: modo mixto ──────────────────────────────────────────
   const [secciones, setSecciones]         = useState<SeccionLocal[]>([]);
@@ -382,6 +388,47 @@ export function EditarPresupuestoModal({
 
   function eliminarLinea(nombre_partida: string) {
     setLineas((prev) => prev.filter((l) => l.nombre_partida !== nombre_partida));
+  }
+
+  function iniciarEdicionLinea(l: LineaLocal) {
+    setEditandoLinea(l.nombre_partida);
+    setEditForm({ nombre: l.nombre_partida, desc: l.descripcion ?? "", precio: String(l.precioUnitario) });
+  }
+
+  function guardarEdicionLinea() {
+    if (!editForm || !editandoLinea) return;
+    const precio = parseFloat(editForm.precio.replace(",", "."));
+    if (!editForm.nombre.trim() || isNaN(precio) || precio < 0) return;
+    setLineas((prev) => prev.map((l) =>
+      l.nombre_partida === editandoLinea
+        ? { ...l, nombre_partida: editForm.nombre.trim(), descripcion: editForm.desc.trim() || null, precioUnitario: precio, precio: l.cantidad * precio }
+        : l
+    ));
+    setEditandoLinea(null);
+    setEditForm(null);
+  }
+
+  function iniciarEdicionLineaMixto(secId: string, l: LineaLocal) {
+    setEditandoLineaMixto({ secId, nombre: l.nombre_partida });
+    setEditFormMixto({ nombre: l.nombre_partida, desc: l.descripcion ?? "", precio: String(l.precioUnitario) });
+  }
+
+  function guardarEdicionLineaMixto() {
+    if (!editFormMixto || !editandoLineaMixto) return;
+    const precio = parseFloat(editFormMixto.precio.replace(",", "."));
+    if (!editFormMixto.nombre.trim() || isNaN(precio) || precio < 0) return;
+    setSecciones((prev) => prev.map((s) =>
+      s.localId !== editandoLineaMixto.secId ? s : {
+        ...s,
+        lineas: s.lineas.map((l) =>
+          l.nombre_partida === editandoLineaMixto.nombre
+            ? { ...l, nombre_partida: editFormMixto.nombre.trim(), descripcion: editFormMixto.desc.trim() || null, precioUnitario: precio, precio: l.cantidad * precio }
+            : l
+        ),
+      }
+    ));
+    setEditandoLineaMixto(null);
+    setEditFormMixto(null);
   }
 
   function agregarLineaPersonalizada() {
@@ -741,18 +788,57 @@ export function EditarPresupuestoModal({
                     </p>
                     <div className="space-y-1">
                       {lineas.map((l) => (
-                        <div key={l.nombre_partida} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-content-primary truncate">{l.nombre_partida}</p>
-                          </div>
-                          <CantidadPrecioInline
-                            cantidad={l.cantidad} precioUnitario={l.precioUnitario}
-                            onCantidadChange={(c) => actualizarCantidadLinea(l.nombre_partida, c)}
-                            onPrecioChange={(p) => actualizarPrecioLinea(l.nombre_partida, p)}
-                          />
-                          <button onClick={() => eliminarLinea(l.nombre_partida)} className="p-1 rounded hover:bg-danger-light hover:text-danger transition-colors">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        <div key={l.nombre_partida}>
+                          {editandoLinea === l.nombre_partida && editForm ? (
+                            // ── Formulario de edición inline ──
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="col-span-2">
+                                  <label className="label text-xs">Nombre partida *</label>
+                                  <input className="input text-sm" value={editForm.nombre}
+                                    onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
+                                    onKeyDown={(e) => { if (e.key === "Enter") guardarEdicionLinea(); if (e.key === "Escape") { setEditandoLinea(null); setEditForm(null); } }}
+                                    autoFocus />
+                                </div>
+                                <div className="col-span-2">
+                                  <label className="label text-xs">Descripción</label>
+                                  <textarea className="input text-sm w-full" rows={2} value={editForm.desc}
+                                    onChange={(e) => setEditForm({ ...editForm, desc: e.target.value })}
+                                    placeholder="Descripción detallada de la partida..." />
+                                </div>
+                                <div>
+                                  <label className="label text-xs">Precio (€)</label>
+                                  <input className="input text-sm" type="number" value={editForm.precio}
+                                    onChange={(e) => setEditForm({ ...editForm, precio: e.target.value })} />
+                                </div>
+                              </div>
+                              <div className="flex gap-2 justify-end">
+                                <button onClick={() => { setEditandoLinea(null); setEditForm(null); }} className="btn-ghost text-xs py-1">Cancelar</button>
+                                <button onClick={guardarEdicionLinea} className="btn-primary text-xs py-1 px-3">
+                                  <Check className="w-3 h-3 mr-1" />Guardar
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            // ── Vista normal ──
+                            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg group">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-content-primary truncate">{l.nombre_partida}</p>
+                                {l.descripcion && <p className="text-xs text-content-muted truncate mt-0.5">{l.descripcion}</p>}
+                              </div>
+                              <CantidadPrecioInline
+                                cantidad={l.cantidad} precioUnitario={l.precioUnitario}
+                                onCantidadChange={(c) => actualizarCantidadLinea(l.nombre_partida, c)}
+                                onPrecioChange={(p) => actualizarPrecioLinea(l.nombre_partida, p)}
+                              />
+                              <button onClick={() => iniciarEdicionLinea(l)} className="p-1 rounded hover:bg-blue-100 hover:text-blue-600 transition-colors opacity-0 group-hover:opacity-100" title="Editar partida">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => eliminarLinea(l.nombre_partida)} className="p-1 rounded hover:bg-danger-light hover:text-danger transition-colors">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -865,18 +951,57 @@ export function EditarPresupuestoModal({
                         </p>
                         <div className="space-y-1">
                           {sec.lineas.map((l) => (
-                            <div key={l.nombre_partida} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-semibold text-content-primary truncate">{l.nombre_partida}</p>
-                              </div>
-                              <CantidadPrecioInline
-                                cantidad={l.cantidad} precioUnitario={l.precioUnitario}
-                                onCantidadChange={(c) => actualizarCantidadEnSeccion(sec.localId, l.nombre_partida, c)}
-                                onPrecioChange={(p) => actualizarPrecioEnSeccion(sec.localId, l.nombre_partida, p)}
-                              />
-                              <button onClick={() => eliminarLineaDeSeccion(sec.localId, l.nombre_partida)} className="p-1 rounded hover:bg-red-100 hover:text-danger transition-colors" title="Quitar partida">
-                                <Trash2 className="w-3 h-3 text-gray-400" />
-                              </button>
+                            <div key={l.nombre_partida}>
+                              {editandoLineaMixto?.secId === sec.localId && editandoLineaMixto?.nombre === l.nombre_partida && editFormMixto ? (
+                                // ── Formulario edición inline mixto ──
+                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div className="col-span-2">
+                                      <label className="label text-xs">Nombre partida *</label>
+                                      <input className="input text-xs" value={editFormMixto.nombre}
+                                        onChange={(e) => setEditFormMixto({ ...editFormMixto, nombre: e.target.value })}
+                                        onKeyDown={(e) => { if (e.key === "Escape") { setEditandoLineaMixto(null); setEditFormMixto(null); } }}
+                                        autoFocus />
+                                    </div>
+                                    <div className="col-span-2">
+                                      <label className="label text-xs">Descripción</label>
+                                      <textarea className="input text-xs w-full" rows={2} value={editFormMixto.desc}
+                                        onChange={(e) => setEditFormMixto({ ...editFormMixto, desc: e.target.value })}
+                                        placeholder="Descripción detallada..." />
+                                    </div>
+                                    <div>
+                                      <label className="label text-xs">Precio (€)</label>
+                                      <input className="input text-xs" type="number" value={editFormMixto.precio}
+                                        onChange={(e) => setEditFormMixto({ ...editFormMixto, precio: e.target.value })} />
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 justify-end">
+                                    <button onClick={() => { setEditandoLineaMixto(null); setEditFormMixto(null); }} className="btn-ghost text-xs py-1">Cancelar</button>
+                                    <button onClick={guardarEdicionLineaMixto} className="btn-primary text-xs py-1 px-3">
+                                      <Check className="w-3 h-3 mr-1" />Guardar
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                // ── Vista normal mixto ──
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg group">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold text-content-primary truncate">{l.nombre_partida}</p>
+                                    {l.descripcion && <p className="text-xs text-content-muted truncate">{l.descripcion}</p>}
+                                  </div>
+                                  <CantidadPrecioInline
+                                    cantidad={l.cantidad} precioUnitario={l.precioUnitario}
+                                    onCantidadChange={(c) => actualizarCantidadEnSeccion(sec.localId, l.nombre_partida, c)}
+                                    onPrecioChange={(p) => actualizarPrecioEnSeccion(sec.localId, l.nombre_partida, p)}
+                                  />
+                                  <button onClick={() => iniciarEdicionLineaMixto(sec.localId, l)} className="p-1 rounded hover:bg-blue-100 hover:text-blue-600 transition-colors opacity-0 group-hover:opacity-100" title="Editar partida">
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                  <button onClick={() => eliminarLineaDeSeccion(sec.localId, l.nombre_partida)} className="p-1 rounded hover:bg-red-100 hover:text-danger transition-colors" title="Quitar partida">
+                                    <Trash2 className="w-3 h-3 text-gray-400" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
