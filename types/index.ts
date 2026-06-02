@@ -257,7 +257,7 @@ export interface LineaFactura {
 export interface Factura {
   id: string;
   tenant_id: string;
-  obra_id: string;
+  obra_id: string | null;
   concepto: string;
   importe_total: number;
   numero_factura: string | null;

@@ -37,3 +37,18 @@ next-env.d.ts
 
 # ffmpeg WASM (generado por postinstall, ~31 MB — no subir al repo)
 /public/ffmpeg/
+
+# InsForge & AI agent skills
+.insforge
+.agent
+.agents
+.augment
+.claude
+.cline
+.github/copilot*
+.kilocode
+.qoder
+.qwen
+.roo
+.trae
+.windsurf

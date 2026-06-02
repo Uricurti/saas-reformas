@@ -12,6 +12,7 @@ import { EditarPresupuestoModal } from "@/components/modules/presupuestos/Editar
 import { PresupuestoPreview } from "@/components/modules/presupuestos/PresupuestoPreview";
 import { GestorCatalogo } from "@/components/modules/presupuestos/GestorCatalogo";
 import { PresupuestoAObraModal } from "@/components/modules/presupuestos/PresupuestoAObraModal";
+import { FacturaDirectaModal } from "@/components/modules/presupuestos/FacturaDirectaModal";
 import {
   Plus, Settings2, Loader2, Search, X, ChevronDown, FileText,
 } from "lucide-react";
@@ -53,7 +54,8 @@ export default function PresupuestosPage() {
   const [showFiltros, setShowFiltros] = useState(false);
 
   // Modals
-  const [showNuevo,   setShowNuevo]   = useState(false);
+  const [showNuevo,        setShowNuevo]        = useState(false);
+  const [showFacturaDirecta, setShowFacturaDirecta] = useState(false);
   const [editarId,    setEditarId]    = useState<string | null>(null);
   const [previewPres, setPreviewPres] = useState<PresupuestoConLineas | null>(null);
   const [loadingPDF,  setLoadingPDF]  = useState<string | null>(null);
@@ -115,6 +117,13 @@ export default function PresupuestosPage() {
             >
               <Settings2 className="w-4 h-4" />
               <span className="hidden sm:inline">Catálogo</span>
+            </button>
+            <button
+              onClick={() => setShowFacturaDirecta(true)}
+              className="btn-secondary text-sm"
+            >
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Factura directa</span>
             </button>
             <button
               onClick={() => setShowNuevo(true)}
@@ -257,6 +266,14 @@ export default function PresupuestosPage() {
       )}
 
       {/* MODALS */}
+      {showFacturaDirecta && tenantId && (
+        <FacturaDirectaModal
+          tenantId={tenantId}
+          onClose={() => setShowFacturaDirecta(false)}
+          onCreated={() => setShowFacturaDirecta(false)}
+        />
+      )}
+
       {showNuevo && tenantId && user && (
         <NuevoPresupuestoModal
           tenantId={tenantId}

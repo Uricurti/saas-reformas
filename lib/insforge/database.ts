@@ -835,6 +835,52 @@ export async function createFactura(params: {
   return { factura: f, error: null };
 }
 
+/** Crea una factura directa (sin obra) */
+export async function createFacturaDirecta(params: {
+  tenantId: string;
+  concepto: string;
+  numeroFactura: string;
+  fecha: string;
+  porcentajeIva: number;
+  lineas: import("@/types").LineaFactura[];
+  clienteNombre: string;
+  clienteNif?: string | null;
+  clienteEmail?: string | null;
+  clienteTelefono?: string | null;
+  facturacionNombre?: string | null;
+  facturacionNif?: string | null;
+  facturacionDireccion?: string | null;
+  facturacionCp?: string | null;
+  facturacionCiudad?: string | null;
+}): Promise<{ factura: import("@/types").Factura | null; error: string | null }> {
+  const importeBase = params.lineas.reduce((s, l) => s + ((l as any).precio ?? 0), 0);
+  const { data, error } = await insforge.database
+    .from("facturas")
+    .insert({
+      tenant_id: params.tenantId,
+      obra_id: null,
+      concepto: params.concepto,
+      importe_total: importeBase,
+      numero_factura: params.numeroFactura,
+      porcentaje_iva: params.porcentajeIva,
+      fecha_emision: params.fecha,
+      lineas_partidas: params.lineas,
+      cliente_nombre: params.clienteNombre,
+      cliente_nif: params.clienteNif ?? null,
+      cliente_email: params.clienteEmail ?? null,
+      cliente_telefono: params.clienteTelefono ?? null,
+      facturacion_nombre: params.facturacionNombre ?? null,
+      facturacion_nif: params.facturacionNif ?? null,
+      facturacion_direccion: params.facturacionDireccion ?? null,
+      facturacion_cp: params.facturacionCp ?? null,
+      facturacion_ciudad: params.facturacionCiudad ?? null,
+    })
+    .select()
+    .single();
+  if (error || !data) return { factura: null, error: (error as any)?.message ?? "Error al crear factura" };
+  return { factura: data as import("@/types").Factura, error: null };
+}
+
 /** Actualiza campos de una factura */
 export async function updateFactura(id: string, params: Partial<{
   concepto: string;
