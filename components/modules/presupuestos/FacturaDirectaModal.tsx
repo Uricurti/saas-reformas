@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { getNextNumeroFactura, createFacturaDirecta, getTenantConfig } from "@/lib/insforge/database";
 import type { TenantConfig } from "@/lib/insforge/database";
+import { FormaPagoEditor, type FilaPago } from "@/components/ui/FormaPagoEditor";
 
 // ── Tipos locales ─────────────────────────────────────────────────────────────
 type LineaDirecta = {
@@ -29,13 +30,14 @@ function fmtDate(d: string) {
 
 // ── Documento PDF ─────────────────────────────────────────────────────────────
 function FacturaDirectaDocument({
-  numero, fecha, concepto, lineas, porcentajeIva,
+  numero, fecha, concepto, lineas, porcentajeIva, formaPago,
   clienteNombre, clienteNif, clienteEmail, clienteTelefono,
   facturacionNombre, facturacionNif, facturacionDireccion, facturacionCp, facturacionCiudad,
   config,
 }: {
   numero: string; fecha: string; concepto: string;
   lineas: LineaDirecta[]; porcentajeIva: number;
+  formaPago: FilaPago[];
   clienteNombre: string; clienteNif?: string; clienteEmail?: string; clienteTelefono?: string;
   facturacionNombre?: string; facturacionNif?: string;
   facturacionDireccion?: string; facturacionCp?: string; facturacionCiudad?: string;
@@ -139,6 +141,27 @@ function FacturaDirectaDocument({
         </div>
       </div>
 
+      {/* Forma de pago — solo si hay más de 1 hito */}
+      {formaPago.length > 1 && (
+        <div className="no-page-break" style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>
+            Calendario de pagos
+          </div>
+          <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+            {formaPago.map((fp, i) => {
+              const importe = Math.round(importeTotal * fp.porcentaje / 100 * 100) / 100;
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "center", padding: "9px 14px", background: i % 2 === 0 ? "#fff" : "#f9fafb", borderBottom: i < formaPago.length - 1 ? "1px solid #f0f0f5" : "none" }}>
+                  <div style={{ flex: 1, fontSize: 12, fontWeight: 600, color: "#1A1A2E" }}>{fp.concepto}</div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginRight: 16 }}>{fp.porcentaje}%</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1A1A2E" }}>{fmtE(importe)}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* IBAN */}
       {(config as any)?.numero_cuenta && (
         <div style={{ background: "#f0f9ff", border: "1.5px solid #bae6fd", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
@@ -195,6 +218,7 @@ export function FacturaDirectaModal({
   const [facDir, setFacDir]         = useState("");
   const [facCp, setFacCp]           = useState("");
   const [facCiudad, setFacCiudad]   = useState("");
+  const [formaPago, setFormaPago]   = useState<FilaPago[]>([{ concepto: "Pago único", porcentaje: 100 }]);
 
   // Paso 2 — líneas
   const [lineas, setLineas]           = useState<LineaDirecta[]>([]);
@@ -272,7 +296,7 @@ export function FacturaDirectaModal({
   }
 
   const docProps = {
-    numero, fecha, concepto, lineas, porcentajeIva: iva,
+    numero, fecha, concepto, lineas, porcentajeIva: iva, formaPago,
     clienteNombre, clienteNif, clienteEmail, clienteTelefono,
     facturacionNombre: !mismaDireccion ? facNombre : undefined,
     facturacionNif: !mismaDireccion ? facNif : undefined,
@@ -327,6 +351,14 @@ export function FacturaDirectaModal({
                     {v}% {v === 21 ? "(general)" : "(reducido)"}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Forma de pago */}
+            <div>
+              <label className="label">Forma de pago</label>
+              <div className="mt-2">
+                <FormaPagoEditor value={formaPago} onChange={setFormaPago} />
               </div>
             </div>
 
@@ -492,6 +524,8 @@ export function FacturaDirectaModal({
             <button onClick={() => {
               if (!clienteNombre.trim()) return alert("El nombre del cliente es obligatorio.");
               if (!concepto.trim()) return alert("El concepto es obligatorio.");
+              const sumPct = formaPago.reduce((s, f) => s + f.porcentaje, 0);
+              if (Math.abs(sumPct - 100) > 0.01) return alert(`Los porcentajes de forma de pago deben sumar 100% (ahora ${sumPct}%).`);
               setPaso(2);
             }} className="btn-primary flex-1">
               Siguiente <ChevronRight className="w-4 h-4" />

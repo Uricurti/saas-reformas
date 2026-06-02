@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { X, Plus, Trash2, Loader2, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, AlertTriangle, Pencil, Check } from "lucide-react";
+import { FormaPagoEditor } from "@/components/ui/FormaPagoEditor";
 import {
   updatePresupuesto,
   getCatalogoPresupuesto,
@@ -695,31 +696,8 @@ export function EditarPresupuestoModal({
             {/* Forma de pago */}
             <div>
               <label className="label">Forma de pago</label>
-              <div className="space-y-2 mt-1">
-                {formaPago.map((fp, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <input
-                      className="input flex-1 text-sm"
-                      value={fp.concepto}
-                      onChange={(e) => setFormaPago((prev) => prev.map((f, j) => j === i ? { ...f, concepto: e.target.value } : f))}
-                    />
-                    <div className="flex items-center gap-1">
-                      <input
-                        className="input w-16 text-sm text-center"
-                        type="number" min={0} max={100}
-                        value={fp.porcentaje}
-                        onChange={(e) => setFormaPago((prev) => prev.map((f, j) => j === i ? { ...f, porcentaje: parseInt(e.target.value) || 0 } : f))}
-                      />
-                      <span className="text-sm text-content-muted">%</span>
-                    </div>
-                  </div>
-                ))}
-                <p className="text-xs text-content-muted">
-                  Total: {formaPago.reduce((s, f) => s + f.porcentaje, 0)}%{" "}
-                  {formaPago.reduce((s, f) => s + f.porcentaje, 0) !== 100 && (
-                    <span className="text-danger font-semibold">(debe ser 100%)</span>
-                  )}
-                </p>
+              <div className="mt-2">
+                <FormaPagoEditor value={formaPago} onChange={setFormaPago} />
               </div>
             </div>
           </div>
