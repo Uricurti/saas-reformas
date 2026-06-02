@@ -33,7 +33,7 @@ function FacturaDirectaDocument({
   numero, fecha, concepto, lineas, porcentajeIva, formaPago,
   clienteNombre, clienteNif, clienteEmail, clienteTelefono,
   facturacionNombre, facturacionNif, facturacionDireccion, facturacionCp, facturacionCiudad,
-  config,
+  config, idOverride,
 }: {
   numero: string; fecha: string; concepto: string;
   lineas: LineaDirecta[]; porcentajeIva: number;
@@ -42,6 +42,7 @@ function FacturaDirectaDocument({
   facturacionNombre?: string; facturacionNif?: string;
   facturacionDireccion?: string; facturacionCp?: string; facturacionCiudad?: string;
   config: TenantConfig | null;
+  idOverride?: string;
 }) {
   const PRIMARY   = "#607eaa";
   const PRIMARY_D = "#1c3879";
@@ -62,7 +63,7 @@ function FacturaDirectaDocument({
   const cpCiudad       = [facturacionCp, facturacionCiudad].filter(Boolean).join(" ");
 
   return (
-    <div id="factura-directa-doc" style={{ ...fontBase, background: "#fff", width: 794, boxSizing: "border-box", padding: "36px 48px 28px", color: TEXT_DARK, fontSize: "12.5px", lineHeight: 1.5 }}>
+    <div id={idOverride ?? "factura-directa-doc"} style={{ ...fontBase, background: "#fff", width: 794, boxSizing: "border-box", padding: "36px 48px 28px", color: TEXT_DARK, fontSize: "12.5px", lineHeight: 1.5 }}>
 
       {/* Cabecera */}
       <div className="no-page-break" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
@@ -505,14 +506,19 @@ export function FacturaDirectaModal({
               )}
             </div>
 
-            {/* Panel derecho — preview PDF */}
+            {/* Panel derecho — preview PDF (escalado solo para visualización) */}
             <div className="flex-1 overflow-auto bg-gray-100 p-4">
               <div style={{ transform: "scale(0.72)", transformOrigin: "top left", width: "139%", pointerEvents: "none" }}>
-                <FacturaDirectaDocument {...docProps} />
+                <FacturaDirectaDocument {...docProps} idOverride="factura-directa-preview" />
               </div>
             </div>
           </div>
         )}
+
+        {/* Documento oculto a tamaño real — solo para generar el PDF */}
+        <div style={{ position: "fixed", left: "-9999px", top: 0, pointerEvents: "none", zIndex: -1 }}>
+          <FacturaDirectaDocument {...docProps} />
+        </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-100 flex-shrink-0 flex gap-3">
