@@ -1127,6 +1127,29 @@ function NuevaFacturaForm({
             </button>
           </div>
         </div>
+
+        {/* Accesos rápidos de estructura */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          {[
+            { label: "1 pago · 100%", pagos: [{ concepto: "Pago único", porcentaje: 100, fechaPrevista: null }] },
+            { label: "2 pagos · 50/50", pagos: [{ concepto: "A la aceptación", porcentaje: 50, fechaPrevista: null }, { concepto: "A la finalización", porcentaje: 50, fechaPrevista: null }] },
+            { label: "3 pagos · 40/50/10", pagos: PAGOS_DEFAULT.map((p) => ({ ...p })) },
+          ].map(({ label, pagos: preset }) => {
+            const isActive = JSON.stringify(pagos.map((p) => p.porcentaje)) === JSON.stringify(preset.map((p) => p.porcentaje));
+            return (
+              <button key={label} type="button" onClick={() => setPagos(preset)}
+                style={{
+                  flex: 1, padding: "6px 4px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  border: `1.5px solid ${isActive ? PRIMARY : "#e5e7eb"}`,
+                  background: isActive ? PRIMARY_L : "#fafafa",
+                  color: isActive ? PRIMARY_D : "#6b7280",
+                  transition: "all 0.12s",
+                }}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
         {pagos.map((p, i) => (
           isMobile ? (
             // ── Hito en móvil: card vertical
