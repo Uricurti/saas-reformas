@@ -274,8 +274,9 @@ export function FacturaDirectaModal({
     });
     setGuardando(false);
     if (error) { alert("Error al guardar: " + error); return; }
-    onCreated?.();
+    // Descargar PDF ANTES de cerrar el modal (el elemento del DOM debe existir)
     await handleDownload();
+    onCreated?.();
     onClose();
   }
 

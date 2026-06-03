@@ -85,12 +85,12 @@ export async function POST(req: NextRequest) {
   const facturaObj = Array.isArray(factura) ? factura[0] : factura;
   const facturaId  = facturaObj?.id;
 
-  // Crear pagos si hay más de 1 hito o el único no es 100%
+  // Crear pagos. El primer pago se marca como "emitida" con el número de factura
+  // para que getNextNumeroFactura lo cuente y el contador avance correctamente.
   if (formaPago && Array.isArray(formaPago) && formaPago.length > 0 && facturaId) {
     const ivaPercent = porcentajeIva ?? 21;
     const pagoRows = formaPago.map((fp: any, i: number) => {
       const importe_base = Math.round(importeBase * fp.porcentaje / 100 * 100) / 100;
-      const importe_iva  = Math.round(importe_base * ivaPercent / 100 * 100) / 100;
       return {
         tenant_id:   tenantId,
         factura_id:  facturaId,
@@ -105,7 +105,11 @@ export async function POST(req: NextRequest) {
         importe_efectivo_b: 0,
         porcentaje_iva_a: ivaPercent,
         fecha_prevista: fp.fechaPrevista ?? null,
-        estado: "pendiente_emitir",
+        // El primer pago se marca como emitida con el número de factura,
+        // así getNextNumeroFactura lo cuenta y el contador avanza
+        estado: i === 0 ? "emitida" : "pendiente_emitir",
+        numero_factura_emitida: i === 0 ? numeroFactura : null,
+        fecha_cobro: null,
       };
     });
 
