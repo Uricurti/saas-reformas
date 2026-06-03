@@ -835,14 +835,15 @@ export async function createFactura(params: {
   return { factura: f, error: null };
 }
 
-/** Crea una factura directa (sin obra) */
+/** Crea una factura directa (sin obra) — usa API route con service key para bypassear RLS */
 export async function createFacturaDirecta(params: {
   tenantId: string;
   concepto: string;
   numeroFactura: string;
   fecha: string;
   porcentajeIva: number;
-  lineas: import("@/types").LineaFactura[];
+  lineas: (import("@/types").LineaFactura & { precio: number })[];
+  formaPago?: { concepto: string; porcentaje: number; fechaPrevista?: string | null }[];
   clienteNombre: string;
   clienteNif?: string | null;
   clienteEmail?: string | null;
@@ -853,32 +854,18 @@ export async function createFacturaDirecta(params: {
   facturacionCp?: string | null;
   facturacionCiudad?: string | null;
 }): Promise<{ factura: import("@/types").Factura | null; error: string | null }> {
-  const importeBase = params.lineas.reduce((s, l) => s + ((l as any).precio ?? 0), 0);
-  const { data, error } = await insforge.database
-    .from("facturas")
-    .insert({
-      tenant_id: params.tenantId,
-      obra_id: null,
-      concepto: params.concepto,
-      importe_total: importeBase,
-      numero_factura: params.numeroFactura,
-      porcentaje_iva: params.porcentajeIva,
-      fecha_emision: params.fecha,
-      lineas_partidas: params.lineas,
-      cliente_nombre: params.clienteNombre,
-      cliente_nif: params.clienteNif ?? null,
-      cliente_email: params.clienteEmail ?? null,
-      cliente_telefono: params.clienteTelefono ?? null,
-      facturacion_nombre: params.facturacionNombre ?? null,
-      facturacion_nif: params.facturacionNif ?? null,
-      facturacion_direccion: params.facturacionDireccion ?? null,
-      facturacion_cp: params.facturacionCp ?? null,
-      facturacion_ciudad: params.facturacionCiudad ?? null,
-    })
-    .select()
-    .single();
-  if (error || !data) return { factura: null, error: (error as any)?.message ?? "Error al crear factura" };
-  return { factura: data as import("@/types").Factura, error: null };
+  try {
+    const res = await fetch("/api/facturacion/directa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    if (!res.ok) return { factura: null, error: data?.error ?? `HTTP ${res.status}` };
+    return { factura: data as import("@/types").Factura, error: null };
+  } catch (e: any) {
+    return { factura: null, error: e?.message ?? "Error de red" };
+  }
 }
 
 /** Actualiza campos de una factura */

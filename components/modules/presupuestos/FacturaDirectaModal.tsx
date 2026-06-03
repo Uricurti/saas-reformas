@@ -261,6 +261,7 @@ export function FacturaDirectaModal({
       tenantId, concepto, numeroFactura: numero, fecha,
       porcentajeIva: iva,
       lineas: lineas.map((l) => ({ ...l, seccion: null })),
+      formaPago: formaPago.map((fp) => ({ concepto: fp.concepto, porcentaje: fp.porcentaje, fechaPrevista: null })),
       clienteNombre: clienteNombre.trim(),
       clienteNif: clienteNif.trim() || null,
       clienteEmail: clienteEmail.trim() || null,
