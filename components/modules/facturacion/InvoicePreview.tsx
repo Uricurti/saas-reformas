@@ -85,7 +85,7 @@ function InvoiceDocument({
         {/* Empresa */}
         <div style={{ maxWidth: 320 }}>
           <div style={{ fontSize: 26, fontWeight: 800, color: PRIMARY, letterSpacing: "-0.5px", lineHeight: 1.1, marginBottom: 8 }}>
-            {config?.empresa_nombre ?? "Tu Empresa"}
+            <span>{config?.empresa_nombre ?? "Tu Empresa"}</span>
           </div>
           {config?.empresa_cif && (
             <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 2 }}>
@@ -93,37 +93,37 @@ function InvoiceDocument({
             </div>
           )}
           {config?.empresa_direccion && (
-            <div style={{ fontSize: 12, color: TEXT_SOFT }}>{config.empresa_direccion}</div>
+            <div style={{ fontSize: 12, color: TEXT_SOFT }}><span>{config.empresa_direccion}</span></div>
           )}
           {config?.empresa_telefono && (
-            <div style={{ fontSize: 12, color: TEXT_SOFT }}>{config.empresa_telefono}</div>
+            <div style={{ fontSize: 12, color: TEXT_SOFT }}><span>{config.empresa_telefono}</span></div>
           )}
           {config?.empresa_email && (
-            <div style={{ fontSize: 12, color: TEXT_SOFT }}>{config.empresa_email}</div>
+            <div style={{ fontSize: 12, color: TEXT_SOFT }}><span>{config.empresa_email}</span></div>
           )}
         </div>
 
         {/* Número factura */}
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: TEXT_FAINT, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>
-            {isModoHito ? "Factura" : "Presupuesto"}
+            <span>{isModoHito ? "Factura" : "Presupuesto"}</span>
           </div>
           <div style={{ fontSize: 30, fontWeight: 900, color: TEXT_DARK, letterSpacing: "-1px", lineHeight: 1 }}>
-            {numeroFactura}
+            <span>{numeroFactura}</span>
           </div>
           {isModoHito && (
             <div style={{ fontSize: 11, color: TEXT_FAINT, marginTop: 4 }}>
-              Hito {pago!.orden} · {pago!.concepto} ({pago!.porcentaje}%)
+              <span>Hito {pago!.orden} · {pago!.concepto} ({pago!.porcentaje}%)</span>
             </div>
           )}
           {factura.fecha_emision && (
             <div style={{ fontSize: 12, color: TEXT_SOFT, marginTop: 6 }}>
-              {fmtDate(factura.fecha_emision)}
+              <span>{fmtDate(factura.fecha_emision)}</span>
             </div>
           )}
           {!factura.fecha_emision && (
             <div style={{ fontSize: 12, color: TEXT_SOFT, marginTop: 6 }}>
-              {fmtDate(new Date().toISOString().split("T")[0])}
+              <span>{fmtDate(new Date().toISOString().split("T")[0])}</span>
             </div>
           )}
         </div>
@@ -136,37 +136,34 @@ function InvoiceDocument({
       <div className="no-page-break" style={{ display: "flex", gap: 24, marginBottom: 20 }}>
         <div style={{ flex: 1, padding: "12px 16px", background: "#f9fafb", borderRadius: 10, borderLeft: `3px solid ${PRIMARY}` }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: TEXT_FAINT, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>
-            Facturar a
+            <span>Facturar a</span>
           </div>
           {obra?.cliente_nombre ? (
             <>
-              {/* Nombre: empresa si hay, o cliente */}
               <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 4 }}>
-                {obra.facturacion_nombre ?? obra.cliente_nombre}
+                <span>{obra.facturacion_nombre ?? obra.cliente_nombre}</span>
               </div>
-              {/* CIF empresa o DNI/NIE persona */}
               {(obra.facturacion_nif || (obra as any).cliente_dni_nie_cif) && (
                 <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
                   <strong style={{ color: TEXT_MID }}>
-                    {obra.facturacion_nif ? "CIF:" : "DNI/NIE/CIF:"}
+                    <span>{obra.facturacion_nif ? "CIF:" : "DNI/NIE/CIF:"}</span>
                   </strong>
                   <span style={{ marginLeft: 4 }}>{obra.facturacion_nif ?? (obra as any).cliente_dni_nie_cif}</span>
                 </div>
               )}
-              {/* Dirección de facturación (o de obra si coinciden) */}
               {(obra.facturacion_direccion || obra.direccion) && (
                 <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
-                  {obra.facturacion_direccion ?? obra.direccion}
+                  <span>{obra.facturacion_direccion ?? obra.direccion}</span>
                 </div>
               )}
               {(obra.facturacion_cp || obra.facturacion_ciudad) && (
                 <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
-                  {[obra.facturacion_cp, obra.facturacion_ciudad].filter(Boolean).join(" ")}
+                  <span>{[obra.facturacion_cp, obra.facturacion_ciudad].filter(Boolean).join(" ")}</span>
                 </div>
               )}
               {!obra.facturacion_cp && !obra.facturacion_ciudad && ((obra as any).codigo_postal || (obra as any).poblacion) && (
                 <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
-                  {[(obra as any).codigo_postal, (obra as any).poblacion].filter(Boolean).join(" ")}
+                  <span>{[(obra as any).codigo_postal, (obra as any).poblacion].filter(Boolean).join(" ")}</span>
                 </div>
               )}
               {/* Email y teléfono */}
@@ -183,20 +180,20 @@ function InvoiceDocument({
         </div>
         <div style={{ flex: 1, padding: "12px 16px", background: "#f9fafb", borderRadius: 10, borderLeft: `3px solid #26bbec` }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: TEXT_FAINT, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>
-            Obra / Proyecto
+            <span>Obra / Proyecto</span>
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 2 }}>{obra?.nombre ?? "—"}</div>
-          {obra?.direccion && <div style={{ fontSize: 12, color: TEXT_SOFT }}>{obra.direccion}</div>}
+          <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 2 }}><span>{obra?.nombre ?? "—"}</span></div>
+          {obra?.direccion && <div style={{ fontSize: 12, color: TEXT_SOFT }}><span>{obra.direccion}</span></div>}
         </div>
       </div>
 
       {/* ══ CONCEPTO + DESCRIPCIÓN ══════════════════════════════════ */}
       <div style={{ background: BG_LIGHT, borderRadius: 12, padding: "14px 20px", marginBottom: 18 }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: PRIMARY, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>
-          {isModoHito ? `Hito ${pago!.orden} de ${factura.pagos.length} — ${pago!.concepto}` : "Concepto del presupuesto"}
+          <span>{isModoHito ? `Hito ${pago!.orden} de ${factura.pagos.length} — ${pago!.concepto}` : "Concepto del presupuesto"}</span>
         </div>
         <div style={{ fontSize: 17, fontWeight: 800, color: TEXT_DARK, letterSpacing: "-0.3px", lineHeight: 1.25, marginBottom: (factura.notas || (factura.lineas_partidas && factura.lineas_partidas.length > 0)) ? 12 : 0 }}>
-          {factura.concepto}
+          <span>{factura.concepto}</span>
         </div>
         {factura.notas && (
           <div style={{ fontSize: 12.5, color: TEXT_MID, lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 8, paddingTop: 8, borderTop: "1px solid #dde6f5" }}>

@@ -75,17 +75,17 @@ function FacturaDirectaDocument({
       <div className="no-page-break" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
         <div style={{ maxWidth: 320 }}>
           <div style={{ fontSize: 26, fontWeight: 800, color: PRIMARY, letterSpacing: "-0.5px", lineHeight: 1.1, marginBottom: 8 }}>
-            {config?.empresa_nombre ?? "Tu Empresa"}
+            <span>{config?.empresa_nombre ?? "Tu Empresa"}</span>
           </div>
           {config?.empresa_cif && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 2 }}><strong style={{ color: TEXT_MID }}>CIF:</strong><span style={{ marginLeft: 4 }}>{config.empresa_cif}</span></div>}
-          {config?.empresa_direccion && <div style={{ fontSize: 12, color: TEXT_SOFT }}>{config.empresa_direccion}</div>}
-          {config?.empresa_telefono && <div style={{ fontSize: 12, color: TEXT_SOFT }}>{config.empresa_telefono}</div>}
-          {config?.empresa_email && <div style={{ fontSize: 12, color: TEXT_SOFT }}>{config.empresa_email}</div>}
+          {config?.empresa_direccion && <div style={{ fontSize: 12, color: TEXT_SOFT }}><span>{config.empresa_direccion}</span></div>}
+          {config?.empresa_telefono && <div style={{ fontSize: 12, color: TEXT_SOFT }}><span>{config.empresa_telefono}</span></div>}
+          {config?.empresa_email && <div style={{ fontSize: 12, color: TEXT_SOFT }}><span>{config.empresa_email}</span></div>}
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: TEXT_FAINT, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Factura</div>
-          <div style={{ fontSize: 30, fontWeight: 900, color: TEXT_DARK, letterSpacing: "-1px", lineHeight: 1 }}>{numero}</div>
-          <div style={{ fontSize: 12, color: TEXT_SOFT, marginTop: 6 }}>{fmtDate(fecha)}</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: TEXT_FAINT, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}><span>Factura</span></div>
+          <div style={{ fontSize: 30, fontWeight: 900, color: TEXT_DARK, letterSpacing: "-1px", lineHeight: 1 }}><span>{numero}</span></div>
+          <div style={{ fontSize: 12, color: TEXT_SOFT, marginTop: 6 }}><span>{fmtDate(fecha)}</span></div>
         </div>
       </div>
 
@@ -95,36 +95,36 @@ function FacturaDirectaDocument({
       {/* Facturar a */}
       <div className="no-page-break" style={{ marginBottom: 20 }}>
         <div style={{ padding: "12px 16px", background: "#f9fafb", borderRadius: 10, borderLeft: `3px solid ${PRIMARY}`, display: "inline-block", minWidth: 280, maxWidth: "48%" }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: TEXT_FAINT, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Facturar a</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 4 }}>{nombreFacturar}</div>
+          <div style={{ fontSize: 9, fontWeight: 700, color: TEXT_FAINT, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}><span>Facturar a</span></div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 4 }}><span>{nombreFacturar}</span></div>
           {nifFacturar && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}><strong style={{ color: TEXT_MID }}>{hayBillingNif ? "CIF:" : "NIF/CIF:"}</strong><span style={{ marginLeft: 4 }}>{nifFacturar}</span></div>}
-          {dirFacturar && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>{dirFacturar}</div>}
-          {cpCiudad && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>{cpCiudad}</div>}
-          {clienteEmail && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>{clienteEmail}</div>}
-          {clienteTelefono && <div style={{ fontSize: 12, color: TEXT_SOFT }}>{clienteTelefono}</div>}
+          {dirFacturar && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}><span>{dirFacturar}</span></div>}
+          {cpCiudad && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}><span>{cpCiudad}</span></div>}
+          {clienteEmail && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}><span>{clienteEmail}</span></div>}
+          {clienteTelefono && <div style={{ fontSize: 12, color: TEXT_SOFT }}><span>{clienteTelefono}</span></div>}
         </div>
       </div>
 
       {/* Concepto */}
       <div style={{ background: BG_LIGHT, borderRadius: 12, padding: "14px 20px", marginBottom: 18 }}>
-        <div style={{ fontSize: 9, fontWeight: 700, color: PRIMARY, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Concepto</div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: TEXT_DARK, letterSpacing: "-0.3px" }}>{concepto}</div>
+        <div style={{ fontSize: 9, fontWeight: 700, color: PRIMARY, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}><span>Concepto</span></div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: TEXT_DARK, letterSpacing: "-0.3px" }}><span>{concepto}</span></div>
       </div>
 
       {/* Tabla líneas */}
       <div className="no-page-break" style={{ marginBottom: 18 }}>
         {/* Cabecera */}
         <div style={{ display: "flex", background: TEXT_DARK, borderRadius: "8px 8px 0 0", padding: "9px 14px" }}>
-          <div style={{ flex: 1, fontSize: 10, fontWeight: 700, color: "#fff", letterSpacing: "0.06em", textTransform: "uppercase" }}>Descripción</div>
-          <div style={{ width: 120, fontSize: 10, fontWeight: 700, color: "#fff", textAlign: "right", letterSpacing: "0.06em" }}>Importe</div>
+          <div style={{ flex: 1, fontSize: 10, fontWeight: 700, color: "#fff", letterSpacing: "0.06em", textTransform: "uppercase" }}><span>Descripción</span></div>
+          <div style={{ width: 120, fontSize: 10, fontWeight: 700, color: "#fff", textAlign: "right", letterSpacing: "0.06em" }}><span>Importe</span></div>
         </div>
         {lineas.map((l, i) => (
           <div key={i} style={{ display: "flex", alignItems: "flex-start", padding: "10px 14px", background: i % 2 === 0 ? "#fff" : "#f9fafb", borderBottom: "1px solid #f0f0f5" }}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: TEXT_DARK }}>{l.nombre_partida}</div>
-              {l.descripcion && <div style={{ fontSize: 11, color: TEXT_SOFT, marginTop: 2 }}>{l.descripcion}</div>}
+              <div style={{ fontSize: 13, fontWeight: 600, color: TEXT_DARK }}><span>{l.nombre_partida}</span></div>
+              {l.descripcion && <div style={{ fontSize: 11, color: TEXT_SOFT, marginTop: 2 }}><span>{l.descripcion}</span></div>}
             </div>
-            <div style={{ width: 120, fontSize: 13, fontWeight: 700, color: TEXT_DARK, textAlign: "right" }}>{fmtE(l.precio)}</div>
+            <div style={{ width: 120, fontSize: 13, fontWeight: 700, color: TEXT_DARK, textAlign: "right" }}><span>{fmtE(l.precio)}</span></div>
           </div>
         ))}
         <div style={{ height: 2, background: TEXT_DARK, borderRadius: "0 0 4px 4px" }} />
