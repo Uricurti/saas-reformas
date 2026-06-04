@@ -29,6 +29,11 @@ function fmtDate(d: string) {
 }
 
 // ── Documento PDF ─────────────────────────────────────────────────────────────
+// Exportado para que FacturaDirectaCard pueda re-usarlo en re-descargas
+export function FacturaDirectaDocumentExport(props: Parameters<typeof FacturaDirectaDocument>[0]) {
+  return <FacturaDirectaDocument {...props} />;
+}
+
 function FacturaDirectaDocument({
   numero, fecha, concepto, lineas, porcentajeIva, formaPago,
   clienteNombre, clienteNif, clienteEmail, clienteTelefono,
@@ -189,40 +194,69 @@ function FacturaDirectaDocument({
   );
 }
 
+// ── Tipo para edición ─────────────────────────────────────────────────────────
+export type FacturaDirectaInitialData = {
+  id: string;
+  numero_factura: string | null;
+  fecha_emision: string | null;
+  concepto: string;
+  porcentaje_iva: number;
+  lineas_partidas: LineaDirecta[];
+  cliente_nombre: string | null;
+  cliente_nif: string | null;
+  cliente_email: string | null;
+  cliente_telefono: string | null;
+  facturacion_nombre: string | null;
+  facturacion_nif: string | null;
+  facturacion_direccion: string | null;
+  facturacion_cp: string | null;
+  facturacion_ciudad: string | null;
+  pagos: { concepto: string; porcentaje: number; orden: number }[];
+};
+
 // ── Modal principal ───────────────────────────────────────────────────────────
 export function FacturaDirectaModal({
   tenantId,
   onClose,
   onCreated,
+  initialData,
 }: {
   tenantId: string;
   onClose: () => void;
   onCreated?: () => void;
+  initialData?: FacturaDirectaInitialData;
 }) {
+  const esEdicion = !!initialData;
+
   const [paso, setPaso]             = useState<1 | 2>(1);
   const [guardando, setGuardando]   = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [config, setConfig]         = useState<TenantConfig | null>(null);
 
   // Paso 1 — datos cliente + cabecera
-  const [numero, setNumero]           = useState("");
-  const [fecha, setFecha]             = useState(new Date().toISOString().split("T")[0]);
-  const [concepto, setConcepto]       = useState("");
-  const [iva, setIva]                 = useState<10 | 21>(21);
-  const [clienteNombre, setClienteNombre]   = useState("");
-  const [clienteNif, setClienteNif]         = useState("");
-  const [clienteEmail, setClienteEmail]     = useState("");
-  const [clienteTelefono, setClienteTelefono] = useState("");
-  const [mismaDireccion, setMismaDireccion] = useState(true);
-  const [facNombre, setFacNombre]   = useState("");
-  const [facNif, setFacNif]         = useState("");
-  const [facDir, setFacDir]         = useState("");
-  const [facCp, setFacCp]           = useState("");
-  const [facCiudad, setFacCiudad]   = useState("");
-  const [formaPago, setFormaPago]   = useState<FilaPago[]>([{ concepto: "Pago único", porcentaje: 100 }]);
+  const [numero, setNumero]           = useState(initialData?.numero_factura ?? "");
+  const [fecha, setFecha]             = useState(initialData?.fecha_emision?.split("T")[0] ?? new Date().toISOString().split("T")[0]);
+  const [concepto, setConcepto]       = useState(initialData?.concepto ?? "");
+  const [iva, setIva]                 = useState<10 | 21>((initialData?.porcentaje_iva as 10 | 21) ?? 21);
+  const [clienteNombre, setClienteNombre]   = useState(initialData?.cliente_nombre ?? "");
+  const [clienteNif, setClienteNif]         = useState(initialData?.cliente_nif ?? "");
+  const [clienteEmail, setClienteEmail]     = useState(initialData?.cliente_email ?? "");
+  const [clienteTelefono, setClienteTelefono] = useState(initialData?.cliente_telefono ?? "");
+  const hayFacturacion = !!(initialData?.facturacion_nombre || initialData?.facturacion_nif || initialData?.facturacion_direccion);
+  const [mismaDireccion, setMismaDireccion] = useState(!hayFacturacion);
+  const [facNombre, setFacNombre]   = useState(initialData?.facturacion_nombre ?? "");
+  const [facNif, setFacNif]         = useState(initialData?.facturacion_nif ?? "");
+  const [facDir, setFacDir]         = useState(initialData?.facturacion_direccion ?? "");
+  const [facCp, setFacCp]           = useState(initialData?.facturacion_cp ?? "");
+  const [facCiudad, setFacCiudad]   = useState(initialData?.facturacion_ciudad ?? "");
+  const [formaPago, setFormaPago]   = useState<FilaPago[]>(
+    initialData?.pagos?.length
+      ? initialData.pagos.sort((a, b) => a.orden - b.orden).map((p) => ({ concepto: p.concepto, porcentaje: p.porcentaje }))
+      : [{ concepto: "Pago único", porcentaje: 100 }]
+  );
 
   // Paso 2 — líneas
-  const [lineas, setLineas]           = useState<LineaDirecta[]>([]);
+  const [lineas, setLineas]           = useState<LineaDirecta[]>(initialData?.lineas_partidas ?? []);
   const [nuevaLinea, setNuevaLinea]   = useState<{ nombre: string; desc: string; precio: string } | null>(null);
   const [editando, setEditando]       = useState<number | null>(null);
   const [editForm, setEditForm]       = useState<{ nombre: string; desc: string; precio: string } | null>(null);
@@ -232,9 +266,9 @@ export function FacturaDirectaModal({
   const importeTotal = Math.round((importeBase + importeIva) * 100) / 100;
 
   useEffect(() => {
-    getNextNumeroFactura(tenantId).then(setNumero);
+    if (!esEdicion) getNextNumeroFactura(tenantId).then(setNumero);
     getTenantConfig(tenantId).then(setConfig);
-  }, [tenantId]);
+  }, [tenantId, esEdicion]);
 
   function agregarLinea() {
     if (!nuevaLinea?.nombre.trim()) return;
@@ -252,29 +286,50 @@ export function FacturaDirectaModal({
     setEditando(null); setEditForm(null);
   }
 
+  const payloadComun = {
+    tenantId,
+    concepto,
+    numeroFactura: numero,
+    fecha,
+    porcentajeIva: iva,
+    lineas: lineas.map((l) => ({ ...l, seccion: null })),
+    formaPago: formaPago.map((fp) => ({ concepto: fp.concepto, porcentaje: fp.porcentaje, fechaPrevista: null })),
+    clienteNombre: clienteNombre.trim(),
+    clienteNif: clienteNif.trim() || null,
+    clienteEmail: clienteEmail.trim() || null,
+    clienteTelefono: clienteTelefono.trim() || null,
+    facturacionNombre: !mismaDireccion ? (facNombre.trim() || null) : null,
+    facturacionNif: !mismaDireccion ? (facNif.trim() || null) : null,
+    facturacionDireccion: !mismaDireccion ? (facDir.trim() || null) : null,
+    facturacionCp: !mismaDireccion ? (facCp.trim() || null) : null,
+    facturacionCiudad: !mismaDireccion ? (facCiudad.trim() || null) : null,
+  };
+
   async function handleGuardar() {
     if (!clienteNombre.trim()) return alert("El nombre del cliente es obligatorio.");
     if (!concepto.trim()) return alert("El concepto es obligatorio.");
     if (lineas.length === 0) return alert("Añade al menos una línea a la factura.");
     setGuardando(true);
-    const { error } = await createFacturaDirecta({
-      tenantId, concepto, numeroFactura: numero, fecha,
-      porcentajeIva: iva,
-      lineas: lineas.map((l) => ({ ...l, seccion: null })),
-      formaPago: formaPago.map((fp) => ({ concepto: fp.concepto, porcentaje: fp.porcentaje, fechaPrevista: null })),
-      clienteNombre: clienteNombre.trim(),
-      clienteNif: clienteNif.trim() || null,
-      clienteEmail: clienteEmail.trim() || null,
-      clienteTelefono: clienteTelefono.trim() || null,
-      facturacionNombre: !mismaDireccion ? (facNombre.trim() || null) : null,
-      facturacionNif: !mismaDireccion ? (facNif.trim() || null) : null,
-      facturacionDireccion: !mismaDireccion ? (facDir.trim() || null) : null,
-      facturacionCp: !mismaDireccion ? (facCp.trim() || null) : null,
-      facturacionCiudad: !mismaDireccion ? (facCiudad.trim() || null) : null,
-    });
+
+    let error: string | null = null;
+
+    if (esEdicion) {
+      // EDICIÓN
+      const res = await fetch("/api/facturacion/directa", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: initialData!.id, ...payloadComun }),
+      });
+      if (!res.ok) { const d = await res.json(); error = d?.error ?? "Error al guardar"; }
+    } else {
+      // CREACIÓN
+      const result = await createFacturaDirecta(payloadComun);
+      error = result.error;
+    }
+
     setGuardando(false);
     if (error) { alert("Error al guardar: " + error); return; }
-    // Descargar PDF ANTES de cerrar el modal (el elemento del DOM debe existir)
+    // Descargar PDF ANTES de cerrar (el elemento del DOM debe existir)
     await handleDownload();
     onCreated?.();
     onClose();
@@ -316,7 +371,7 @@ export function FacturaDirectaModal({
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-content-primary">Nueva factura directa</h2>
+            <h2 className="text-lg font-bold text-content-primary">{esEdicion ? `Editar factura ${initialData?.numero_factura ?? ""}` : "Nueva factura directa"}</h2>
             <p className="text-sm text-content-secondary">
               Paso {paso} de 2 — {paso === 1 ? "Datos del cliente" : "Líneas y previsualización"}
             </p>
@@ -543,7 +598,7 @@ export function FacturaDirectaModal({
               className="btn-primary flex-1">
               {guardando || downloading
                 ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <><Download className="w-4 h-4" /> Guardar y descargar PDF</>}
+                : <><Download className="w-4 h-4" /> {esEdicion ? "Guardar cambios y PDF" : "Guardar y descargar PDF"}</>}
             </button>
           )}
         </div>

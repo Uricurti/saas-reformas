@@ -13,8 +13,9 @@ import { PresupuestoPreview } from "@/components/modules/presupuestos/Presupuest
 import { GestorCatalogo } from "@/components/modules/presupuestos/GestorCatalogo";
 import { PresupuestoAObraModal } from "@/components/modules/presupuestos/PresupuestoAObraModal";
 import { FacturaDirectaModal } from "@/components/modules/presupuestos/FacturaDirectaModal";
+import { FacturaDirectaCard, type FacturaDirectaData } from "@/components/modules/presupuestos/FacturaDirectaCard";
 import {
-  Plus, Settings2, Loader2, Search, X, ChevronDown, FileText,
+  Plus, Settings2, Loader2, Search, X, ChevronDown, FileText, Receipt,
 } from "lucide-react";
 
 const ESTADO_OPTS = [
@@ -43,9 +44,16 @@ export default function PresupuestosPage() {
     if (isAdmin === false) router.replace("/dashboard");
   }, [isAdmin, router]);
 
-  // Data
+  // Tabs
+  const [activeTab, setActiveTab] = useState<"presupuestos" | "facturas">("presupuestos");
+
+  // Data — presupuestos
   const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
   const [cargando,     setCargando]     = useState(true);
+
+  // Data — facturas directas
+  const [facturasDirectas, setFacturasDirectas] = useState<FacturaDirectaData[]>([]);
+  const [cargandoFacturas, setCargandoFacturas] = useState(false);
 
   // Filtros
   const [busqueda, setBusqueda]   = useState("");
@@ -74,7 +82,23 @@ export default function PresupuestosPage() {
     setCargando(false);
   }, [tenantId, estado, tipo, busqueda]);
 
+  const cargarFacturasDirectas = useCallback(async () => {
+    if (!tenantId) return;
+    setCargandoFacturas(true);
+    try {
+      const res = await fetch(`/api/facturacion/directa?tenantId=${tenantId}`);
+      if (res.ok) setFacturasDirectas(await res.json());
+    } catch { /**/ }
+    setCargandoFacturas(false);
+  }, [tenantId]);
+
   useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => { if (activeTab === "facturas") cargarFacturasDirectas(); }, [activeTab, cargarFacturasDirectas]);
+
+  async function eliminarFacturaDirecta(id: string) {
+    await fetch(`/api/facturacion/directa?id=${id}`, { method: "DELETE" });
+    cargarFacturasDirectas();
+  }
 
   async function handleVerPDF(id: string) {
     setLoadingPDF(id);
@@ -152,6 +176,70 @@ export default function PresupuestosPage() {
           ))}
         </div>
       )}
+
+      {/* Pestañas */}
+      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+        <button
+          onClick={() => setActiveTab("presupuestos")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === "presupuestos" ? "bg-white shadow text-content-primary" : "text-content-secondary hover:text-content-primary"}`}
+        >
+          <FileText className="w-4 h-4" /> Presupuestos
+        </button>
+        <button
+          onClick={() => setActiveTab("facturas")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === "facturas" ? "bg-white shadow text-content-primary" : "text-content-secondary hover:text-content-primary"}`}
+        >
+          <Receipt className="w-4 h-4" /> Facturas directas
+          {facturasDirectas.length > 0 && (
+            <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary text-white font-bold">{facturasDirectas.length}</span>
+          )}
+        </button>
+      </div>
+
+      {/* ═══ TAB FACTURAS DIRECTAS ═══════════════════════════════════════ */}
+      {activeTab === "facturas" && (
+        <div className="space-y-3">
+          {cargandoFacturas ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-7 h-7 animate-spin text-primary" />
+            </div>
+          ) : facturasDirectas.length === 0 ? (
+            <div className="card p-10 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-primary-light flex items-center justify-center mx-auto mb-4">
+                <Receipt className="w-7 h-7 text-primary" />
+              </div>
+              <h3 className="text-base font-bold text-content-primary mb-2">Sin facturas directas</h3>
+              <p className="text-sm text-content-secondary mb-6">
+                Las facturas que generes con "Factura directa" aparecerán aquí para que puedas volver a descargarlas.
+              </p>
+              <button onClick={() => setShowFacturaDirecta(true)} className="btn-primary mx-auto">
+                <Plus className="w-4 h-4" /> Nueva factura directa
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-content-secondary">{facturasDirectas.length} factura{facturasDirectas.length !== 1 ? "s" : ""}</p>
+                <button onClick={() => setShowFacturaDirecta(true)} className="btn-primary text-sm">
+                  <Plus className="w-4 h-4" /> Nueva factura directa
+                </button>
+              </div>
+              {facturasDirectas.map((f) => (
+                <FacturaDirectaCard
+                  key={f.id}
+                  factura={f}
+                  tenantId={tenantId!}
+                  onEliminar={eliminarFacturaDirecta}
+                  onEdited={cargarFacturasDirectas}
+                />
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ═══ TAB PRESUPUESTOS ════════════════════════════════════════════ */}
+      {activeTab === "presupuestos" && <>
 
       {/* Filtros */}
       <div className="card p-5 space-y-4">
@@ -255,6 +343,8 @@ export default function PresupuestosPage() {
         </div>
       )}
 
+      </> /* fin tab presupuestos */}
+
       {/* Loading PDF overlay */}
       {loadingPDF && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30">
@@ -270,7 +360,11 @@ export default function PresupuestosPage() {
         <FacturaDirectaModal
           tenantId={tenantId}
           onClose={() => setShowFacturaDirecta(false)}
-          onCreated={() => setShowFacturaDirecta(false)}
+          onCreated={() => {
+            setShowFacturaDirecta(false);
+            setActiveTab("facturas");
+            cargarFacturasDirectas();
+          }}
         />
       )}
 
