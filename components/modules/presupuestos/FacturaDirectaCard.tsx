@@ -4,14 +4,7 @@ import { useState } from "react";
 import { Download, Loader2, FileText, Trash2, Pencil, Eye, X } from "lucide-react";
 import { getTenantConfig } from "@/lib/insforge/database";
 import type { TenantConfig } from "@/lib/insforge/database";
-import { FacturaDirectaModal } from "./FacturaDirectaModal";
-
-// Re-usa el documento del modal — lo importamos de forma lazy
-import dynamic from "next/dynamic";
-const FacturaDirectaDocument = dynamic(
-  () => import("./FacturaDirectaModal").then((m) => m.FacturaDirectaDocumentExport),
-  { ssr: false }
-);
+import { FacturaDirectaModal, FacturaDirectaDocumentExport as FacturaDirectaDocument } from "./FacturaDirectaModal";
 
 export type FacturaDirectaData = {
   id: string;
@@ -78,8 +71,8 @@ export function FacturaDirectaCard({
       setConfig(cfg);
     }
     setShowDoc(true);
-    // Esperar a que el DOM renderice el documento
-    await new Promise((r) => setTimeout(r, 400));
+    // Esperar a que React renderice el documento en el DOM
+    await new Promise((r) => setTimeout(r, 600));
     try {
       const html2pdf = (await import("html2pdf.js" as any)).default;
       const element = document.getElementById(`fac-dir-${factura.id}`);
