@@ -74,6 +74,7 @@ export async function GET(req: NextRequest) {
         concepto:        `${f.concepto ?? ""} — ${p.concepto}`,
         cliente:         obra.cliente_nombre ?? obra.nombre ?? "—",
         obra_nombre:     obra.nombre ?? "—",
+        obra_id:         f?.obra_id ?? null,
         importe_base:    base,
         importe_iva:     iva,
         importe_total:   Math.round((base + iva) * 100) / 100,
@@ -83,7 +84,15 @@ export async function GET(req: NextRequest) {
       };
     });
 
-  const pagosDirectas = (directas ?? []).map((f: any) => {
+  // Para directas, cargar pagos para el preview
+  const directasConPagos = await Promise.all((directas ?? []).map(async (f: any) => {
+    const { data: fpagos } = await admin(
+      `/api/database/records/pagos?factura_id=eq.${f.id}&order=orden.asc`
+    );
+    return { ...f, pagos: fpagos ?? [] };
+  }));
+
+  const pagosDirectas = directasConPagos.map((f: any) => {
     const base = f.importe_total ?? 0;
     const iva  = Math.round(base * (f.porcentaje_iva ?? 21) / 100 * 100) / 100;
     return {
@@ -94,12 +103,23 @@ export async function GET(req: NextRequest) {
       concepto:       f.concepto,
       cliente:        f.facturacion_nombre ?? f.cliente_nombre ?? "—",
       obra_nombre:    null,
+      obra_id:        null,
       importe_base:   base,
       importe_iva:    iva,
       importe_total:  Math.round((base + iva) * 100) / 100,
       estado:         "emitida",
       factura_id:     f.id,
       pago_id:        null,
+      directa_data: {
+        id: f.id, numero_factura: f.numero_factura, fecha_emision: f.fecha_emision,
+        concepto: f.concepto, porcentaje_iva: f.porcentaje_iva ?? 21,
+        lineas_partidas: f.lineas_partidas ?? [],
+        cliente_nombre: f.cliente_nombre, cliente_nif: f.cliente_nif,
+        cliente_email: f.cliente_email, cliente_telefono: f.cliente_telefono,
+        facturacion_nombre: f.facturacion_nombre, facturacion_nif: f.facturacion_nif,
+        facturacion_direccion: f.facturacion_direccion, facturacion_cp: f.facturacion_cp,
+        facturacion_ciudad: f.facturacion_ciudad, pagos: f.pagos, created_at: f.created_at,
+      },
     };
   });
 

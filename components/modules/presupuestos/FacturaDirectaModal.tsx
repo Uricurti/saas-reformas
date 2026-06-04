@@ -77,7 +77,7 @@ function FacturaDirectaDocument({
           <div style={{ fontSize: 26, fontWeight: 800, color: PRIMARY, letterSpacing: "-0.5px", lineHeight: 1.1, marginBottom: 8 }}>
             {config?.empresa_nombre ?? "Tu Empresa"}
           </div>
-          {config?.empresa_cif && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 2 }}><strong style={{ color: TEXT_MID }}>CIF:</strong> {config.empresa_cif}</div>}
+          {config?.empresa_cif && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 2 }}><strong style={{ color: TEXT_MID }}>CIF:</strong><span style={{ marginLeft: 4 }}>{config.empresa_cif}</span></div>}
           {config?.empresa_direccion && <div style={{ fontSize: 12, color: TEXT_SOFT }}>{config.empresa_direccion}</div>}
           {config?.empresa_telefono && <div style={{ fontSize: 12, color: TEXT_SOFT }}>{config.empresa_telefono}</div>}
           {config?.empresa_email && <div style={{ fontSize: 12, color: TEXT_SOFT }}>{config.empresa_email}</div>}
@@ -97,7 +97,7 @@ function FacturaDirectaDocument({
         <div style={{ padding: "12px 16px", background: "#f9fafb", borderRadius: 10, borderLeft: `3px solid ${PRIMARY}`, display: "inline-block", minWidth: 280, maxWidth: "48%" }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: TEXT_FAINT, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Facturar a</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_DARK, marginBottom: 4 }}>{nombreFacturar}</div>
-          {nifFacturar && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}><strong style={{ color: TEXT_MID }}>{hayBillingNif ? "CIF:" : "NIF/CIF:"}</strong> {nifFacturar}</div>}
+          {nifFacturar && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}><strong style={{ color: TEXT_MID }}>{hayBillingNif ? "CIF:" : "NIF/CIF:"}</strong><span style={{ marginLeft: 4 }}>{nifFacturar}</span></div>}
           {dirFacturar && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>{dirFacturar}</div>}
           {cpCiudad && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>{cpCiudad}</div>}
           {clienteEmail && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>{clienteEmail}</div>}

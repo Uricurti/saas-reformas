@@ -89,7 +89,7 @@ function InvoiceDocument({
           </div>
           {config?.empresa_cif && (
             <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 2 }}>
-              <strong style={{ color: TEXT_MID }}>CIF:</strong> {config.empresa_cif}
+              <strong style={{ color: TEXT_MID }}>CIF:</strong><span style={{ marginLeft: 4 }}>{config.empresa_cif}</span>
             </div>
           )}
           {config?.empresa_direccion && (
@@ -149,8 +149,8 @@ function InvoiceDocument({
                 <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
                   <strong style={{ color: TEXT_MID }}>
                     {obra.facturacion_nif ? "CIF:" : "DNI/NIE/CIF:"}
-                  </strong>{" "}
-                  {obra.facturacion_nif ?? (obra as any).cliente_dni_nie_cif}
+                  </strong>
+                  <span style={{ marginLeft: 4 }}>{obra.facturacion_nif ?? (obra as any).cliente_dni_nie_cif}</span>
                 </div>
               )}
               {/* Dirección de facturación (o de obra si coinciden) */}

@@ -3,8 +3,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useIsAdmin, useTenantId } from "@/lib/stores/auth-store";
+import { getFacturasByObra, getObraById } from "@/lib/insforge/database";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Loader2, Search, X, FileText, Building2, Receipt, Euro } from "lucide-react";
+import { Loader2, Search, X, FileText, Building2, Receipt, Eye } from "lucide-react";
+import { InvoicePreview } from "@/components/modules/facturacion/InvoicePreview";
+import { FacturaDirectaCard, type FacturaDirectaData } from "@/components/modules/presupuestos/FacturaDirectaCard";
+import { FacturaDirectaPreviewOverlay } from "@/components/modules/presupuestos/FacturaDirectaPreviewOverlay";
+import type { FacturaConPagos, Obra, Pago } from "@/types";
 
 type FilaFactura = {
   tipo: "obra" | "directa";
@@ -14,12 +19,15 @@ type FilaFactura = {
   concepto: string;
   cliente: string;
   obra_nombre: string | null;
+  obra_id: string | null;
   importe_base: number;
   importe_iva: number;
   importe_total: number;
   estado: string;
   factura_id: string;
   pago_id: string | null;
+  // Para directas: datos completos
+  directa_data?: FacturaDirectaData;
 };
 
 function fmt(n: number) {
@@ -48,6 +56,34 @@ export default function TodasLasFacturasPage() {
   const [busqueda, setBusqueda]   = useState("");
   const [tipoFiltro, setTipoFiltro] = useState<"" | "obra" | "directa">("");
   const [estadoFiltro, setEstadoFiltro] = useState<"" | "emitida" | "cobrada">("");
+
+  // Preview de factura de obra
+  const [previewFactura, setPreviewFactura] = useState<FacturaConPagos | null>(null);
+  const [previewObra, setPreviewObra]       = useState<Obra | null>(null);
+  const [previewPago, setPreviewPago]       = useState<Pago | undefined>(undefined);
+  const [loadingPreview, setLoadingPreview] = useState<string | null>(null);
+
+  // Preview de factura directa
+  const [previewDirecta, setPreviewDirecta] = useState<FacturaDirectaData | null>(null);
+
+  async function abrirFacturaObra(fila: FilaFactura) {
+    if (!fila.obra_id) return;
+    setLoadingPreview(fila.id);
+    try {
+      const [facturasRes, obraRes] = await Promise.all([
+        getFacturasByObra(fila.obra_id),
+        getObraById(fila.obra_id),
+      ]);
+      const factura = facturasRes.find((f: FacturaConPagos) => f.id === fila.factura_id);
+      const pago    = factura?.pagos.find((p: Pago) => p.id === fila.pago_id) ?? factura?.pagos[0];
+      if (factura) {
+        setPreviewFactura(factura);
+        setPreviewObra((obraRes.data as Obra) ?? null);
+        setPreviewPago(pago);
+      }
+    } catch {/**/ }
+    setLoadingPreview(null);
+  }
 
   const cargar = useCallback(async () => {
     if (!tenantId) return;
@@ -205,12 +241,28 @@ export default function TodasLasFacturasPage() {
                 <p className="font-bold text-sm text-content-primary whitespace-nowrap">{fmt(f.importe_total)} €</p>
               </div>
 
-              {/* Estado */}
-              <div>
+              {/* Estado + Ver */}
+              <div className="flex items-center gap-2">
                 <span className="text-xs px-2 py-1 rounded-full font-semibold whitespace-nowrap"
                   style={{ background: ESTADO_COLOR[f.estado]?.bg ?? "#f3f4f6", color: ESTADO_COLOR[f.estado]?.text ?? "#6b7280" }}>
                   {ESTADO_COLOR[f.estado]?.label ?? f.estado}
                 </span>
+                <button
+                  onClick={() => {
+                    if (f.tipo === "directa" && f.directa_data) {
+                      setPreviewDirecta(f.directa_data);
+                    } else {
+                      abrirFacturaObra(f);
+                    }
+                  }}
+                  disabled={loadingPreview === f.id}
+                  className="p-1.5 rounded-lg hover:bg-primary-light text-content-muted hover:text-primary transition-colors flex-shrink-0"
+                  title="Ver factura"
+                >
+                  {loadingPreview === f.id
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Eye className="w-3.5 h-3.5" />}
+                </button>
               </div>
             </div>
           ))}
@@ -225,6 +277,26 @@ export default function TodasLasFacturasPage() {
             <div />
           </div>
         </div>
+      )}
+
+      {/* Preview factura de obra */}
+      {previewFactura && tenantId && (
+        <InvoicePreview
+          factura={previewFactura}
+          obra={previewObra}
+          tenantId={tenantId}
+          pago={previewPago}
+          onClose={() => { setPreviewFactura(null); setPreviewObra(null); setPreviewPago(undefined); }}
+        />
+      )}
+
+      {/* Preview factura directa */}
+      {previewDirecta && tenantId && (
+        <FacturaDirectaPreviewOverlay
+          factura={previewDirecta}
+          tenantId={tenantId}
+          onClose={() => setPreviewDirecta(null)}
+        />
       )}
     </div>
   );

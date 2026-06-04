@@ -98,7 +98,7 @@ export function PresupuestoDocument({
           </div>
           {config?.empresa_cif && (
             <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 2 }}>
-              <strong style={{ color: TEXT_MID }}>CIF:</strong> {config.empresa_cif}
+              <strong style={{ color: TEXT_MID }}>CIF:</strong><span style={{ marginLeft: 4 }}>{config.empresa_cif}</span>
             </div>
           )}
           {config?.empresa_direccion && <div style={{ fontSize: 12, color: TEXT_SOFT }}>{config.empresa_direccion}</div>}
@@ -141,7 +141,7 @@ export function PresupuestoDocument({
           </div>
           {presupuesto.cliente_nif && (
             <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
-              <strong style={{ color: TEXT_MID }}>NIF/CIF:</strong> {presupuesto.cliente_nif}
+              <strong style={{ color: TEXT_MID }}>NIF/CIF:</strong><span style={{ marginLeft: 4 }}>{presupuesto.cliente_nif}</span>
             </div>
           )}
           {presupuesto.cliente_telefono && <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>{presupuesto.cliente_telefono}</div>}
@@ -168,7 +168,7 @@ export function PresupuestoDocument({
               )}
               {presupuesto.facturacion_nif && (
                 <div style={{ fontSize: 12, color: TEXT_SOFT, marginBottom: 1 }}>
-                  <strong style={{ color: TEXT_MID }}>CIF:</strong> {presupuesto.facturacion_nif}
+                  <strong style={{ color: TEXT_MID }}>CIF:</strong><span style={{ marginLeft: 4 }}>{presupuesto.facturacion_nif}</span>
                 </div>
               )}
               {presupuesto.facturacion_direccion &&

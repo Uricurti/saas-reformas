@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Download, Loader2, FileText, Trash2, Pencil, Eye, X } from "lucide-react";
 import { getTenantConfig } from "@/lib/insforge/database";
 import type { TenantConfig } from "@/lib/insforge/database";
@@ -43,16 +43,26 @@ export function FacturaDirectaCard({
   tenantId,
   onEliminar,
   onEdited,
+  defaultShowPreview = false,
 }: {
   factura: FacturaDirectaData;
   tenantId: string;
   onEliminar: (id: string) => void;
   onEdited?: () => void;
+  defaultShowPreview?: boolean;
 }) {
   const [downloading, setDownloading] = useState(false);
   const [config, setConfig]           = useState<TenantConfig | null>(null);
   const [showEditar, setShowEditar]   = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+
+  // Auto-abrir preview si viene desde otra página
+  useEffect(() => {
+    if (defaultShowPreview) {
+      getTenantConfig(tenantId).then((cfg) => { setConfig(cfg); setShowPreview(true); });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function ensureConfig() {
     if (config) return config;
