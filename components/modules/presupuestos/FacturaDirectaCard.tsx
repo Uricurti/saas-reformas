@@ -51,32 +51,33 @@ export function FacturaDirectaCard({
 }) {
   const [downloading, setDownloading] = useState(false);
   const [config, setConfig]           = useState<TenantConfig | null>(null);
-  const [showDoc, setShowDoc]         = useState(false);
   const [showEditar, setShowEditar]   = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
+  async function ensureConfig() {
+    if (config) return config;
+    const cfg = await getTenantConfig(tenantId);
+    setConfig(cfg);
+    return cfg;
+  }
+
   async function handleOpenPreview() {
-    if (!config) {
-      const cfg = await getTenantConfig(tenantId);
-      setConfig(cfg);
-    }
+    await ensureConfig();
     setShowPreview(true);
   }
 
+  // La descarga usa el mismo elemento del preview (siempre visible y bien renderizado)
   async function handleDownload() {
     setDownloading(true);
-    let cfg = config;
-    if (!cfg) {
-      cfg = await getTenantConfig(tenantId);
-      setConfig(cfg);
-    }
-    setShowDoc(true);
-    // Esperar a que React renderice el documento en el DOM
-    await new Promise((r) => setTimeout(r, 600));
+    await ensureConfig();
+    // Abrimos el preview para que el documento esté en el DOM visible
+    setShowPreview(true);
+    // Esperar a que React renderice completamente
+    await new Promise((r) => setTimeout(r, 700));
     try {
       const html2pdf = (await import("html2pdf.js" as any)).default;
-      const element = document.getElementById(`fac-dir-${factura.id}`);
-      if (!element) { setDownloading(false); setShowDoc(false); return; }
+      const element = document.getElementById(`fac-dir-preview-${factura.id}`);
+      if (!element) { setDownloading(false); setShowPreview(false); return; }
       await html2pdf().set({
         margin: 0,
         filename: `${factura.numero_factura ?? "factura"}.pdf`,
@@ -86,7 +87,7 @@ export function FacturaDirectaCard({
         pagebreak: { mode: ["css", "legacy"], avoid: [".no-page-break"] },
       }).from(element).save();
     } catch (e) { console.error(e); }
-    setShowDoc(false);
+    setShowPreview(false);
     setDownloading(false);
   }
 
@@ -192,17 +193,7 @@ export function FacturaDirectaCard({
         />
       )}
 
-      {/* Documento oculto para PDF (descarga directa) */}
-      {showDoc && config && (
-        <div style={{ position: "fixed", left: "-9999px", top: 0, pointerEvents: "none", zIndex: -1 }}>
-          <FacturaDirectaDocument
-            idOverride={`fac-dir-${factura.id}`}
-            {...docProps(config)}
-          />
-        </div>
-      )}
-
-      {/* Preview a pantalla completa */}
+      {/* Preview a pantalla completa (también usado para la descarga) */}
       {showPreview && config && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9000, display: "flex", flexDirection: "column", background: "rgba(15,23,42,0.85)", backdropFilter: "blur(6px)" }}>
           {/* Barra superior */}

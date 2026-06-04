@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Building2, Calendar, ShoppingCart,
-  Calculator, Users, LogOut, Bell, TrendingUp, Settings, Pencil, LayoutDashboard, SlidersHorizontal, FileText, HardDrive
+  Calculator, Users, LogOut, Bell, TrendingUp, Settings, Pencil, LayoutDashboard, SlidersHorizontal, FileText, HardDrive, Receipt
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore, useIsAdmin } from "@/lib/stores/auth-store";
@@ -29,7 +29,8 @@ const navItemsAdmin = [
   { href: "/equipo",     label: "Equipo",     icon: Users,           group: "operativa" },
   { href: "/presupuestos",   label: "Presupuestos",  icon: FileText,        group: "operativa" },
   { href: "/almacenamiento", label: "Almacenamiento", icon: HardDrive,       group: "operativa" },
-  { href: "/facturacion",    label: "Finanzas",      icon: TrendingUp,      group: "finanzas"  },
+  { href: "/facturacion",          label: "Finanzas",       icon: TrendingUp, group: "finanzas"  },
+  { href: "/todas-las-facturas",   label: "Todas las facturas", icon: Receipt,   group: "finanzas"  },
 ];
 
 export function Sidebar() {

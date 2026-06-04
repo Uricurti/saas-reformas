@@ -573,8 +573,8 @@ export function FacturaDirectaModal({
           </div>
         )}
 
-        {/* Documento oculto a tamaño real — solo para generar el PDF */}
-        <div style={{ position: "fixed", left: "-9999px", top: 0, pointerEvents: "none", zIndex: -1 }}>
+        {/* Documento oculto a tamaño real — position:absolute más fiable que fixed para html2canvas */}
+        <div style={{ position: "absolute", top: "-9999px", left: 0, pointerEvents: "none", zIndex: -1 }}>
           <FacturaDirectaDocument {...docProps} />
         </div>
 
