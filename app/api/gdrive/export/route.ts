@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
+import { Readable } from "stream";
 
 const API_SECRET   = (process.env.OBRAMAT_API_SECRET ?? "obramat-sync-2026-secret").trim();
 const INSFORGE_URL = (process.env.NEXT_PUBLIC_INSFORGE_URL ?? "").replace(/\/$/, "");
@@ -175,7 +176,6 @@ export async function POST(req: NextRequest) {
         const pdfBuffer = await downloadPdf(factura.pdf_url);
 
         // Subir a Drive
-        const { Readable } = await import("stream");
         const uploaded = await drive.files.create({
           requestBody: {
             name: `${factura.numero}.pdf`,
