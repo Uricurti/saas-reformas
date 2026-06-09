@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   let facturaMap: Record<string, any> = {};
   if (facturaIds.length > 0) {
     const { data: facturas } = await admin(
-      `/api/database/records/facturas?id=in.(${facturaIds.join(",")})&select=id,concepto,obra_id`
+      `/api/database/records/facturas?id=in.(${facturaIds.join(",")})&select=id,concepto,obra_id,gdrive_url`
     );
     const obraIds = Array.from(new Set((facturas ?? []).map((f: any) => f.obra_id).filter(Boolean)));
     let obraMap: Record<string, string> = {};
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
         tipo:            "obra" as const,
         id:              p.id,
         numero:          p.numero_factura_emitida,
-        fecha:           p.created_at?.split("T")[0] ?? null,
+        fecha:           p.fecha_emision_factura ?? p.created_at?.split("T")[0] ?? null,
         concepto:        `${f.concepto ?? ""} — ${p.concepto}`,
         cliente:         obra.cliente_nombre ?? obra.nombre ?? "—",
         obra_nombre:     obra.nombre ?? "—",
@@ -81,6 +81,7 @@ export async function GET(req: NextRequest) {
         estado:          p.estado,
         factura_id:      p.factura_id,
         pago_id:         p.id,
+        gdrive_url:      f.gdrive_url ?? null,
       };
     });
 
@@ -110,6 +111,7 @@ export async function GET(req: NextRequest) {
       estado:         "emitida",
       factura_id:     f.id,
       pago_id:        null,
+      gdrive_url:     f.gdrive_url ?? null,
       directa_data: {
         id: f.id, numero_factura: f.numero_factura, fecha_emision: f.fecha_emision,
         concepto: f.concepto, porcentaje_iva: f.porcentaje_iva ?? 21,
