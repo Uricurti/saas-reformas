@@ -108,7 +108,10 @@ export async function GET(req: NextRequest) {
       importe_base:   base,
       importe_iva:    iva,
       importe_total:  Math.round((base + iva) * 100) / 100,
-      estado:         "emitida",
+      // Si todos los pagos están cobrados → factura cobrada; si no, emitida
+      estado:         (f.pagos?.length > 0 && f.pagos.every((p: any) => p.estado === "cobrada"))
+                        ? "cobrada"
+                        : "emitida",
       factura_id:     f.id,
       pago_id:        null,
       gdrive_url:     f.gdrive_url ?? null,

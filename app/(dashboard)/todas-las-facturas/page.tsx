@@ -140,6 +140,52 @@ function BtnDriveIngreso({
   return null;
 }
 
+// ─── Botón para marcar factura directa como cobrada ─────────────────────────────
+function BtnCobrar({
+  fila, onCobrada,
+}: {
+  fila: FilaFactura;
+  onCobrada: (rowId: string) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  if (fila.tipo !== "directa" || fila.estado === "cobrada") return null;
+
+  async function cobrar(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm(`¿Marcar la factura ${fila.numero} como cobrada?`)) return;
+    setLoading(true);
+    try {
+      const res  = await fetch("/api/facturacion/cobrar", {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ factura_id: fila.factura_id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        onCobrada(fila.id);
+      } else {
+        alert(data.error ?? "Error al marcar como cobrada");
+      }
+    } catch { alert("Error de red"); }
+    setLoading(false);
+  }
+
+  return (
+    <button
+      onClick={cobrar}
+      disabled={loading}
+      title="Marcar como cobrada"
+      className="opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 whitespace-nowrap"
+    >
+      {loading
+        ? <Loader2 className="w-3 h-3 animate-spin" />
+        : <CheckCircle2 className="w-3 h-3" />}
+      Cobrar
+    </button>
+  );
+}
+
 // ─── Chip de filtro activo ───────────────────────────────────────────────────────
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
@@ -228,6 +274,11 @@ export default function TodasLasFacturasPage() {
   }, [tenantId]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  // Marcar factura directa como cobrada en el estado local
+  const handleCobrada = useCallback((rowId: string) => {
+    setFacturas((prev) => prev.map((f) => f.id === rowId ? { ...f, estado: "cobrada" } : f));
+  }, []);
 
   // Actualizar gdrive_url en local state tras subir (llamado desde los previews)
   const handleDriveUploaded = useCallback((url: string) => {
@@ -628,12 +679,13 @@ export default function TodasLasFacturasPage() {
               </div>
 
               {/* Estado */}
-              <div>
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-semibold whitespace-nowrap"
                   style={{ background: ESTADO_CFG[f.estado]?.bg ?? "#f3f4f6", color: ESTADO_CFG[f.estado]?.text ?? "#6b7280" }}>
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: ESTADO_CFG[f.estado]?.dot ?? "#6b7280" }} />
                   {ESTADO_CFG[f.estado]?.label ?? f.estado}
                 </span>
+                <BtnCobrar fila={f} onCobrada={handleCobrada} />
               </div>
 
               {/* Drive */}

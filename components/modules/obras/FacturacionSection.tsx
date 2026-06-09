@@ -376,7 +376,16 @@ function FilaPago({
       onUpdate();
       return;
     }
-    // Emitir: primero obtenemos el número sugerido y abrimos el modal
+    // Si es 100% en efectivo (sin factura), cobrar directamente sin emitir
+    const isAllEfectivo = (pago.importe_efectivo_b ?? 0) >= (pago.importe_total - 0.01);
+    if (isAllEfectivo) {
+      setSaving(true);
+      await updatePago(pago.id, { estado: "cobrada", fecha_cobro: new Date().toISOString().split("T")[0] });
+      setSaving(false);
+      onUpdate();
+      return;
+    }
+    // Emitir con factura: primero obtenemos el número sugerido y abrimos el modal
     setSaving(true);
     const num = await getNextNumeroFactura(tenantId);
     setNumSugerido(num);
@@ -424,6 +433,8 @@ function FilaPago({
 
   const color      = ESTADO_COLOR[pago.estado];
   const canAdvance = pago.estado !== "cobrada";
+  // Si es 100% efectivo, el botón dice "Cobrar" aunque esté en pendiente_emitir (no necesita emitir factura)
+  const isAllEfectivo = (pago.importe_efectivo_b ?? 0) >= (pago.importe_total - 0.01);
 
   // ── Botones de acción (compartidos entre móvil y desktop) ──────────────────
   const accionesNode = (
@@ -439,7 +450,7 @@ function FilaPago({
         <button onClick={iniciarEmision} disabled={saving}
           style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 7, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: saving ? "default" : "pointer", display: "flex", alignItems: "center", gap: 4 }}>
           {saving ? <Loader2 style={{ width: 12, height: 12 }} /> : <Check style={{ width: 12, height: 12 }} />}
-          {pago.estado === "pendiente_emitir" ? "Emitir" : "Cobrar"}
+          {pago.estado === "pendiente_emitir" && !isAllEfectivo ? "Emitir" : "Cobrar"}
         </button>
       )}
       {pago.estado !== "cobrada" && (
@@ -573,7 +584,7 @@ function FilaPago({
                 <button onClick={iniciarEmision} disabled={saving}
                   style={{ display: "flex", alignItems: "center", gap: 6, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 9, padding: "9px 14px", fontSize: 13, fontWeight: 700, cursor: saving ? "default" : "pointer", flex: 1, justifyContent: "center" }}>
                   {saving ? <Loader2 style={{ width: 14, height: 14 }} /> : <Check style={{ width: 14, height: 14 }} />}
-                  {pago.estado === "pendiente_emitir" ? "Emitir" : "Cobrar"}
+                  {pago.estado === "pendiente_emitir" && !isAllEfectivo ? "Emitir" : "Cobrar"}
                 </button>
               )}
               {pago.estado !== "cobrada" && pago.orden > 1 && (
