@@ -30,7 +30,8 @@ const TRIMESTRE: Record<number, string> = {
   10:"T4", 11:"T4", 12:"T4",
 };
 
-const GDRIVE_ROOT_CARRANZA  = process.env.GDRIVE_ROOT_CARRANZA  ?? "105BCJ0gtsNGExG-U2vLjkO9X1MSnQzXT";
+// Carpeta oficial: CARRANZACORTINAINTERIORS SL - COMPARTIDA (Shared Drive de la gestora)
+const GDRIVE_ROOT_CARRANZA  = process.env.GDRIVE_ROOT_CARRANZA  ?? "1bZj_53iRTfh4eYvpVg8b01R27Covvzkf";
 const GDRIVE_ROOT_REFORLIFE = process.env.GDRIVE_ROOT_REFORLIFE ?? "";
 
 function getDriveClient() {

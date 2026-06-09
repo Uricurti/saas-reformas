@@ -29,7 +29,8 @@ const TRIMESTRE: Record<number, string> = {
 // Cambiar estas variables cuando se use la carpeta real de la gestora.
 // La estructura esperada dentro de cada raíz es:
 //   facturas {año} / T{1-4} / Gastos /
-const GDRIVE_ROOT_CARRANZA  = process.env.GDRIVE_ROOT_CARRANZA  ?? "105BCJ0gtsNGExG-U2vLjkO9X1MSnQzXT"; // carpeta de pruebas
+// Carpeta oficial: CARRANZACORTINAINTERIORS SL - COMPARTIDA (Shared Drive de la gestora)
+const GDRIVE_ROOT_CARRANZA  = process.env.GDRIVE_ROOT_CARRANZA  ?? "1bZj_53iRTfh4eYvpVg8b01R27Covvzkf";
 const GDRIVE_ROOT_REFORLIFE = process.env.GDRIVE_ROOT_REFORLIFE ?? ""; // pendiente de acceso
 
 // ─── Auth Drive ───────────────────────────────────────────────────────────────
