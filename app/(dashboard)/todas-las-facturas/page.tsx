@@ -159,7 +159,7 @@ function BtnCobrar({
       const res  = await fetch("/api/facturacion/cobrar", {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ factura_id: fila.factura_id }),
+        body:    JSON.stringify({ accion: "cobrar", factura_id: fila.factura_id }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -178,10 +178,60 @@ function BtnCobrar({
       title="Marcar como cobrada"
       className="opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 whitespace-nowrap"
     >
-      {loading
-        ? <Loader2 className="w-3 h-3 animate-spin" />
-        : <CheckCircle2 className="w-3 h-3" />}
+      {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
       Cobrar
+    </button>
+  );
+}
+
+// ─── Botón para deshacer cobro (obra o directa) ──────────────────────────────
+function BtnDeshacerCobro({
+  fila, onDeshecho,
+}: {
+  fila: FilaFactura;
+  onDeshecho: (rowId: string) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  if (fila.estado !== "cobrada") return null;
+
+  async function deshacer(e: React.MouseEvent) {
+    e.stopPropagation();
+    const msg = fila.tipo === "obra"
+      ? `¿Deshacer el cobro del pago ${fila.numero}? Volverá a estado "Emitida".`
+      : `¿Deshacer el cobro de la factura ${fila.numero}? Volverá a estado "Emitida".`;
+    if (!confirm(msg)) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/facturacion/cobrar", {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accion:      "deshacer",
+          factura_id:  fila.factura_id,
+          // Para obras pasamos el pago_id concreto; para directas null (actualiza todos)
+          pago_id:     fila.tipo === "obra" ? fila.pago_id : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        onDeshecho(fila.id);
+      } else {
+        alert(data.error ?? "Error al deshacer el cobro");
+      }
+    } catch { alert("Error de red"); }
+    setLoading(false);
+  }
+
+  return (
+    <button
+      onClick={deshacer}
+      disabled={loading}
+      title="Deshacer cobro"
+      className="opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap"
+    >
+      {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <span>↩</span>}
+      Deshacer cobro
     </button>
   );
 }
@@ -278,6 +328,11 @@ export default function TodasLasFacturasPage() {
   // Marcar factura directa como cobrada en el estado local
   const handleCobrada = useCallback((rowId: string) => {
     setFacturas((prev) => prev.map((f) => f.id === rowId ? { ...f, estado: "cobrada" } : f));
+  }, []);
+
+  // Deshacer cobro en el estado local (vuelve a "emitida")
+  const handleDeshecho = useCallback((rowId: string) => {
+    setFacturas((prev) => prev.map((f) => f.id === rowId ? { ...f, estado: "emitida" } : f));
   }, []);
 
   // Actualizar gdrive_url en local state tras subir (llamado desde los previews)
@@ -686,6 +741,7 @@ export default function TodasLasFacturasPage() {
                   {ESTADO_CFG[f.estado]?.label ?? f.estado}
                 </span>
                 <BtnCobrar fila={f} onCobrada={handleCobrada} />
+                <BtnDeshacerCobro fila={f} onDeshecho={handleDeshecho} />
               </div>
 
               {/* Drive */}
