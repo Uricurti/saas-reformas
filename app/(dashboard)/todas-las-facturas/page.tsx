@@ -90,6 +90,67 @@ function exportCSV(rows: FilaFactura[]) {
   a.click(); URL.revokeObjectURL(url);
 }
 
+// ─── Botón Drive (subir / ver) ───────────────────────────────────────────────────
+function BtnDriveIngreso({
+  rowId, factura_id, fecha, gdrive_url: initialUrl, onUploaded,
+}: {
+  rowId: string;
+  factura_id: string;
+  fecha: string | null;
+  gdrive_url: string | null;
+  onUploaded: (rowId: string, url: string) => void;
+}) {
+  const [state, setState] = useState<"idle" | "uploading" | "done">(initialUrl ? "done" : "idle");
+  const [url, setUrl]     = useState<string | null>(initialUrl);
+
+  async function upload(e: React.MouseEvent) {
+    e.stopPropagation();
+    setState("uploading");
+    const fechaCobro = fecha ?? new Date().toISOString().split("T")[0];
+    try {
+      const res  = await fetch("/api/gdrive/export-ingreso", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-secret": "obramat-sync-2026-secret" },
+        body: JSON.stringify({ factura_id, fecha_cobro: fechaCobro }),
+      });
+      const data = await res.json();
+      if (res.ok && data.gdrive_url) {
+        setUrl(data.gdrive_url);
+        setState("done");
+        onUploaded(rowId, data.gdrive_url);
+      } else {
+        setState("idle");
+        alert(data.error ?? "Error al subir a Drive");
+      }
+    } catch {
+      setState("idle");
+    }
+  }
+
+  if (state === "done" && url) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" title="Ver en Google Drive"
+        className="p-1.5 rounded-lg hover:bg-green-50 transition-colors flex items-center justify-center"
+        onClick={(e) => e.stopPropagation()}>
+        <FolderOpen className="w-3.5 h-3.5 text-green-600" />
+      </a>
+    );
+  }
+  if (state === "uploading") {
+    return (
+      <span className="p-1.5 flex items-center justify-center">
+        <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
+      </span>
+    );
+  }
+  return (
+    <button onClick={upload} title="Subir a Google Drive"
+      className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 flex items-center justify-center">
+      <FolderOpen className="w-3.5 h-3.5" />
+    </button>
+  );
+}
+
 // ─── Chip de filtro activo ───────────────────────────────────────────────────────
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
@@ -175,6 +236,11 @@ export default function TodasLasFacturasPage() {
   }, [tenantId]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  // Actualizar gdrive_url en local state tras subir
+  const handleDriveUploaded = useCallback((rowId: string, url: string) => {
+    setFacturas((prev) => prev.map((f) => f.id === rowId ? { ...f, gdrive_url: url } : f));
+  }, []);
 
   // Reset página al cambiar filtros
   useEffect(() => { setPagina(1); }, [busqueda, tipoFiltro, estadoFiltro, anioFiltro, mesFiltro, fechaDesde, fechaHasta, importeMin, importeMax]);
@@ -577,22 +643,13 @@ export default function TodasLasFacturasPage() {
 
               {/* Drive */}
               <div className="flex justify-center">
-                {f.gdrive_url ? (
-                  <a
-                    href={f.gdrive_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Ver en Google Drive"
-                    className="p-1.5 rounded-lg hover:bg-green-50 transition-colors"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <FolderOpen className="w-3.5 h-3.5 text-green-600" />
-                  </a>
-                ) : (
-                  <span title="No subida a Drive" className="p-1.5 opacity-20">
-                    <FolderOpen className="w-3.5 h-3.5 text-gray-400" />
-                  </span>
-                )}
+                <BtnDriveIngreso
+                  rowId={f.id}
+                  factura_id={f.factura_id}
+                  fecha={f.fecha}
+                  gdrive_url={f.gdrive_url}
+                  onUploaded={handleDriveUploaded}
+                />
               </div>
 
               {/* Ver */}
