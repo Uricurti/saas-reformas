@@ -201,8 +201,9 @@ export async function POST(req: NextRequest) {
       supportsAllDrives: true,
     });
 
-    const driveUrl = uploaded.data.webViewLink
-      ?? `https://drive.google.com/file/d/${uploaded.data.id}/view`;
+    // Guardamos la URL de la CARPETA para que el usuario pueda localizar
+    // y verificar la ubicación exacta del PDF dentro del Drive.
+    const driveUrl = `https://drive.google.com/drive/folders/${ingresosFolderId}`;
 
     // Guardar gdrive_url en la DB
     await dbPatch(`/api/database/records/facturas?id=eq.${factura_id}`, { gdrive_url: driveUrl });

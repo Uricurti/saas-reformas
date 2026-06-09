@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import {
   ShoppingBag, TrendingDown, Calendar,
   ChevronDown, Store, FileText, Loader2, RefreshCw,
-  Receipt, Eye, Download, X, ExternalLink,
+  Receipt, Eye, Download, X, ExternalLink, CheckCircle2,
 } from "lucide-react";
 
 // ─── Icono Google Drive (SVG oficial) ────────────────────────────────────────
@@ -205,15 +205,15 @@ function BtnDrive({ g, onExported }: { g: Gasto; onExported: (id: string, url: s
         href={g.gdrive_url}
         target="_blank"
         rel="noopener noreferrer"
-        title="Ver en Google Drive"
+        title="Ver carpeta en Google Drive"
         style={{
           width: 32, height: 32, borderRadius: 8, border: "none",
-          background: `${GD_OK}18`, color: GD_OK,
+          background: `${GD_OK}20`, color: GD_OK,
           display: "flex", alignItems: "center", justifyContent: "center",
           textDecoration: "none", flexShrink: 0,
         }}
       >
-        <GoogleDriveIcon size={15} />
+        <CheckCircle2 style={{ width: 18, height: 18 }} />
       </a>
     );
   }

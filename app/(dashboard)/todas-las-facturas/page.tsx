@@ -143,10 +143,10 @@ function BtnDriveIngreso({
 
   if (state === "done" && url) {
     return (
-      <a href={url} target="_blank" rel="noopener noreferrer" title="Ver en Google Drive"
-        className="p-1.5 rounded-lg hover:bg-green-50 transition-colors flex items-center justify-center"
+      <a href={url} target="_blank" rel="noopener noreferrer" title="Ver carpeta en Google Drive"
+        className="p-1.5 rounded-lg bg-green-50 hover:bg-green-100 transition-colors flex items-center justify-center"
         onClick={(e) => e.stopPropagation()}>
-        <GoogleDriveIcon size={14} />
+        <CheckCircle2 className="w-4 h-4 text-green-600" />
       </a>
     );
   }
