@@ -113,15 +113,16 @@ function ModalEmitir({
   pago: Pago;
   numeroSugerido: string;
   onClose: () => void;
-  onConfirm: (numeroFactura: string) => Promise<void>;
+  onConfirm: (numeroFactura: string, fechaEmision: string) => Promise<void>;
 }) {
   const [numero, setNumero] = useState(numeroSugerido);
+  const [fecha, setFecha]   = useState(new Date().toISOString().split("T")[0]);
   const [saving, setSaving] = useState(false);
 
   async function handleConfirm() {
     if (!numero.trim()) return;
     setSaving(true);
-    await onConfirm(numero.trim());
+    await onConfirm(numero.trim(), fecha);
     setSaving(false);
     // onClose lo llama el padre tras confirmar
   }
@@ -155,11 +156,19 @@ function ModalEmitir({
           onChange={(e) => setNumero(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleConfirm(); if (e.key === "Escape") onClose(); }}
           placeholder="FAC-001"
-          style={{ width: "100%", border: `1.5px solid ${PRIMARY}`, borderRadius: 9, padding: "10px 14px", fontSize: 16, fontWeight: 700, color: PRIMARY, letterSpacing: "0.04em", marginBottom: 8, boxSizing: "border-box", outline: "none" }}
+          style={{ width: "100%", border: `1.5px solid ${PRIMARY}`, borderRadius: 9, padding: "10px 14px", fontSize: 16, fontWeight: 700, color: PRIMARY, letterSpacing: "0.04em", marginBottom: 16, boxSizing: "border-box", outline: "none" }}
         />
-        <p style={{ margin: "0 0 20px", fontSize: 12, color: "#9ca3af" }}>
-          Puedes cambiarlo si necesitas un número específico. Se guardará en la factura definitiva.
-        </p>
+
+        {/* Campo fecha */}
+        <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+          Fecha de emisión
+        </label>
+        <input
+          type="date"
+          value={fecha}
+          onChange={(e) => setFecha(e.target.value)}
+          style={{ width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 9, padding: "10px 14px", fontSize: 14, marginBottom: 20, boxSizing: "border-box", outline: "none" }}
+        />
 
         {/* Botones */}
         <div style={{ display: "flex", gap: 8 }}>
@@ -375,10 +384,11 @@ function FilaPago({
     setShowEmitir(true);
   }
 
-  async function confirmarEmision(numeroFactura: string) {
+  async function confirmarEmision(numeroFactura: string, fechaEmision: string) {
     await updatePago(pago.id, {
       estado: "emitida",
       numero_factura_emitida: numeroFactura,
+      fecha_emision_factura: fechaEmision,
     } as any);
     setShowEmitir(false);
     onUpdate();

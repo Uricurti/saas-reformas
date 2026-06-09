@@ -88,7 +88,18 @@ function AlertaPago({ pago, onCobrar }: { pago: PagoConContexto; onCobrar: () =>
 
   async function handleCobrar() {
     setSaving(true);
-    await updatePago(pago.id, { estado: "cobrada", fecha_cobro: new Date().toISOString().split("T")[0] });
+    const fechaCobro = new Date().toISOString().split("T")[0];
+    await updatePago(pago.id, { estado: "cobrada", fecha_cobro: fechaCobro });
+
+    // Subir automáticamente el PDF de la factura a Drive (Ingresos)
+    if (pago.factura_id) {
+      fetch("/api/gdrive/export-ingreso", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-secret": "obramat-sync-2026-secret" },
+        body: JSON.stringify({ factura_id: pago.factura_id, fecha_cobro: fechaCobro }),
+      }).catch(() => { /* silencioso — no bloqueamos el flujo */ });
+    }
+
     onCobrar();
     setSaving(false);
   }

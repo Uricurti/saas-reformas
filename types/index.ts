@@ -287,6 +287,7 @@ export interface Pago {
   porcentaje_iva_a?: number;     // IVA percentage for Track A (10 or 21)
   fecha_prevista: string | null;
   fecha_cobro: string | null;
+  fecha_emision_factura?: string | null;
   estado: PagoEstado;
   nota: string | null;
   numero_factura_emitida?: string | null;

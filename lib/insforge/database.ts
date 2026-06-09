@@ -902,6 +902,7 @@ export async function updatePago(id: string, params: Partial<{
   porcentaje_iva_a?: number;
   fecha_prevista: string | null;
   fecha_cobro: string | null;
+  fecha_emision_factura: string | null;
   estado: PagoEstado;
   nota: string | null;
   numero_factura_emitida: string | null;
@@ -1910,4 +1911,29 @@ export async function convertirPresupuestoAObra(
   if (!factura) return null;
   await updatePresupuesto(presupuestoId, { estado: "aceptado", obraId });
   return { obra_id: obraId, factura_id: factura.id };
+}
+
+// ══════════════════════════════════════════════════════════════════
+// GASTOS (facturas de proveedores: Obramat, etc.)
+// ══════════════════════════════════════════════════════════════════
+
+export async function getGastos(tenantId: string, opts?: { mes?: number; anio?: number; proveedor?: string }) {
+  let q = insforge.database
+    .from("gastos")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .order("fecha_factura", { ascending: false });
+  if (opts?.mes)       q = (q as any).eq("mes", opts.mes);
+  if (opts?.anio)      q = (q as any).eq("anio", opts.anio);
+  if (opts?.proveedor) q = (q as any).eq("proveedor", opts.proveedor);
+  return q;
+}
+
+export async function getGastosResumenMensual(tenantId: string, anio: number) {
+  return insforge.database
+    .from("gastos")
+    .select("mes, anio, importe_total, proveedor")
+    .eq("tenant_id", tenantId)
+    .eq("anio", anio)
+    .order("mes", { ascending: true });
 }
