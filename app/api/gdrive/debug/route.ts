@@ -18,61 +18,74 @@ function getDriveClient() {
   return google.drive({ version: "v3", auth });
 }
 
+/** Lista subcarpetas y archivos directos de una carpeta (no recursivo) */
+async function listFolder(drive: any, folderId: string): Promise<{ folders: any[]; files: any[] }> {
+  const res = await drive.files.list({
+    q: `'${folderId}' in parents and trashed = false`,
+    fields: "files(id,name,mimeType,size,modifiedTime)",
+    includeItemsFromAllDrives: true,
+    supportsAllDrives: true,
+    pageSize: 200,
+    orderBy: "name",
+  });
+  const all = res.data.files ?? [];
+  const folders = all.filter((f: any) => f.mimeType === "application/vnd.google-apps.folder");
+  const files   = all.filter((f: any) => f.mimeType !== "application/vnd.google-apps.folder");
+  return { folders, files };
+}
+
+/** Recorre el árbol recursivamente hasta maxDepth niveles */
+async function treeOf(drive: any, folderId: string, name: string, depth = 0, maxDepth = 4): Promise<any> {
+  if (depth > maxDepth) return { id: folderId, name, children: [], files: [], truncated: true };
+  const { folders, files } = await listFolder(drive, folderId);
+  const children = await Promise.all(
+    folders.map((f: any) => treeOf(drive, f.id, f.name, depth + 1, maxDepth))
+  );
+  return {
+    id: folderId,
+    name,
+    children,
+    files: files.map((f: any) => ({ id: f.id, name: f.name, size: f.size })),
+  };
+}
+
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("x-api-secret");
   if (secret !== API_SECRET) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const drive = getDriveClient();
+    const { searchParams } = new URL(req.url);
 
-    // 1. Buscar Shared Drives
-    const sharedDrivesRes = await drive.drives.list({
-      pageSize: 20,
-      fields: "drives(id,name,kind)",
-    });
-    const sharedDrives = sharedDrivesRes.data.drives ?? [];
+    // Modo árbol: ?tree=folderId
+    const treeId = searchParams.get("tree");
+    if (treeId) {
+      const metaRes = await drive.files.get({
+        fileId: treeId,
+        fields: "id,name",
+        supportsAllDrives: true,
+      });
+      const tree = await treeOf(drive, treeId, metaRes.data.name ?? treeId);
+      return NextResponse.json(tree);
+    }
 
-    // 2. Carpetas con sharedWithMe=true
-    const sharedFoldersRes = await drive.files.list({
-      q: "sharedWithMe = true and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
-      fields: "files(id,name,driveId,parents,shared,ownedByMe)",
-      includeItemsFromAllDrives: true,
-      supportsAllDrives: true,
-      pageSize: 50,
-    });
-    const sharedFolders = sharedFoldersRes.data.files ?? [];
+    // Modo listado directo: ?ls=folderId
+    const lsId = searchParams.get("ls");
+    if (lsId) {
+      const { folders, files } = await listFolder(drive, lsId);
+      return NextResponse.json({ folders, files });
+    }
 
-    // 3. Todas las carpetas accesibles (sin filtro sharedWithMe)
+    // Modo original: info general
     const allFoldersRes = await drive.files.list({
       q: "mimeType = 'application/vnd.google-apps.folder' and trashed = false",
-      fields: "files(id,name,driveId,parents,shared,ownedByMe)",
+      fields: "files(id,name,driveId,parents)",
       includeItemsFromAllDrives: true,
       supportsAllDrives: true,
       corpora: "allDrives",
       pageSize: 50,
     });
-    const allFolders = allFoldersRes.data.files ?? [];
-
-    // 4. Probar si la carpeta carranzacortina está en un Shared Drive
-    const testFolderId = "105BCJ0gtsNGExG-U2vLjkO9X1MSnQzXT";
-    let folderMeta: any = null;
-    try {
-      const metaRes = await drive.files.get({
-        fileId: testFolderId,
-        fields: "id,name,driveId,parents,shared,ownedByMe,capabilities",
-        supportsAllDrives: true,
-      });
-      folderMeta = metaRes.data;
-    } catch (e: any) {
-      folderMeta = { error: e.message };
-    }
-
-    return NextResponse.json({
-      sharedDrives,
-      sharedFolders: sharedFolders.map(f => ({ id: f.id, name: f.name, driveId: f.driveId, ownedByMe: f.ownedByMe })),
-      allFolders: allFolders.map(f => ({ id: f.id, name: f.name, driveId: f.driveId, ownedByMe: f.ownedByMe })),
-      testFolderMeta: folderMeta,
-    });
+    return NextResponse.json({ allFolders: allFoldersRes.data.files ?? [] });
 
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
