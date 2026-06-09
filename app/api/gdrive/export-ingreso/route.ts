@@ -47,10 +47,10 @@ function getDriveClient() {
   return google.drive({ version: "v3", auth });
 }
 
-// ─── Buscar o crear carpeta (con matching case-insensitive + trim) ─────────────
+// ─── Buscar carpeta (SOLO busca, NUNCA crea) ─────────────────────────────────
 const folderCache = new Map<string, string>();
 
-async function getOrCreateFolder(drive: any, name: string, parentId: string): Promise<string> {
+async function findFolder(drive: any, name: string, parentId: string): Promise<string> {
   const trimmedName = name.trim();
   const cacheKey = `${parentId}/${trimmedName.toLowerCase()}`;
   if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
@@ -67,18 +67,12 @@ async function getOrCreateFolder(drive: any, name: string, parentId: string): Pr
     (f: any) => f.name.trim().toLowerCase() === trimmedName.toLowerCase()
   );
 
-  if (match) {
-    folderCache.set(cacheKey, match.id!);
-    return match.id!;
+  if (!match) {
+    throw new Error(`Carpeta "${trimmedName}" no encontrada en Google Drive. Pide a la gestora que la cree.`);
   }
 
-  const created = await drive.files.create({
-    requestBody: { name: trimmedName, mimeType: "application/vnd.google-apps.folder", parents: [parentId] },
-    fields: "id",
-    supportsAllDrives: true,
-  });
-  folderCache.set(cacheKey, created.data.id!);
-  return created.data.id!;
+  folderCache.set(cacheKey, match.id!);
+  return match.id!;
 }
 
 // ─── Obtener carpeta destino Ingresos ─────────────────────────────────────────
@@ -105,17 +99,17 @@ async function getIngresosFolderId(
     throw new Error(`Empresa desconocida: ${empresa}`);
   }
 
-  const facturasId  = await getOrCreateFolder(drive, `FACTURAS ${anioStr}`, rootId);
-  const trimestreId = await getOrCreateFolder(drive, trimestre, facturasId);
-  const actividadId = await getOrCreateFolder(drive, actividad, trimestreId);
+  const facturasId  = await findFolder(drive, `FACTURAS ${anioStr}`, rootId);
+  const trimestreId = await findFolder(drive, trimestre, facturasId);
+  const actividadId = await findFolder(drive, actividad, trimestreId);
 
   // FLIPPING HOUSE: nivel extra con el inmueble específico
   if (actividad.toUpperCase() === "FLIPPING HOUSE" && subInmueble) {
-    const inmuebleId = await getOrCreateFolder(drive, subInmueble, actividadId);
-    return await getOrCreateFolder(drive, "Ingresos", inmuebleId);
+    const inmuebleId = await findFolder(drive, subInmueble, actividadId);
+    return await findFolder(drive, "Ingresos", inmuebleId);
   }
 
-  return await getOrCreateFolder(drive, "Ingresos", actividadId);
+  return await findFolder(drive, "Ingresos", actividadId);
 }
 
 async function dbGet(path: string) {
@@ -148,10 +142,15 @@ export async function POST(req: NextRequest) {
       empresa = "carranzacortina",
       actividad = "REFORMAS",
       subInmueble,
+      pdfBase64,
     } = await req.json();
 
     if (!factura_id) {
       return NextResponse.json({ error: "Falta factura_id" }, { status: 400 });
+    }
+
+    if (!pdfBase64) {
+      return NextResponse.json({ ok: false, error: "Falta el PDF (pdfBase64). El PDF debe generarse en el cliente antes de subir." }, { status: 400 });
     }
 
     // Obtener la factura de la DB
@@ -172,37 +171,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, gdrive_url: factura.gdrive_url, ya_existia: true });
     }
 
-    if (!factura.archivo_url) {
-      return NextResponse.json({ ok: false, error: "La factura no tiene PDF generado aún" }, { status: 422 });
-    }
-
-    // Descargar PDF desde InsForge Storage
-    const rawUrl = factura.archivo_url as string;
-    let pdfBuffer: Buffer;
-
-    if (!rawUrl.startsWith("http")) {
-      const res = await fetch(
-        `${INSFORGE_URL}/api/storage/buckets/obras-media/objects/${encodeURIComponent(rawUrl)}`,
-        { headers: { "x-api-key": SERVICE_KEY } }
-      );
-      if (!res.ok) throw new Error(`No se pudo obtener el PDF del storage: ${res.status}`);
-
-      const ct = res.headers.get("content-type") ?? "";
-      if (ct.includes("application/json")) {
-        const data = await res.json();
-        const signedUrl = data.signedUrl ?? data.url;
-        if (!signedUrl) throw new Error("InsForge no devolvió URL firmada");
-        const r2 = await fetch(signedUrl);
-        if (!r2.ok) throw new Error(`Error descargando PDF desde URL firmada: ${r2.status}`);
-        pdfBuffer = Buffer.from(await r2.arrayBuffer());
-      } else {
-        pdfBuffer = Buffer.from(await res.arrayBuffer());
-      }
-    } else {
-      const pdfRes = await fetch(rawUrl);
-      if (!pdfRes.ok) throw new Error(`No se pudo descargar el PDF: ${pdfRes.status}`);
-      pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
-    }
+    // Decodificar el PDF base64 enviado desde el cliente
+    const pdfBuffer = Buffer.from(pdfBase64, "base64");
 
     // Obtener carpeta Ingresos del trimestre y actividad correctos
     const drive = getDriveClient();

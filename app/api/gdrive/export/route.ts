@@ -44,18 +44,16 @@ function getDriveClient() {
   return google.drive({ version: "v3", auth });
 }
 
-// ─── Buscar o crear carpeta (con matching case-insensitive + trim) ─────────────
+// ─── Buscar carpeta (SOLO busca, NUNCA crea) ─────────────────────────────────
 // Lista todos los subfolders del padre y busca por nombre ignorando mayúsculas
-// y espacios extra. Si no existe, la crea. Esto evita crear duplicados cuando
-// la gestora tiene nombres como "REFORMAS " (con espacio al final).
+// y espacios extra. Si no existe, lanza un error claro para mostrar al usuario.
 const folderCache = new Map<string, string>();
 
-async function getOrCreateFolder(drive: any, name: string, parentId: string): Promise<string> {
+async function findFolder(drive: any, name: string, parentId: string): Promise<string> {
   const trimmedName = name.trim();
   const cacheKey = `${parentId}/${trimmedName.toLowerCase()}`;
   if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
 
-  // Listar todas las subcarpetas y buscar por coincidencia exacta (sin case ni espacios)
   const res = await drive.files.list({
     q: `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
     fields: "files(id,name)",
@@ -68,19 +66,12 @@ async function getOrCreateFolder(drive: any, name: string, parentId: string): Pr
     (f: any) => f.name.trim().toLowerCase() === trimmedName.toLowerCase()
   );
 
-  if (match) {
-    folderCache.set(cacheKey, match.id!);
-    return match.id!;
+  if (!match) {
+    throw new Error(`Carpeta "${trimmedName}" no encontrada en Google Drive. Pide a la gestora que la cree.`);
   }
 
-  // No encontrada — crear con nombre limpio
-  const created = await drive.files.create({
-    requestBody: { name: trimmedName, mimeType: "application/vnd.google-apps.folder", parents: [parentId] },
-    fields: "id",
-    supportsAllDrives: true,
-  });
-  folderCache.set(cacheKey, created.data.id!);
-  return created.data.id!;
+  folderCache.set(cacheKey, match.id!);
+  return match.id!;
 }
 
 // ─── Obtener carpeta destino Gastos ──────────────────────────────────────────
@@ -106,17 +97,17 @@ async function getGastosFolderId(
     throw new Error(`Empresa desconocida: ${empresa}`);
   }
 
-  const facturasId  = await getOrCreateFolder(drive, `FACTURAS ${anio}`, rootId);
-  const trimestreId = await getOrCreateFolder(drive, trimestre, facturasId);
-  const actividadId = await getOrCreateFolder(drive, actividad, trimestreId);
+  const facturasId  = await findFolder(drive, `FACTURAS ${anio}`, rootId);
+  const trimestreId = await findFolder(drive, trimestre, facturasId);
+  const actividadId = await findFolder(drive, actividad, trimestreId);
 
   // FLIPPING HOUSE: nivel extra con el inmueble específico
   if (actividad.toUpperCase() === "FLIPPING HOUSE" && subInmueble) {
-    const inmuebleId = await getOrCreateFolder(drive, subInmueble, actividadId);
-    return await getOrCreateFolder(drive, "Gastos", inmuebleId);
+    const inmuebleId = await findFolder(drive, subInmueble, actividadId);
+    return await findFolder(drive, "Gastos", inmuebleId);
   }
 
-  return await getOrCreateFolder(drive, "Gastos", actividadId);
+  return await findFolder(drive, "Gastos", actividadId);
 }
 
 // ─── Descargar PDF desde InsForge Storage ─────────────────────────────────────
