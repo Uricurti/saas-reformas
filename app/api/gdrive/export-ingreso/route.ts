@@ -8,9 +8,12 @@
  *
  * Body: {
  *   factura_id: string,        // ID de la factura en la DB
- *   fecha_cobro: string,       // "2026-05-15" → determina trimestre
+ *   fecha_cobro?: string,      // fallback si la factura no tiene fecha_emision
  *   empresa?: string           // "carranzacortina" | "reforlife"
  * }
+ *
+ * El trimestre se determina por fecha_emision de la factura (no por fecha_cobro).
+ * Así una factura de marzo cobrada en abril va a T1 (Ingresos), no a T2.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
@@ -115,8 +118,8 @@ export async function POST(req: NextRequest) {
   try {
     const { factura_id, fecha_cobro, empresa = "carranzacortina" } = await req.json();
 
-    if (!factura_id || !fecha_cobro) {
-      return NextResponse.json({ error: "Faltan factura_id o fecha_cobro" }, { status: 400 });
+    if (!factura_id) {
+      return NextResponse.json({ error: "Falta factura_id" }, { status: 400 });
     }
 
     // Obtener la factura de la DB
@@ -124,6 +127,13 @@ export async function POST(req: NextRequest) {
     if (!factura) {
       return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 });
     }
+
+    // La fecha para determinar el trimestre es SIEMPRE la fecha de emisión de la factura.
+    // Fallback a fecha_cobro si no tiene fecha_emision (facturas muy antiguas).
+    const fechaParaTrimestre: string =
+      (factura.fecha_emision ?? "").split("T")[0]   // "2026-03-15T..." → "2026-03-15"
+      || fecha_cobro
+      || new Date().toISOString().split("T")[0];
 
     // Si ya está en Drive, devolver la URL existente
     if (factura.gdrive_url) {
@@ -154,7 +164,7 @@ export async function POST(req: NextRequest) {
     // Obtener carpeta Ingresos del trimestre correcto
     const drive = getDriveClient();
     folderCache.clear();
-    const ingresosFolderId = await getIngresosFolderId(drive, empresa, fecha_cobro);
+    const ingresosFolderId = await getIngresosFolderId(drive, empresa, fechaParaTrimestre);
 
     // Nombre del archivo: número de factura o ID
     const filename = factura.numero_factura
