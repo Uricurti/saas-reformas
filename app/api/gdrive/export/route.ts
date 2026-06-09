@@ -98,17 +98,30 @@ async function getGastosFolderId(drive: any, empresa: string, anio: number, mes:
 
 // ─── Descargar PDF desde InsForge Storage ─────────────────────────────────────
 async function downloadPdf(pdfUrl: string): Promise<Buffer> {
-  let url = pdfUrl;
   if (!pdfUrl.startsWith("http")) {
+    // Clave de storage — pedir al API de InsForge
     const res = await fetch(
       `${INSFORGE_URL}/api/storage/buckets/obras-media/objects/${encodeURIComponent(pdfUrl)}`,
       { headers: { "x-api-key": SERVICE_KEY } }
     );
-    if (!res.ok) throw new Error(`No se pudo obtener URL del PDF: ${res.status}`);
-    const data = await res.json();
-    url = data.signedUrl ?? data.url ?? pdfUrl;
+    if (!res.ok) throw new Error(`No se pudo obtener el PDF del storage: ${res.status}`);
+
+    // InsForge puede devolver el binario directamente O un JSON con signedUrl
+    const ct = res.headers.get("content-type") ?? "";
+    if (ct.includes("application/json")) {
+      const data = await res.json();
+      const signedUrl = data.signedUrl ?? data.url;
+      if (!signedUrl) throw new Error("InsForge no devolvió URL firmada");
+      const r2 = await fetch(signedUrl);
+      if (!r2.ok) throw new Error(`Error descargando PDF desde URL firmada: ${r2.status}`);
+      return Buffer.from(await r2.arrayBuffer());
+    }
+    // Respuesta binaria directa (PDF)
+    return Buffer.from(await res.arrayBuffer());
   }
-  const res = await fetch(url);
+
+  // Ya es una URL pública
+  const res = await fetch(pdfUrl);
   if (!res.ok) throw new Error(`No se pudo descargar el PDF: ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
 }

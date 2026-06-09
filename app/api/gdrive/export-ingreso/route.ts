@@ -146,20 +146,36 @@ export async function POST(req: NextRequest) {
     }
 
     // Descargar PDF desde InsForge Storage
-    let pdfUrl = factura.archivo_url as string;
-    if (!pdfUrl.startsWith("http")) {
+    const rawUrl = factura.archivo_url as string;
+    let pdfBuffer: Buffer;
+
+    if (!rawUrl.startsWith("http")) {
+      // Clave de storage — pedir al API de InsForge
       const res = await fetch(
-        `${INSFORGE_URL}/api/storage/buckets/obras-media/objects/${encodeURIComponent(pdfUrl)}`,
+        `${INSFORGE_URL}/api/storage/buckets/obras-media/objects/${encodeURIComponent(rawUrl)}`,
         { headers: { "x-api-key": SERVICE_KEY } }
       );
-      if (!res.ok) throw new Error(`No se pudo obtener URL del PDF: ${res.status}`);
-      const data = await res.json();
-      pdfUrl = data.signedUrl ?? data.url ?? pdfUrl;
-    }
+      if (!res.ok) throw new Error(`No se pudo obtener el PDF del storage: ${res.status}`);
 
-    const pdfRes = await fetch(pdfUrl);
-    if (!pdfRes.ok) throw new Error(`No se pudo descargar el PDF: ${pdfRes.status}`);
-    const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
+      // InsForge puede devolver el binario directamente O un JSON con signedUrl
+      const ct = res.headers.get("content-type") ?? "";
+      if (ct.includes("application/json")) {
+        const data = await res.json();
+        const signedUrl = data.signedUrl ?? data.url;
+        if (!signedUrl) throw new Error("InsForge no devolvió URL firmada");
+        const r2 = await fetch(signedUrl);
+        if (!r2.ok) throw new Error(`Error descargando PDF desde URL firmada: ${r2.status}`);
+        pdfBuffer = Buffer.from(await r2.arrayBuffer());
+      } else {
+        // Respuesta binaria directa
+        pdfBuffer = Buffer.from(await res.arrayBuffer());
+      }
+    } else {
+      // Ya es una URL pública
+      const pdfRes = await fetch(rawUrl);
+      if (!pdfRes.ok) throw new Error(`No se pudo descargar el PDF: ${pdfRes.status}`);
+      pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
+    }
 
     // Obtener carpeta Ingresos del trimestre correcto
     const drive = getDriveClient();
