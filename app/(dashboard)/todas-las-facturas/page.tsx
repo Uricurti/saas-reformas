@@ -149,7 +149,7 @@ function BtnCobrar({
 }) {
   const [loading, setLoading] = useState(false);
 
-  if (fila.tipo !== "directa" || fila.estado === "cobrada") return null;
+  if (fila.estado === "cobrada") return null;
 
   async function cobrar(e: React.MouseEvent) {
     e.stopPropagation();
@@ -159,7 +159,12 @@ function BtnCobrar({
       const res  = await fetch("/api/facturacion/cobrar", {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ accion: "cobrar", factura_id: fila.factura_id }),
+        body:    JSON.stringify({
+          accion:     "cobrar",
+          factura_id: fila.factura_id,
+          // Para obras: actuar solo sobre el pago concreto
+          pago_id:    fila.tipo === "obra" ? fila.pago_id : undefined,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
