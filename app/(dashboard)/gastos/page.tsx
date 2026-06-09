@@ -269,7 +269,7 @@ function BtnDrive({ g, onExported }: { g: Gasto; onExported: (id: string, url: s
         transition: "background 0.15s",
       }}
     >
-      <FolderOpen style={{ width: 15, height: 15 }} />
+      <GoogleDriveIcon size={15} />
     </button>
   );
 }
