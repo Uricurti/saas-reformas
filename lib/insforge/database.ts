@@ -1232,7 +1232,7 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
   const finAnioAnt    = `${anio - 1}-12-31T23:59:59`;
 
   // ── 1. Pagos del año actual y anterior ──────────────────────────
-  const [pagosRes, pagosAntRes, jornadasRes, materialesRes, obrasRes, facturasRes] = await Promise.all([
+  const [pagosRes, pagosAntRes, jornadasRes, materialesRes, obrasRes, facturasRes, gastosRes] = await Promise.all([
     insforge.database.from("pagos").select("*")
       .eq("tenant_id", tenantId)
       .gte("created_at", inicioAnio).lte("created_at", finAnio),
@@ -1253,6 +1253,10 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
     insforge.database.from("obras").select("id, nombre").eq("tenant_id", tenantId),
     // IVA por factura para calcular totales con IVA incluido
     insforge.database.from("facturas").select("id, porcentaje_iva").eq("tenant_id", tenantId),
+    // Gastos de material (Obramat) del año actual
+    insforge.database.from("gastos").select("importe_base, importe_total, mes, anio, fecha_factura")
+      .eq("tenant_id", tenantId)
+      .eq("anio", anio),
   ]);
 
   const pagos      = (pagosRes.data     ?? []) as Pago[];
@@ -1260,6 +1264,8 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
   const jornadas   = (jornadasRes.data  ?? []) as any[];
   const materiales = (materialesRes.data ?? []) as any[];
   const obras      = (obrasRes.data     ?? []) as { id: string; nombre: string }[];
+  // Gastos de material externo (Obramat, etc.)
+  const gastosObramat = (gastosRes.data ?? []) as { importe_base: number; importe_total: number; mes: number; anio: number; fecha_factura: string }[];
   const obraMap    = Object.fromEntries(obras.map((o) => [o.id, o.nombre]));
   // Mapa factura_id → porcentaje_iva (para calcular totales con IVA)
   const facturaIvaMap: Record<string, number> = {};
@@ -1320,7 +1326,10 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
   const pendienteCobrosA = totalFacturadoA - totalCobradoA;
   const pendienteCobrosB = totalFacturadoB - totalCobradoB;
   const costeEmpleados    = jornadas.reduce((s: number, j: any) => s + costeJornada(j), 0);
-  const costeMateriales   = materiales.reduce((s: number, m: any) => s + costeMaterial(m), 0);
+  const costeMatObras     = materiales.reduce((s: number, m: any) => s + costeMaterial(m), 0);
+  // Gastos de material externo (Obramat): usamos importe_base (sin IVA) igual que los materiales de obra
+  const costeMatObramat   = gastosObramat.reduce((s, g) => s + (g.importe_base ?? 0), 0);
+  const costeMateriales   = costeMatObras + costeMatObramat;
   const margenBruto       = totalFacturado - costeEmpleados - costeMateriales;
   const margenPct         = totalFacturado > 0 ? (margenBruto / totalFacturado) * 100 : 0;
 
@@ -1378,8 +1387,12 @@ export async function getFinanzasDashboard(tenantId: string): Promise<DashboardF
 
     const cemp = jornadas.filter((j: any) => j.fecha >= ini && j.fecha <= fin.slice(0, 10))
       .reduce((s: number, j: any) => s + costeJornada(j), 0);
-    const cmat = materiales.filter((m2: any) => m2.created_at >= ini && m2.created_at <= fin)
+    const cmatObras = materiales.filter((m2: any) => m2.created_at >= ini && m2.created_at <= fin)
       .reduce((s: number, m2: any) => s + costeMaterial(m2), 0);
+    // Gastos externos (Obramat) del mes
+    const cmatObramat = gastosObramat.filter((g) => g.mes === m)
+      .reduce((s, g) => s + (g.importe_base ?? 0), 0);
+    const cmat = cmatObras + cmatObramat;
     // Año anterior: sin mapa IVA → usamos 21% por defecto
     const anioAnterior = pagosAnt.filter((p) => p.created_at >= iniA && p.created_at <= finA)
       .reduce((s, p) => s + p.importe_total * 1.21, 0);
