@@ -1,19 +1,21 @@
 /**
  * POST /api/gdrive/export-ingreso
  *
- * Se llama automáticamente cuando un pago se marca como "cobrado".
- * Sube el PDF de la factura a la carpeta de Ingresos en Drive.
- *
- * Estructura: {empresa} / facturas {año} / T{1-4} / Ingresos /
+ * Se llama cuando un ingreso/factura se marca como "cobrado".
+ * Sube el PDF al Drive en la carpeta correcta según la actividad.
+ * Estructura: FACTURAS {año} / T{1-4} / {actividad} / [subInmueble/] Ingresos /
+ *   - actividad: "REFORMAS" | "GESTIÓN" | "FLIPPING HOUSE"  (default: REFORMAS)
+ *   - subInmueble: solo si actividad === "FLIPPING HOUSE"
  *
  * Body: {
- *   factura_id: string,        // ID de la factura en la DB
- *   fecha_cobro?: string,      // fallback si la factura no tiene fecha_emision
- *   empresa?: string           // "carranzacortina" | "reforlife"
+ *   factura_id: string,
+ *   fecha_cobro?: string,
+ *   empresa?: string,
+ *   actividad?: string,
+ *   subInmueble?: string,
  * }
  *
  * El trimestre se determina por fecha_emision de la factura (no por fecha_cobro).
- * Así una factura de marzo cobrada en abril va a T1 (Ingresos), no a T2.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
@@ -30,7 +32,7 @@ const TRIMESTRE: Record<number, string> = {
   10:"T4", 11:"T4", 12:"T4",
 };
 
-// Carpeta oficial: CARRANZACORTINAINTERIORS SL - COMPARTIDA (Shared Drive de la gestora)
+// Carpeta oficial: CARRANZACORTINAINTERIORS SL - COMPARTIDA (Shared Drive gestora)
 const GDRIVE_ROOT_CARRANZA  = process.env.GDRIVE_ROOT_CARRANZA  ?? "1bZj_53iRTfh4eYvpVg8b01R27Covvzkf";
 const GDRIVE_ROOT_REFORLIFE = process.env.GDRIVE_ROOT_REFORLIFE ?? "";
 
@@ -45,35 +47,49 @@ function getDriveClient() {
   return google.drive({ version: "v3", auth });
 }
 
+// ─── Buscar o crear carpeta (con matching case-insensitive + trim) ─────────────
 const folderCache = new Map<string, string>();
 
 async function getOrCreateFolder(drive: any, name: string, parentId: string): Promise<string> {
-  const key = `${parentId}/${name}`;
-  if (folderCache.has(key)) return folderCache.get(key)!;
+  const trimmedName = name.trim();
+  const cacheKey = `${parentId}/${trimmedName.toLowerCase()}`;
+  if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
 
   const res = await drive.files.list({
-    q: `'${parentId}' in parents and name = '${name.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-    fields: "files(id)",
-    pageSize: 1,
+    q: `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: "files(id,name)",
+    pageSize: 100,
     includeItemsFromAllDrives: true,
     supportsAllDrives: true,
   });
 
-  if (res.data.files?.length) {
-    folderCache.set(key, res.data.files[0].id!);
-    return res.data.files[0].id!;
+  const match = (res.data.files ?? []).find(
+    (f: any) => f.name.trim().toLowerCase() === trimmedName.toLowerCase()
+  );
+
+  if (match) {
+    folderCache.set(cacheKey, match.id!);
+    return match.id!;
   }
 
   const created = await drive.files.create({
-    requestBody: { name, mimeType: "application/vnd.google-apps.folder", parents: [parentId] },
+    requestBody: { name: trimmedName, mimeType: "application/vnd.google-apps.folder", parents: [parentId] },
     fields: "id",
     supportsAllDrives: true,
   });
-  folderCache.set(key, created.data.id!);
+  folderCache.set(cacheKey, created.data.id!);
   return created.data.id!;
 }
 
-async function getIngresosFolderId(drive: any, empresa: string, fecha: string): Promise<string> {
+// ─── Obtener carpeta destino Ingresos ─────────────────────────────────────────
+// Navega: raíz → FACTURAS {año} → T{n} → {actividad} → [subInmueble →] Ingresos
+async function getIngresosFolderId(
+  drive: any,
+  empresa: string,
+  fecha: string,
+  actividad: string = "REFORMAS",
+  subInmueble?: string,
+): Promise<string> {
   const [anioStr, mesStr] = fecha.split("-");
   const mes = parseInt(mesStr);
   const trimestre = TRIMESTRE[mes];
@@ -89,9 +105,17 @@ async function getIngresosFolderId(drive: any, empresa: string, fecha: string): 
     throw new Error(`Empresa desconocida: ${empresa}`);
   }
 
-  const facturasId  = await getOrCreateFolder(drive, `facturas ${anioStr}`, rootId);
+  const facturasId  = await getOrCreateFolder(drive, `FACTURAS ${anioStr}`, rootId);
   const trimestreId = await getOrCreateFolder(drive, trimestre, facturasId);
-  return await getOrCreateFolder(drive, "Ingresos", trimestreId);
+  const actividadId = await getOrCreateFolder(drive, actividad, trimestreId);
+
+  // FLIPPING HOUSE: nivel extra con el inmueble específico
+  if (actividad.toUpperCase() === "FLIPPING HOUSE" && subInmueble) {
+    const inmuebleId = await getOrCreateFolder(drive, subInmueble, actividadId);
+    return await getOrCreateFolder(drive, "Ingresos", inmuebleId);
+  }
+
+  return await getOrCreateFolder(drive, "Ingresos", actividadId);
 }
 
 async function dbGet(path: string) {
@@ -118,7 +142,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { factura_id, fecha_cobro, empresa = "carranzacortina" } = await req.json();
+    const {
+      factura_id,
+      fecha_cobro,
+      empresa = "carranzacortina",
+      actividad = "REFORMAS",
+      subInmueble,
+    } = await req.json();
 
     if (!factura_id) {
       return NextResponse.json({ error: "Falta factura_id" }, { status: 400 });
@@ -130,10 +160,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 });
     }
 
-    // La fecha para determinar el trimestre es SIEMPRE la fecha de emisión de la factura.
-    // Fallback a fecha_cobro si no tiene fecha_emision (facturas muy antiguas).
+    // La fecha para determinar el trimestre es SIEMPRE la fecha de emisión.
+    // Fallback a fecha_cobro si no tiene fecha_emision.
     const fechaParaTrimestre: string =
-      (factura.fecha_emision ?? "").split("T")[0]   // "2026-03-15T..." → "2026-03-15"
+      (factura.fecha_emision ?? "").split("T")[0]
       || fecha_cobro
       || new Date().toISOString().split("T")[0];
 
@@ -142,7 +172,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, gdrive_url: factura.gdrive_url, ya_existia: true });
     }
 
-    // Necesitamos el PDF — archivo_url puede ser key de storage o URL
     if (!factura.archivo_url) {
       return NextResponse.json({ ok: false, error: "La factura no tiene PDF generado aún" }, { status: 422 });
     }
@@ -152,14 +181,12 @@ export async function POST(req: NextRequest) {
     let pdfBuffer: Buffer;
 
     if (!rawUrl.startsWith("http")) {
-      // Clave de storage — pedir al API de InsForge
       const res = await fetch(
         `${INSFORGE_URL}/api/storage/buckets/obras-media/objects/${encodeURIComponent(rawUrl)}`,
         { headers: { "x-api-key": SERVICE_KEY } }
       );
       if (!res.ok) throw new Error(`No se pudo obtener el PDF del storage: ${res.status}`);
 
-      // InsForge puede devolver el binario directamente O un JSON con signedUrl
       const ct = res.headers.get("content-type") ?? "";
       if (ct.includes("application/json")) {
         const data = await res.json();
@@ -169,43 +196,43 @@ export async function POST(req: NextRequest) {
         if (!r2.ok) throw new Error(`Error descargando PDF desde URL firmada: ${r2.status}`);
         pdfBuffer = Buffer.from(await r2.arrayBuffer());
       } else {
-        // Respuesta binaria directa
         pdfBuffer = Buffer.from(await res.arrayBuffer());
       }
     } else {
-      // Ya es una URL pública
       const pdfRes = await fetch(rawUrl);
       if (!pdfRes.ok) throw new Error(`No se pudo descargar el PDF: ${pdfRes.status}`);
       pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
     }
 
-    // Obtener carpeta Ingresos del trimestre correcto
+    // Obtener carpeta Ingresos del trimestre y actividad correctos
     const drive = getDriveClient();
     folderCache.clear();
-    const ingresosFolderId = await getIngresosFolderId(drive, empresa, fechaParaTrimestre);
 
-    // Nombre del archivo: número de factura o ID
+    const actividadFinal  = actividad ?? "REFORMAS";
+    const subInmuebleFinal = actividadFinal.toUpperCase() === "FLIPPING HOUSE" ? subInmueble : undefined;
+
+    const ingresosFolderId = await getIngresosFolderId(
+      drive, empresa, fechaParaTrimestre, actividadFinal, subInmuebleFinal
+    );
+
     const filename = factura.numero_factura
       ? `${factura.numero_factura}.pdf`
       : `factura-${factura_id}.pdf`;
 
-    // Subir a Drive
-    const uploaded = await drive.files.create({
+    await drive.files.create({
       requestBody: {
         name: filename,
         mimeType: "application/pdf",
         parents: [ingresosFolderId],
       },
       media: { mimeType: "application/pdf", body: Readable.from(pdfBuffer) },
-      fields: "id, webViewLink",
+      fields: "id",
       supportsAllDrives: true,
     });
 
-    // Guardamos la URL de la CARPETA para que el usuario pueda localizar
-    // y verificar la ubicación exacta del PDF dentro del Drive.
+    // Guardamos la URL de la CARPETA para que el usuario pueda verificar
     const driveUrl = `https://drive.google.com/drive/folders/${ingresosFolderId}`;
 
-    // Guardar gdrive_url en la DB
     await dbPatch(`/api/database/records/facturas?id=eq.${factura_id}`, { gdrive_url: driveUrl });
 
     return NextResponse.json({ ok: true, gdrive_url: driveUrl });

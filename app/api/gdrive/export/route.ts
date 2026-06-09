@@ -1,11 +1,13 @@
 /**
  * POST /api/gdrive/export
  *
- * Sube PDFs de facturas al Google Drive de la gestora.
- * Estructura: {empresa} / facturas {año} / T{1-4} / Gastos /
+ * Sube PDFs de gastos al Google Drive de la gestora.
+ * Estructura: FACTURAS {año} / T{1-4} / {actividad} / [subInmueble/] Gastos /
+ *   - actividad: "REFORMAS" | "GESTIÓN" | "FLIPPING HOUSE"  (default: REFORMAS)
+ *   - subInmueble: solo si actividad === "FLIPPING HOUSE"
  *
  * Body: {
- *   facturas: Array<{ id?, numero, pdf_url, mes, anio }>
+ *   facturas: Array<{ id?, numero, pdf_url, mes, anio, actividad?, subInmueble? }>
  *   empresa?: "carranzacortina" | "reforlife"   (default: carranzacortina)
  * }
  */
@@ -25,11 +27,8 @@ const TRIMESTRE: Record<number, string> = {
   10:"T4", 11:"T4", 12:"T4",
 };
 
-// ─── IDs de carpetas raíz (configurables via env vars) ───────────────────────
-// Cambiar estas variables cuando se use la carpeta real de la gestora.
-// La estructura esperada dentro de cada raíz es:
-//   facturas {año} / T{1-4} / Gastos /
-// Carpeta oficial: CARRANZACORTINAINTERIORS SL - COMPARTIDA (Shared Drive de la gestora)
+// ─── IDs de carpetas raíz ─────────────────────────────────────────────────────
+// Carpeta oficial: CARRANZACORTINAINTERIORS SL - COMPARTIDA (Shared Drive gestora)
 const GDRIVE_ROOT_CARRANZA  = process.env.GDRIVE_ROOT_CARRANZA  ?? "1bZj_53iRTfh4eYvpVg8b01R27Covvzkf";
 const GDRIVE_ROOT_REFORLIFE = process.env.GDRIVE_ROOT_REFORLIFE ?? ""; // pendiente de acceso
 
@@ -45,41 +44,56 @@ function getDriveClient() {
   return google.drive({ version: "v3", auth });
 }
 
-// ─── Buscar o crear carpeta ───────────────────────────────────────────────────
+// ─── Buscar o crear carpeta (con matching case-insensitive + trim) ─────────────
+// Lista todos los subfolders del padre y busca por nombre ignorando mayúsculas
+// y espacios extra. Si no existe, la crea. Esto evita crear duplicados cuando
+// la gestora tiene nombres como "REFORMAS " (con espacio al final).
 const folderCache = new Map<string, string>();
 
 async function getOrCreateFolder(drive: any, name: string, parentId: string): Promise<string> {
-  const key = `${parentId}/${name}`;
-  if (folderCache.has(key)) return folderCache.get(key)!;
+  const trimmedName = name.trim();
+  const cacheKey = `${parentId}/${trimmedName.toLowerCase()}`;
+  if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
 
+  // Listar todas las subcarpetas y buscar por coincidencia exacta (sin case ni espacios)
   const res = await drive.files.list({
-    q: `'${parentId}' in parents and name = '${name.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-    fields: "files(id)",
-    pageSize: 1,
+    q: `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: "files(id,name)",
+    pageSize: 100,
     includeItemsFromAllDrives: true,
     supportsAllDrives: true,
   });
 
-  if (res.data.files?.length) {
-    folderCache.set(key, res.data.files[0].id!);
-    return res.data.files[0].id!;
+  const match = (res.data.files ?? []).find(
+    (f: any) => f.name.trim().toLowerCase() === trimmedName.toLowerCase()
+  );
+
+  if (match) {
+    folderCache.set(cacheKey, match.id!);
+    return match.id!;
   }
 
+  // No encontrada — crear con nombre limpio
   const created = await drive.files.create({
-    requestBody: { name, mimeType: "application/vnd.google-apps.folder", parents: [parentId] },
+    requestBody: { name: trimmedName, mimeType: "application/vnd.google-apps.folder", parents: [parentId] },
     fields: "id",
     supportsAllDrives: true,
   });
-  folderCache.set(key, created.data.id!);
+  folderCache.set(cacheKey, created.data.id!);
   return created.data.id!;
 }
 
-// ─── Obtener carpeta destino para una factura ─────────────────────────────────
-// Navega por nombre: raíz → "facturas {año}" → "T{n}" → "Gastos"
-// Si alguna subcarpeta no existe, la crea automáticamente.
-async function getGastosFolderId(drive: any, empresa: string, anio: number, mes: number): Promise<string> {
+// ─── Obtener carpeta destino Gastos ──────────────────────────────────────────
+// Navega: raíz → FACTURAS {año} → T{n} → {actividad} → [subInmueble →] Gastos
+async function getGastosFolderId(
+  drive: any,
+  empresa: string,
+  anio: number,
+  mes: number,
+  actividad: string = "REFORMAS",
+  subInmueble?: string,
+): Promise<string> {
   const trimestre = TRIMESTRE[mes];
-  const anioStr   = String(anio);
 
   let rootId: string;
   if (empresa === "carranzacortina") {
@@ -92,10 +106,17 @@ async function getGastosFolderId(drive: any, empresa: string, anio: number, mes:
     throw new Error(`Empresa desconocida: ${empresa}`);
   }
 
-  // Navegar por nombre (funciona con cualquier año y estructura futura)
-  const facturasId  = await getOrCreateFolder(drive, `facturas ${anioStr}`, rootId);
+  const facturasId  = await getOrCreateFolder(drive, `FACTURAS ${anio}`, rootId);
   const trimestreId = await getOrCreateFolder(drive, trimestre, facturasId);
-  return await getOrCreateFolder(drive, "Gastos", trimestreId);
+  const actividadId = await getOrCreateFolder(drive, actividad, trimestreId);
+
+  // FLIPPING HOUSE: nivel extra con el inmueble específico
+  if (actividad.toUpperCase() === "FLIPPING HOUSE" && subInmueble) {
+    const inmuebleId = await getOrCreateFolder(drive, subInmueble, actividadId);
+    return await getOrCreateFolder(drive, "Gastos", inmuebleId);
+  }
+
+  return await getOrCreateFolder(drive, "Gastos", actividadId);
 }
 
 // ─── Descargar PDF desde InsForge Storage ─────────────────────────────────────
@@ -155,6 +176,8 @@ export async function POST(req: NextRequest) {
         pdf_url: string;
         mes: number;
         anio: number;
+        actividad?: string;    // default: REFORMAS
+        subInmueble?: string;  // solo para FLIPPING HOUSE
       }>;
       empresa?: string;
     };
@@ -170,26 +193,31 @@ export async function POST(req: NextRequest) {
 
     for (const factura of facturas) {
       try {
-        // Obtener carpeta destino: {empresa} / facturas {año} / T{n} / Gastos
-        const gastosFolderId = await getGastosFolderId(drive, empresa, factura.anio, factura.mes);
+        const actividad   = factura.actividad ?? "REFORMAS";
+        const subInmueble = actividad.toUpperCase() === "FLIPPING HOUSE" ? factura.subInmueble : undefined;
+
+        // Obtener carpeta destino según actividad
+        const gastosFolderId = await getGastosFolderId(
+          drive, empresa, factura.anio, factura.mes, actividad, subInmueble
+        );
 
         // Descargar PDF desde InsForge Storage
         const pdfBuffer = await downloadPdf(factura.pdf_url);
 
         // Subir a Drive
-        const uploaded = await drive.files.create({
+        await drive.files.create({
           requestBody: {
             name: `${factura.numero}.pdf`,
             mimeType: "application/pdf",
             parents: [gastosFolderId],
           },
           media: { mimeType: "application/pdf", body: Readable.from(pdfBuffer) },
-          fields: "id, webViewLink",
+          fields: "id",
           supportsAllDrives: true,
         });
 
-        // Guardamos la URL de la CARPETA (no del archivo) para que el usuario
-        // pueda localizar y verificar dónde está colocado el PDF en Drive.
+        // Guardamos la URL de la CARPETA para que el usuario pueda verificar
+        // exactamente dónde está colocado el PDF en Drive.
         const driveUrl = `https://drive.google.com/drive/folders/${gastosFolderId}`;
 
         // Persistir en la DB

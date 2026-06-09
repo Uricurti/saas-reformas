@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useIsAdmin, useTenantId } from "@/lib/stores/auth-store";
 import { getFacturasByObra, getObraById } from "@/lib/insforge/database";
@@ -104,32 +105,44 @@ function exportCSV(rows: FilaFactura[]) {
   a.click(); URL.revokeObjectURL(url);
 }
 
-// ─── Botón Drive (subir / ver) ───────────────────────────────────────────────────
+// ─── Botón Drive (subir / ver) con selector de actividad ─────────────────────
 function BtnDriveIngreso({
-  rowId, factura_id, fecha, gdrive_url: initialUrl, onUploaded,
+  rowId, factura_id, fecha, gdrive_url: initialUrl, numero, onUploaded,
 }: {
   rowId: string;
   factura_id: string;
   fecha: string | null;
   gdrive_url: string | null;
+  numero?: string;
   onUploaded: (rowId: string, url: string) => void;
 }) {
-  const [state, setState] = useState<"idle" | "uploading" | "done">(initialUrl ? "done" : "idle");
-  const [url, setUrl]     = useState<string | null>(initialUrl);
+  const [state, setState]             = useState<"idle" | "selecting" | "uploading" | "done">(initialUrl ? "done" : "idle");
+  const [localUrl, setLocalUrl]       = useState<string | null>(initialUrl);
+  const [actividad, setActividad]     = useState("REFORMAS");
+  const [subInmueble, setSubInmueble] = useState("");
 
-  async function upload(e: React.MouseEvent) {
-    e.stopPropagation();
+  // Sincronizar si el padre actualiza la URL (ej. al recargar)
+  useEffect(() => {
+    if (initialUrl) { setState("done"); setLocalUrl(initialUrl); }
+  }, [initialUrl]);
+
+  async function upload() {
     setState("uploading");
     const fechaCobro = fecha ?? new Date().toISOString().split("T")[0];
     try {
-      const res  = await fetch("/api/gdrive/export-ingreso", {
+      const res = await fetch("/api/gdrive/export-ingreso", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-secret": "obramat-sync-2026-secret" },
-        body: JSON.stringify({ factura_id, fecha_cobro: fechaCobro }),
+        body: JSON.stringify({
+          factura_id,
+          fecha_cobro: fechaCobro,
+          actividad,
+          subInmueble: actividad === "FLIPPING HOUSE" ? subInmueble : undefined,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.gdrive_url) {
-        setUrl(data.gdrive_url);
+        setLocalUrl(data.gdrive_url);
         setState("done");
         onUploaded(rowId, data.gdrive_url);
       } else {
@@ -141,15 +154,16 @@ function BtnDriveIngreso({
     }
   }
 
-  if (state === "done" && url) {
+  if (state === "done" && localUrl) {
     return (
-      <a href={url} target="_blank" rel="noopener noreferrer" title="Ver carpeta en Google Drive"
+      <a href={localUrl} target="_blank" rel="noopener noreferrer" title="Ver carpeta en Google Drive"
         className="p-1.5 rounded-lg bg-green-50 hover:bg-green-100 transition-colors flex items-center justify-center"
         onClick={(e) => e.stopPropagation()}>
         <CheckCircle2 className="w-4 h-4 text-green-600" />
       </a>
     );
   }
+
   if (state === "uploading") {
     return (
       <span className="p-1.5 flex items-center justify-center">
@@ -157,11 +171,116 @@ function BtnDriveIngreso({
       </span>
     );
   }
+
+  const canUpload = actividad !== "FLIPPING HOUSE" || !!subInmueble;
+
   return (
-    <button onClick={upload} title="Subir a Google Drive"
-      className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 flex items-center justify-center">
-      <GoogleDriveIcon size={14} />
-    </button>
+    <>
+      {/* Botón Drive (visible al hover) */}
+      <button
+        onClick={(e) => { e.stopPropagation(); setState("selecting"); }}
+        title="Subir a Google Drive"
+        className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 flex items-center justify-center"
+      >
+        <GoogleDriveIcon size={14} />
+      </button>
+
+      {/* Modal de selección (portal sobre todo el DOM) */}
+      {state === "selecting" && createPortal(
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(0,0,0,0.35)", backdropFilter: "blur(2px)",
+          }}
+          onClick={() => setState("idle")}
+        >
+          <div
+            style={{
+              background: "#fff", borderRadius: 16, padding: "20px 24px",
+              boxShadow: "0 16px 48px rgba(0,0,0,0.2)", minWidth: 260, maxWidth: 320,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p style={{ fontSize: 14, fontWeight: 700, color: "#1A1A2E", marginBottom: 4 }}>
+              Subir a Google Drive
+            </p>
+            {numero && (
+              <p style={{ fontSize: 11, color: "#94A3B8", marginBottom: 16 }}>
+                Factura: {numero}
+              </p>
+            )}
+
+            {/* Selector actividad */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>
+                Actividad
+              </label>
+              <select
+                value={actividad}
+                onChange={e => { setActividad(e.target.value); setSubInmueble(""); }}
+                style={{
+                  width: "100%", padding: "7px 10px", borderRadius: 8,
+                  border: "1px solid #E2E8F0", fontSize: 13, color: "#1A1A2E", background: "#F8FAFC",
+                }}
+              >
+                <option value="REFORMAS">REFORMAS</option>
+                <option value="GESTIÓN">GESTIÓN</option>
+                <option value="FLIPPING HOUSE">FLIPPING HOUSE</option>
+              </select>
+            </div>
+
+            {/* Selector inmueble (solo FLIPPING HOUSE) */}
+            {actividad === "FLIPPING HOUSE" && (
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>
+                  Inmueble
+                </label>
+                <select
+                  value={subInmueble}
+                  onChange={e => setSubInmueble(e.target.value)}
+                  style={{
+                    width: "100%", padding: "7px 10px", borderRadius: 8,
+                    border: "1px solid #E2E8F0", fontSize: 13, color: "#1A1A2E", background: "#F8FAFC",
+                  }}
+                >
+                  <option value="">Selecciona un inmueble…</option>
+                  <option value="Concepción Arenal">Concepción Arenal</option>
+                  <option value="Torres i Bages 163 Terrassa">Torres i Bages 163 Terrassa</option>
+                  <option value="Transversal">Transversal</option>
+                </select>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button
+                onClick={() => setState("idle")}
+                style={{
+                  flex: 1, padding: "9px", borderRadius: 8,
+                  border: "1px solid #E2E8F0", background: "#fff",
+                  fontSize: 13, cursor: "pointer", color: "#64748B", fontWeight: 500,
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={upload}
+                disabled={!canUpload}
+                style={{
+                  flex: 1, padding: "9px", borderRadius: 8, border: "none",
+                  background: canUpload ? "#1a73e8" : "#E2E8F0",
+                  color: canUpload ? "#fff" : "#94A3B8",
+                  fontSize: 13, cursor: canUpload ? "pointer" : "not-allowed", fontWeight: 600,
+                }}
+              >
+                Subir
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -662,6 +781,7 @@ export default function TodasLasFacturasPage() {
                   factura_id={f.factura_id}
                   fecha={f.fecha}
                   gdrive_url={f.gdrive_url}
+                  numero={f.numero}
                   onUploaded={handleDriveUploaded}
                 />
               </div>

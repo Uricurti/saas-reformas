@@ -189,20 +189,26 @@ function PDFModal({ gasto, onClose }: { gasto: Gasto; onClose: () => void }) {
   );
 }
 
-// ─── Botón Google Drive (3 estados) ────────────────────────────────────────────
+// ─── Botón Google Drive (3 estados + selectores de actividad) ──────────────────
 const GD_GREEN  = "#1a73e8";  // azul Drive
 const GD_OK     = "#10b981";  // verde "subido"
 
 function BtnDrive({ g, onExported }: { g: Gasto; onExported: (id: string, url: string) => void }) {
-  const [state, setState] = useState<"idle"|"uploading"|"done">(g.gdrive_url ? "done" : "idle");
+  const [state, setState]         = useState<"idle"|"uploading"|"done">(g.gdrive_url ? "done" : "idle");
+  const [localUrl, setLocalUrl]   = useState<string | null>(g.gdrive_url);
+  const [actividad, setActividad] = useState("REFORMAS");
+  const [subInmueble, setSubInmueble] = useState("");
 
-  // Si llega nueva data desde arriba (ej. refresh), sincronizar
-  useEffect(() => { if (g.gdrive_url) setState("done"); }, [g.gdrive_url]);
+  // Sincronizar si el padre actualiza gdrive_url (ej. al recargar)
+  useEffect(() => {
+    if (g.gdrive_url) { setState("done"); setLocalUrl(g.gdrive_url); }
+  }, [g.gdrive_url]);
 
-  if (state === "done" && g.gdrive_url) {
+  // Estado DONE: checkmark verde → abre carpeta en Drive
+  if (state === "done" && localUrl) {
     return (
       <a
-        href={g.gdrive_url}
+        href={localUrl}
         target="_blank"
         rel="noopener noreferrer"
         title="Ver carpeta en Google Drive"
@@ -218,6 +224,7 @@ function BtnDrive({ g, onExported }: { g: Gasto; onExported: (id: string, url: s
     );
   }
 
+  // Estado UPLOADING: spinner
   if (state === "uploading") {
     return (
       <div style={{
@@ -233,44 +240,100 @@ function BtnDrive({ g, onExported }: { g: Gasto; onExported: (id: string, url: s
   // idle — solo si tiene PDF
   if (!g.pdf_url) return null;
 
+  const canUpload = actividad !== "FLIPPING HOUSE" || !!subInmueble;
+
   return (
-    <button
-      title="Subir a Google Drive"
-      onClick={async () => {
-        setState("uploading");
-        try {
-          const res = await fetch("/api/gdrive/export", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-api-secret": "obramat-sync-2026-secret" },
-            body: JSON.stringify({
-              facturas: [{ id: g.id, numero: g.numero_factura, pdf_url: g.pdf_url, mes: g.mes, anio: g.anio }],
-              rootFolderId: "auto",
-            }),
-          });
-          const json = await res.json();
-          const r = json.resultados?.[0];
-          if (r?.ok && r.driveUrl) {
-            setState("done");
-            onExported(g.id, r.driveUrl);
-          } else {
+    <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+      {/* Selector de actividad */}
+      <select
+        value={actividad}
+        onChange={e => { setActividad(e.target.value); setSubInmueble(""); }}
+        onClick={e => e.stopPropagation()}
+        title="Actividad empresarial"
+        style={{
+          fontSize: 10, padding: "2px 4px", borderRadius: 6,
+          border: "1px solid #E2E8F0", background: "#F8FAFC", color: "#607eaa",
+          maxWidth: 74, cursor: "pointer", appearance: "none",
+        }}
+      >
+        <option value="REFORMAS">Reformas</option>
+        <option value="GESTIÓN">Gestión</option>
+        <option value="FLIPPING HOUSE">Flipping</option>
+      </select>
+
+      {/* Selector de inmueble (solo para FLIPPING HOUSE) */}
+      {actividad === "FLIPPING HOUSE" && (
+        <select
+          value={subInmueble}
+          onChange={e => setSubInmueble(e.target.value)}
+          onClick={e => e.stopPropagation()}
+          title="Inmueble"
+          style={{
+            fontSize: 10, padding: "2px 4px", borderRadius: 6,
+            border: "1px solid #E2E8F0", background: "#F8FAFC", color: "#607eaa",
+            maxWidth: 90, cursor: "pointer", appearance: "none",
+          }}
+        >
+          <option value="">Inmueble…</option>
+          <option value="Concepción Arenal">Concep. Arenal</option>
+          <option value="Torres i Bages 163 Terrassa">Torres i Bages</option>
+          <option value="Transversal">Transversal</option>
+        </select>
+      )}
+
+      {/* Botón Drive */}
+      <button
+        title={canUpload
+          ? `Subir a Drive · ${actividad}${subInmueble ? " › " + subInmueble : ""} › Gastos`
+          : "Selecciona el inmueble antes de subir"}
+        disabled={!canUpload}
+        onClick={async e => {
+          e.stopPropagation();
+          setState("uploading");
+          try {
+            const res = await fetch("/api/gdrive/export", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-api-secret": "obramat-sync-2026-secret" },
+              body: JSON.stringify({
+                facturas: [{
+                  id: g.id,
+                  numero: g.numero_factura,
+                  pdf_url: g.pdf_url,
+                  mes: g.mes,
+                  anio: g.anio,
+                  actividad,
+                  subInmueble: actividad === "FLIPPING HOUSE" ? subInmueble : undefined,
+                }],
+              }),
+            });
+            const json = await res.json();
+            const r = json.resultados?.[0];
+            if (r?.ok && r.driveUrl) {
+              setLocalUrl(r.driveUrl);
+              setState("done");
+              onExported(g.id, r.driveUrl);
+            } else {
+              setState("idle");
+              alert(`Error: ${r?.error ?? json.error ?? "Sin respuesta"}`);
+            }
+          } catch (err: any) {
             setState("idle");
-            alert(`Error: ${r?.error ?? json.error ?? "Sin respuesta"}`);
+            alert(`Error: ${err.message}`);
           }
-        } catch (e: any) {
-          setState("idle");
-          alert(`Error: ${e.message}`);
-        }
-      }}
-      style={{
-        width: 32, height: 32, borderRadius: 8, border: "none",
-        background: "#F0F4FF", color: GD_GREEN,
-        cursor: "pointer", flexShrink: 0,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        transition: "background 0.15s",
-      }}
-    >
-      <GoogleDriveIcon size={15} />
-    </button>
+        }}
+        style={{
+          width: 28, height: 28, borderRadius: 8, border: "none",
+          background: canUpload ? "#F0F4FF" : "#F5F5F5",
+          color: canUpload ? GD_GREEN : "#CBD5E0",
+          cursor: canUpload ? "pointer" : "not-allowed",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "background 0.15s", flexShrink: 0,
+          opacity: canUpload ? 1 : 0.5,
+        }}
+      >
+        <GoogleDriveIcon size={14} />
+      </button>
+    </div>
   );
 }
 
